@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -246,6 +247,7 @@ fun WorkoutModeSheet(
 @Composable
 fun SessionSummaryDialog(
     session: WorkoutSession,
+    onShareSession: (WorkoutSession) -> Unit,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -310,22 +312,56 @@ fun SessionSummaryDialog(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Button(
-                    onClick = onDismiss,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = NeonLime,
-                        contentColor = Color(0xFF0A0D10)
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "LANJUT",
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
+                    Surface(
+                        onClick = { onShareSession(session) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = GlassCard,
+                        border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Share,
+                                contentDescription = "Simpan / Bagikan Kartu",
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text(
+                                text = "KARTU",
+                                color = ElectricCyan,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonLime,
+                            contentColor = Color(0xFF0A0D10)
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Text(
+                            text = "LANJUT",
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        )
+                    }
                 }
             }
         }
@@ -337,6 +373,7 @@ fun SessionSummaryDialog(
 fun WorkoutHistorySheet(
     stats: CumulativeStats,
     sessions: List<WorkoutSession>,
+    onShareSession: (WorkoutSession) -> Unit,
     onDeleteSession: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -454,12 +491,21 @@ fun WorkoutHistorySheet(
                                     )
                                 }
 
-                                IconButton(onClick = { onDeleteSession(session.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.DeleteOutline,
-                                        contentDescription = "Hapus",
-                                        tint = SoftRed.copy(alpha = 0.85f)
-                                    )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { onShareSession(session) }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Share,
+                                            contentDescription = "Simpan / Bagikan Kartu",
+                                            tint = ElectricCyan
+                                        )
+                                    }
+                                    IconButton(onClick = { onDeleteSession(session.id) }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.DeleteOutline,
+                                            contentDescription = "Hapus",
+                                            tint = SoftRed.copy(alpha = 0.85f)
+                                        )
+                                    }
                                 }
                             }
                         }

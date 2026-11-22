@@ -79,6 +79,7 @@ fun VideoAnalyzerScreen(
     result: VideoAnalysisResult?,
     errorMessage: String?,
     onPickVideo: () -> Unit,
+    onShareResult: (VideoAnalysisResult) -> Unit,
     onSaveResultToHistory: (VideoAnalysisResult) -> Unit,
     onClose: () -> Unit
 ) {
@@ -459,33 +460,44 @@ fun VideoAnalyzerScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedButton(
                                 onClick = onPickVideo,
-                                shape = RoundedCornerShape(18.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 border = BorderStroke(1.dp, GlassBorder),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(54.dp)
+                                    .height(52.dp)
                             ) {
-                                Text("VIDEO LAIN", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("VIDEO LAIN", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = { onShareResult(result) },
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.65f)),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp)
+                            ) {
+                                Text("KARTU", color = ElectricCyan, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                             }
 
                             Button(
                                 onClick = { onSaveResultToHistory(result) },
-                                shape = RoundedCornerShape(18.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = NeonLime,
                                     contentColor = Color(0xFF0A0D10)
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(54.dp)
+                                    .height(52.dp)
                             ) {
-                                Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("SIMPAN", fontWeight = FontWeight.ExtraBold)
+                                Icon(Icons.Rounded.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("SIMPAN", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                             }
                         }
                     }

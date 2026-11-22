@@ -85,12 +85,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.graphics.Bitmap
 import com.jumpropeai.ai.DetectorStatus
 import com.jumpropeai.audio.AudioFeedbackManager
+import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.metrics.WorkoutMetrics
 import com.jumpropeai.ui.components.CameraPreview
 import com.jumpropeai.ui.components.PoseOverlay
 import com.jumpropeai.ui.components.SessionSummaryDialog
+import com.jumpropeai.ui.components.ShareCardDialog
 import com.jumpropeai.ui.components.VideoAnalyzerScreen
 import com.jumpropeai.ui.components.WorkoutHistorySheet
 import com.jumpropeai.ui.components.WorkoutModeSheet
@@ -184,6 +187,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         }
     }
 
+    var shareCardTarget by remember { mutableStateOf<Triple<WorkoutSession, Bitmap?, String?>?>(null) }
+
     if (!hasCameraPermission) {
         CameraPermissionView(
             onRequestPermission = {
@@ -199,6 +204,21 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             result = uiState.videoResult,
             errorMessage = uiState.videoError,
             onPickVideo = { mp4PickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
+            onShareResult = { res ->
+                val session = WorkoutSession(
+                    id = "video_share",
+                    timestampMillis = System.currentTimeMillis(),
+                    modeLabel = "Video MP4",
+                    modeType = WorkoutModeType.FREE,
+                    jumpCount = res.jumpCount,
+                    durationMs = res.durationMs,
+                    averageRpm = res.averageRpm,
+                    peakRpm = res.peakRpm,
+                    estimatedCalories = res.estimatedCalories,
+                    bestStreak = res.bestStreak
+                )
+                shareCardTarget = Triple(session, res.finalPreviewBitmap, res.style.label)
+            },
             onSaveResultToHistory = viewModel::saveVideoResultToHistory,
             onClose = viewModel::closeVideoSheet
         )
@@ -232,6 +252,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             WorkoutHistorySheet(
                 stats = uiState.cumulativeStats,
                 sessions = uiState.historySessions,
+                onShareSession = { session -> shareCardTarget = Triple(session, null, null) },
                 onDeleteSession = viewModel::deleteHistorySession,
                 onDismiss = { viewModel.setShowHistorySheet(false) }
             )
@@ -240,9 +261,19 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         uiState.completedSessionSummary?.let { summary ->
             SessionSummaryDialog(
                 session = summary,
+                onShareSession = { session -> shareCardTarget = Triple(session, null, uiState.jumpStyle.label) },
                 onDismiss = viewModel::dismissSummaryDialog
             )
         }
+    }
+
+    shareCardTarget?.let { (session, backdrop, styleLabel) ->
+        ShareCardDialog(
+            session = session,
+            backdropBitmap = backdrop,
+            styleLabel = styleLabel,
+            onDismiss = { shareCardTarget = null }
+        )
     }
 }
 
