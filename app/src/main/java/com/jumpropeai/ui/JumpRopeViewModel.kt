@@ -36,8 +36,10 @@ import kotlin.math.roundToInt
 data class JumpRopeUiState(
     val isSessionRunning: Boolean = false,
     val lensFacing: Int = CameraSelector.LENS_FACING_FRONT,
-    val showSkeletonOverlay: Boolean = true,
+    val showSkeletonOverlay: Boolean = false,
     val isAudioEnabled: Boolean = true,
+    val isEcoMode: Boolean = false,
+    val isControlsVisible: Boolean = true,
     val latestPose: PoseFrame? = null,
     val metrics: WorkoutMetrics = WorkoutMetrics(),
     val workoutConfig: WorkoutConfig = WorkoutConfig(),
@@ -100,6 +102,19 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
+        val needsSkeletonRender = currentState.showSkeletonOverlay && !currentState.isEcoMode
+        val prevMetrics = currentState.metrics
+        val stateChanged = result.jumpDetected ||
+            result.isAirborne != prevMetrics.isAirborne ||
+            result.status != prevMetrics.detectorStatus ||
+            result.calibrationProgress != prevMetrics.calibrationProgress
+
+        // Battery optimization: skip Compose StateFlow updates on frames with no visual/metric change
+        // when skeleton overlay is hidden or Eco Mode is active.
+        if (!needsSkeletonRender && !stateChanged) {
+            return
+        }
+
         val nowMs = frame.timestampMs
         val elapsedMs = metricsTracker.getElapsedMs(nowMs)
         val progress = WorkoutModeEvaluator.evaluate(
@@ -114,7 +129,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         _uiState.update { state ->
             state.copy(
-                latestPose = frame,
+                latestPose = if (needsSkeletonRender) frame else null,
                 workoutProgress = progress,
                 metrics = state.metrics.copy(
                     jumpCount = metricsTracker.jumpCount,
@@ -161,9 +176,11 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
+        // Auto-hide clutter for clean minimal focus HUD as soon as workout starts
         _uiState.update {
             it.copy(
                 isSessionRunning = true,
+                isControlsVisible = false,
                 completedSessionSummary = null
             )
         }
@@ -178,6 +195,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
+                isControlsVisible = true,
                 metrics = state.metrics.copy(
                     elapsedMs = metricsTracker.getElapsedMs(nowMs),
                     currentRpm = 0,
@@ -233,6 +251,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
+                isControlsVisible = true,
+                isEcoMode = false,
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress(),
                 completedSessionSummary = session,
@@ -252,6 +272,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
+                isControlsVisible = true,
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress()
             )
@@ -284,11 +305,33 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleSkeletonOverlay() {
-        _uiState.update { it.copy(showSkeletonOverlay = !it.showSkeletonOverlay) }
+        _uiState.update { state ->
+            val next = !state.showSkeletonOverlay
+            state.copy(
+                showSkeletonOverlay = next,
+                latestPose = if (next) state.latestPose else null
+            )
+        }
     }
 
     fun toggleAudio() {
         _uiState.update { it.copy(isAudioEnabled = !it.isAudioEnabled) }
+    }
+
+    fun toggleEcoMode() {
+        _uiState.update { state ->
+            val nextEco = !state.isEcoMode
+            state.copy(
+                isEcoMode = nextEco,
+                latestPose = if (nextEco) null else state.latestPose
+            )
+        }
+    }
+
+    fun toggleControlsVisibility() {
+        _uiState.update { state ->
+            if (!state.isSessionRunning) state else state.copy(isControlsVisible = !state.isControlsVisible)
+        }
     }
 
     fun setShowHistorySheet(show: Boolean) {
@@ -317,7 +360,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob?.cancel()
         tickerJob = viewModelScope.launch {
             while (isActive) {
-                delay(200L)
+                // 500ms tick saves CPU wakeups while keeping timers & countdowns responsive
+                delay(500L)
                 val currentState = _uiState.value
                 if (!currentState.isSessionRunning) continue
 
@@ -329,7 +373,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                     elapsedMs = elapsedMs
                 )
 
-                // Emit HIIT phase transition audio cues
                 if (currentState.workoutConfig.mode == WorkoutModeType.HIIT && !progress.isCompleted) {
                     if (lastHiitPhase != null && progress.hiitPhase != lastHiitPhase) {
                         if (progress.hiitPhase == HiitPhase.REST) {
@@ -342,7 +385,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                     lastHiitRound = progress.currentRound
                 }
 
-                // Emit 3-2-1 countdown ticks when remaining time <= 3s
                 progress.remainingMs?.let { remMs ->
                     val remSec = ((remMs + 999L) / 1000L).toInt()
                     if (remSec in 1..3 && remSec != lastCountdownSecond && !progress.isCompleted) {

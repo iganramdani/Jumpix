@@ -1,14 +1,23 @@
 package com.jumpropeai.ui
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,20 +37,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Cameraswitch
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalIconButton
@@ -91,7 +98,9 @@ import com.jumpropeai.ui.theme.MintGreen
 import com.jumpropeai.ui.theme.NeonLime
 import com.jumpropeai.ui.theme.SoftRed
 import com.jumpropeai.workout.HiitPhase
+import com.jumpropeai.workout.WorkoutConfig
 import com.jumpropeai.workout.WorkoutModeType
+import com.jumpropeai.workout.WorkoutProgress
 import java.util.Locale
 
 @Composable
@@ -108,6 +117,28 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
     LaunchedEffect(viewModel) {
         viewModel.audioCues.collect { cue ->
             audioManager.play(cue, enabled = currentAudioEnabled)
+        }
+    }
+
+    // Dim screen brightness automatically in Eco Mode to dramatically save display battery
+    DisposableEffect(uiState.isEcoMode) {
+        val window = context.findActivity()?.window
+        if (window != null) {
+            val params = window.attributes
+            params.screenBrightness = if (uiState.isEcoMode) {
+                0.08f
+            } else {
+                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+            window.attributes = params
+        }
+        onDispose {
+            val w = context.findActivity()?.window
+            if (w != null) {
+                val params = w.attributes
+                params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                w.attributes = params
+            }
         }
     }
 
@@ -146,6 +177,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             onToggleCamera = viewModel::toggleCamera,
             onToggleSkeleton = viewModel::toggleSkeletonOverlay,
             onToggleAudio = viewModel::toggleAudio,
+            onToggleEcoMode = viewModel::toggleEcoMode,
+            onToggleControls = viewModel::toggleControlsVisibility,
             onOpenHistory = { viewModel.setShowHistorySheet(true) },
             onOpenModeSheet = { viewModel.setShowModeSheet(true) }
         )
@@ -186,36 +219,40 @@ private fun LiveWorkoutHud(
     onToggleCamera: () -> Unit,
     onToggleSkeleton: () -> Unit,
     onToggleAudio: () -> Unit,
+    onToggleEcoMode: () -> Unit,
+    onToggleControls: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenModeSheet: () -> Unit
 ) {
     val metrics = uiState.metrics
     val config = uiState.workoutConfig
     val progress = uiState.workoutProgress
-
-    val counterScale by animateFloatAsState(
-        targetValue = if (metrics.isAirborne) 1.09f else 1.0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "jumpCounterScale"
-    )
+    val showFullControls = !uiState.isSessionRunning || uiState.isControlsVisible
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (uiState.isSessionRunning && !uiState.isEcoMode) {
+                    onToggleControls()
+                }
+            }
     ) {
-        // 1. Live Full-Screen Camera Preview
+        // 1. CameraX host: unbinds Preview in Eco Mode while keeping AI ImageAnalysis at full 30 FPS
         CameraPreview(
             lensFacing = uiState.lensFacing,
+            isPreviewEnabled = !uiState.isEcoMode,
+            isSessionRunning = uiState.isSessionRunning,
             onPoseFrame = onPoseFrame,
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Real-time AI Skeleton Overlay
-        if (uiState.showSkeletonOverlay) {
+        // 2. Optional Skeleton Overlay (skipped completely in Eco Mode)
+        if (uiState.showSkeletonOverlay && !uiState.isEcoMode) {
             PoseOverlay(
                 poseFrame = uiState.latestPose,
                 isAirborne = metrics.isAirborne,
@@ -223,31 +260,51 @@ private fun LiveWorkoutHud(
             )
         }
 
-        // 3. Top & Bottom Gradient Scrims
+        // 3. Dedicated Pure AMOLED Eco Mode Overlay
+        if (uiState.isEcoMode) {
+            EcoModeOverlay(
+                uiState = uiState,
+                onToggleSession = onToggleSession,
+                onFinishSession = onFinishSession,
+                onExitEcoMode = onToggleEcoMode
+            )
+            return@Box
+        }
+
+        // 4. Subtle Scrims (only when controls visible or for gentle readability)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
+                .height(160.dp)
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color(0xC0000000), Color.Transparent)
+                        colors = listOf(Color(0x99000000), Color.Transparent)
                     )
                 )
         )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(220.dp)
                 .align(Alignment.BottomCenter)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color(0xE0000000))
+                        colors = listOf(Color.Transparent, Color(0xCC000000))
                     )
                 )
         )
 
-        // 4. Foreground HUD
+        // 5. Minimal Focus Foreground HUD
+        val counterScale by animateFloatAsState(
+            targetValue = if (metrics.isAirborne) 1.07f else 1.0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessMedium
+            ),
+            label = "jumpCounterScale"
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -256,7 +313,7 @@ private fun LiveWorkoutHud(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top Controls + Workout Mode Selector
+            // TOP AREA: Ultra-clean bar that auto-hides secondary buttons while running
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -266,80 +323,124 @@ private fun LiveWorkoutHud(
                     AiStatusPill(
                         status = metrics.detectorStatus,
                         isSessionRunning = uiState.isSessionRunning,
-                        calibrationProgress = metrics.calibrationProgress,
-                        modifier = Modifier.weight(1f, fill = false)
+                        calibrationProgress = metrics.calibrationProgress
                     )
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        HudIconButton(
-                            onClick = onToggleAudio,
-                            active = uiState.isAudioEnabled,
-                            activeColor = NeonLime,
-                            icon = if (uiState.isAudioEnabled) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
-                            contentDescription = "Audio Feedback"
-                        )
-                        HudIconButton(
-                            onClick = onToggleSkeleton,
-                            active = uiState.showSkeletonOverlay,
-                            activeColor = ElectricCyan,
-                            icon = if (uiState.showSkeletonOverlay) Icons.Rounded.AccessibilityNew else Icons.Rounded.VisibilityOff,
-                            contentDescription = "Skeleton Overlay"
-                        )
-                        HudIconButton(
-                            onClick = onOpenHistory,
-                            active = false,
-                            activeColor = Color.White,
-                            icon = Icons.Rounded.History,
-                            contentDescription = "Riwayat Latihan"
-                        )
-                        HudIconButton(
-                            onClick = onToggleCamera,
-                            active = false,
-                            activeColor = Color.White,
-                            icon = Icons.Rounded.Cameraswitch,
-                            contentDescription = "Ganti Kamera"
-                        )
+                        // 1-tap Eco / Hide Camera pill (always accessible for instant battery saving)
+                        Surface(
+                            onClick = onToggleEcoMode,
+                            shape = CircleShape,
+                            color = GlassDark,
+                            border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.4f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bedtime,
+                                    contentDescription = "Mode Hemat Baterai",
+                                    tint = NeonLime,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Eco",
+                                    color = NeonLime,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = showFullControls,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                HudIconButton(
+                                    onClick = onToggleAudio,
+                                    active = uiState.isAudioEnabled,
+                                    activeColor = NeonLime,
+                                    icon = if (uiState.isAudioEnabled) {
+                                        Icons.AutoMirrored.Rounded.VolumeUp
+                                    } else {
+                                        Icons.AutoMirrored.Rounded.VolumeOff
+                                    },
+                                    contentDescription = "Audio"
+                                )
+                                HudIconButton(
+                                    onClick = onToggleSkeleton,
+                                    active = uiState.showSkeletonOverlay,
+                                    activeColor = ElectricCyan,
+                                    icon = if (uiState.showSkeletonOverlay) {
+                                        Icons.Rounded.AccessibilityNew
+                                    } else {
+                                        Icons.Rounded.VisibilityOff
+                                    },
+                                    contentDescription = "Skeleton"
+                                )
+                                HudIconButton(
+                                    onClick = onOpenHistory,
+                                    active = false,
+                                    activeColor = Color.White,
+                                    icon = Icons.Rounded.History,
+                                    contentDescription = "Riwayat"
+                                )
+                                HudIconButton(
+                                    onClick = onToggleCamera,
+                                    active = false,
+                                    activeColor = Color.White,
+                                    icon = Icons.Rounded.Cameraswitch,
+                                    contentDescription = "Kamera"
+                                )
+                            }
+                        }
                     }
                 }
 
-                // Mode Pill + Progress / HIIT Banner
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
+                // Mode selector pill (hidden while running to keep HUD distraction-free)
+                AnimatedVisibility(
+                    visible = !uiState.isSessionRunning,
+                    enter = fadeIn(),
+                    exit = fadeOut()
                 ) {
-                    Surface(
-                        onClick = { if (!uiState.isSessionRunning) onOpenModeSheet() },
-                        shape = CircleShape,
-                        color = GlassDark,
-                        border = BorderStroke(
-                            1.dp,
-                            if (config.mode != WorkoutModeType.FREE) ElectricCyan.copy(alpha = 0.6f) else GlassBorder
-                        )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        Surface(
+                            onClick = onOpenModeSheet,
+                            shape = CircleShape,
+                            color = GlassDark,
+                            border = BorderStroke(
+                                1.dp,
+                                if (config.mode != WorkoutModeType.FREE) ElectricCyan.copy(alpha = 0.55f) else GlassBorder
+                            )
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.FitnessCenter,
-                                contentDescription = null,
-                                tint = ElectricCyan,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Text(
-                                text = config.shortLabel(),
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (!uiState.isSessionRunning) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.FitnessCenter,
+                                    contentDescription = null,
+                                    tint = ElectricCyan,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = config.shortLabel(),
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                                 Icon(
                                     imageVector = Icons.Rounded.Tune,
                                     contentDescription = "Ubah Mode",
-                                    tint = Color.White.copy(alpha = 0.7f),
+                                    tint = Color.White.copy(alpha = 0.65f),
                                     modifier = Modifier.size(14.dp)
                                 )
                             }
@@ -347,7 +448,6 @@ private fun LiveWorkoutHud(
                     }
                 }
 
-                // Target / HIIT Live Banner & Progress Bar
                 if (config.mode != WorkoutModeType.FREE) {
                     WorkoutProgressBanner(
                         config = config,
@@ -357,153 +457,142 @@ private fun LiveWorkoutHud(
                 }
             }
 
-            // Hero Jump Counter + Streak Badge
+            // CENTER: Minimal Hero Jump Counter + Compact 1-Line Live Metrics
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = if (config.mode == WorkoutModeType.HIIT && progress.hiitPhase == HiitPhase.REST) {
-                        "ISTIRAHAT"
-                    } else {
-                        "LOMPATAN"
-                    },
-                    color = if (config.mode == WorkoutModeType.HIIT && progress.hiitPhase == HiitPhase.REST) {
-                        ElectricCyan
-                    } else {
-                        Color.White.copy(alpha = 0.72f)
-                    },
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 2.sp
-                )
+                if (config.mode == WorkoutModeType.HIIT && progress.hiitPhase == HiitPhase.REST) {
+                    Text(
+                        text = "ISTIRAHAT",
+                        color = ElectricCyan,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 2.sp
+                    )
+                }
+
                 Text(
                     text = metrics.jumpCount.toString(),
                     color = if (metrics.isAirborne) NeonLime else Color.White,
-                    fontSize = 84.sp,
+                    fontSize = 92.sp,
                     fontWeight = FontWeight.Black,
-                    lineHeight = 86.sp,
+                    lineHeight = 94.sp,
                     modifier = Modifier.scale(counterScale)
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                Surface(
-                    shape = CircleShape,
-                    color = GlassDark,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = if (metrics.currentStreak > 0) FlameOrange.copy(alpha = 0.65f) else GlassBorder
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Whatshot,
-                            contentDescription = null,
-                            tint = if (metrics.currentStreak > 0) FlameOrange else Color.White.copy(alpha = 0.5f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = "Streak ${metrics.currentStreak}",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "•",
-                            color = Color.White.copy(alpha = 0.4f),
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Best ${metrics.bestStreak}",
-                            color = NeonLime,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+                // Ultra-clean single-line metrics strip
+                CompactMetricsStrip(metrics = metrics)
             }
 
-            // Bottom Panel: Live Metrics Grid + Action Buttons
+            // BOTTOM: Minimal controls (fades to subtle Pause pill while running; tap screen to reveal)
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                MetricsGlassBar(metrics = metrics)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Reset Button
+                if (uiState.isSessionRunning && !showFullControls) {
+                    Text(
+                        text = "Ketuk layar untuk kontrol • Eco untuk hemat baterai",
+                        color = Color.White.copy(alpha = 0.45f),
+                        fontSize = 11.sp
+                    )
                     Surface(
-                        onClick = onResetSession,
-                        shape = RoundedCornerShape(20.dp),
-                        color = GlassCard,
-                        border = BorderStroke(1.dp, GlassBorder),
-                        modifier = Modifier.size(58.dp)
+                        onClick = onToggleSession,
+                        shape = CircleShape,
+                        color = GlassDark,
+                        border = BorderStroke(1.dp, GlassBorder)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = "Reset",
+                                imageVector = Icons.Rounded.Pause,
+                                contentDescription = "Jeda",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "JEDA",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
                             )
                         }
                     }
-
-                    // Primary Start / Pause Button
-                    Button(
-                        onClick = onToggleSession,
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (uiState.isSessionRunning) SoftRed else NeonLime,
-                            contentColor = if (uiState.isSessionRunning) Color.White else Color(0xFF0A0D10)
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(58.dp)
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = if (uiState.isSessionRunning) {
-                                Icons.Rounded.Pause
-                            } else {
-                                Icons.Rounded.PlayArrow
-                            },
-                            contentDescription = null,
-                            modifier = Modifier.size(26.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (uiState.isSessionRunning) "JEDA" else "MULAI",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                    }
-
-                    // Finish & Save Button (visible once workout has progress)
-                    if (uiState.hasActiveProgress) {
                         Surface(
-                            onClick = onFinishSession,
-                            shape = RoundedCornerShape(20.dp),
-                            color = MintGreen.copy(alpha = 0.22f),
-                            border = BorderStroke(1.dp, MintGreen.copy(alpha = 0.7f)),
-                            modifier = Modifier.size(58.dp)
+                            onClick = onResetSession,
+                            shape = RoundedCornerShape(18.dp),
+                            color = GlassCard,
+                            border = BorderStroke(1.dp, GlassBorder),
+                            modifier = Modifier.size(56.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = "Selesai & Simpan",
-                                    tint = MintGreen,
-                                    modifier = Modifier.size(26.dp)
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = "Reset",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
                                 )
+                            }
+                        }
+
+                        Button(
+                            onClick = onToggleSession,
+                            shape = RoundedCornerShape(18.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (uiState.isSessionRunning) SoftRed else NeonLime,
+                                contentColor = if (uiState.isSessionRunning) Color.White else Color(0xFF0A0D10)
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isSessionRunning) {
+                                    Icons.Rounded.Pause
+                                } else {
+                                    Icons.Rounded.PlayArrow
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (uiState.isSessionRunning) "JEDA" else "MULAI",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        if (uiState.hasActiveProgress) {
+                            Surface(
+                                onClick = onFinishSession,
+                                shape = RoundedCornerShape(18.dp),
+                                color = MintGreen.copy(alpha = 0.22f),
+                                border = BorderStroke(1.dp, MintGreen.copy(alpha = 0.7f)),
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Selesai & Simpan",
+                                        tint = MintGreen,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -511,6 +600,238 @@ private fun LiveWorkoutHud(
             }
         }
     }
+}
+
+/**
+ * Pure #000000 AMOLED Blackout UI for maximum battery savings.
+ * Camera preview is completely unbound while AI ImageAnalysis continues at full 25-30 FPS.
+ */
+@Composable
+private fun EcoModeOverlay(
+    uiState: JumpRopeUiState,
+    onToggleSession: () -> Unit,
+    onFinishSession: () -> Unit,
+    onExitEcoMode: () -> Unit
+) {
+    val metrics = uiState.metrics
+    val config = uiState.workoutConfig
+    val progress = uiState.workoutProgress
+    val dimText = Color(0xFF8B949E)
+    val dimAccent = NeonLime.copy(alpha = 0.78f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Minimal top status indicator
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(
+                        when (metrics.detectorStatus) {
+                            DetectorStatus.NO_PERSON -> SoftRed.copy(alpha = 0.75f)
+                            DetectorStatus.LOW_CONFIDENCE -> FlameOrange.copy(alpha = 0.75f)
+                            else -> dimAccent
+                        }
+                    )
+            )
+            Text(
+                text = when (metrics.detectorStatus) {
+                    DetectorStatus.NO_PERSON -> "ECO • Posisikan badan di depan kamera"
+                    DetectorStatus.LOW_CONFIDENCE -> "ECO • Pose kurang jelas"
+                    else -> "ECO MODE • AI AKTIF (KAMERA TERSEMBUNYI)"
+                },
+                color = dimText,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.sp
+            )
+        }
+
+        // Center low-power AMOLED digits
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (config.mode != WorkoutModeType.FREE) {
+                val info = when (config.mode) {
+                    WorkoutModeType.TARGET_JUMPS -> "${metrics.jumpCount} / ${config.targetJumps}"
+                    WorkoutModeType.TARGET_TIME -> "Sisa ${formatDuration(progress.remainingMs ?: 0L)}"
+                    WorkoutModeType.HIIT -> {
+                        val ph = if (progress.hiitPhase == HiitPhase.WORK) "LOMPAT" else "ISTIRAHAT"
+                        "R${progress.currentRound}/${progress.totalRounds} • $ph ${formatDuration(progress.remainingMs ?: 0L)}"
+                    }
+                    WorkoutModeType.FREE -> ""
+                }
+                Text(
+                    text = info,
+                    color = ElectricCyan.copy(alpha = 0.75f),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = metrics.jumpCount.toString(),
+                color = if (metrics.isAirborne) dimAccent else Color(0xFFD0D7DE),
+                fontSize = 112.sp,
+                fontWeight = FontWeight.Black,
+                lineHeight = 112.sp
+            )
+
+            Text(
+                text = "${formatDuration(metrics.elapsedMs)}  •  ${metrics.currentRpm} RPM  •  ${String.format(Locale.US, "%.1f", metrics.estimatedCalories)} kkal  •  Streak ${metrics.currentStreak}",
+                color = dimText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        // Minimal bottom controls
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                onClick = onExitEcoMode,
+                shape = CircleShape,
+                color = Color(0xFF11151C),
+                border = BorderStroke(1.dp, Color(0xFF262C36))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Visibility,
+                        contentDescription = "Tampilkan Kamera",
+                        tint = dimText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Kamera",
+                        color = dimText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Surface(
+                onClick = onToggleSession,
+                shape = CircleShape,
+                color = if (uiState.isSessionRunning) Color(0xFF2B1414) else Color(0xFF1E2610),
+                border = BorderStroke(
+                    1.dp,
+                    if (uiState.isSessionRunning) SoftRed.copy(alpha = 0.5f) else dimAccent.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = if (uiState.isSessionRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        tint = if (uiState.isSessionRunning) SoftRed else dimAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (uiState.isSessionRunning) "Jeda" else "Mulai",
+                        color = if (uiState.isSessionRunning) SoftRed else dimAccent,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            if (uiState.hasActiveProgress) {
+                Surface(
+                    onClick = onFinishSession,
+                    shape = CircleShape,
+                    color = Color(0xFF0E2418),
+                    border = BorderStroke(1.dp, MintGreen.copy(alpha = 0.45f))
+                ) {
+                    Box(
+                        modifier = Modifier.padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = "Selesai",
+                            tint = MintGreen.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactMetricsStrip(metrics: WorkoutMetrics) {
+    Surface(
+        shape = CircleShape,
+        color = GlassDark,
+        border = BorderStroke(1.dp, GlassBorder)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = formatDuration(metrics.elapsedMs),
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            DotSeparator()
+            Text(
+                text = "${metrics.currentRpm} RPM",
+                color = ElectricCyan,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            DotSeparator()
+            Text(
+                text = "${String.format(Locale.US, "%.1f", metrics.estimatedCalories)} kkal",
+                color = FlameOrange,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+            DotSeparator()
+            Text(
+                text = "Streak ${metrics.currentStreak}",
+                color = NeonLime,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun DotSeparator() {
+    Text(
+        text = "•",
+        color = Color.White.copy(alpha = 0.35f),
+        fontSize = 13.sp
+    )
 }
 
 @Composable
@@ -523,7 +844,7 @@ private fun HudIconButton(
 ) {
     FilledTonalIconButton(
         onClick = onClick,
-        modifier = Modifier.size(40.dp),
+        modifier = Modifier.size(38.dp),
         colors = IconButtonDefaults.filledTonalIconButtonColors(
             containerColor = if (active) activeColor.copy(alpha = 0.22f) else GlassDark,
             contentColor = if (active) activeColor else Color.White
@@ -532,15 +853,15 @@ private fun HudIconButton(
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(19.dp)
         )
     }
 }
 
 @Composable
 private fun WorkoutProgressBanner(
-    config: com.jumpropeai.workout.WorkoutConfig,
-    progress: com.jumpropeai.workout.WorkoutProgress,
+    config: WorkoutConfig,
+    progress: WorkoutProgress,
     jumpCount: Int
 ) {
     val accentColor = when {
@@ -578,7 +899,7 @@ private fun WorkoutProgressBanner(
             trackColor = Color.White.copy(alpha = 0.2f),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(6.dp)
+                .height(5.dp)
                 .clip(CircleShape)
         )
     }
@@ -596,11 +917,7 @@ private fun AiStatusPill(
         DetectorStatus.LOW_CONFIDENCE -> FlameOrange to "Mundur sedikit"
         DetectorStatus.CALIBRATING -> ElectricCyan to "Kalibrasi ${(calibrationProgress * 100).toInt()}%"
         DetectorStatus.READY -> MintGreen to "AI Siap"
-        DetectorStatus.ACTIVE -> if (isSessionRunning) {
-            NeonLime to "AI Live"
-        } else {
-            MintGreen to "AI Siap"
-        }
+        DetectorStatus.ACTIVE -> if (isSessionRunning) NeonLime to "AI Live" else MintGreen to "AI Siap"
     }
 
     Surface(
@@ -610,9 +927,9 @@ private fun AiStatusPill(
         border = BorderStroke(1.dp, GlassBorder)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -623,91 +940,11 @@ private fun AiStatusPill(
             Text(
                 text = label,
                 color = Color.White,
-                fontSize = 12.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1
             )
         }
-    }
-}
-
-@Composable
-private fun MetricsGlassBar(metrics: WorkoutMetrics) {
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        color = GlassCard,
-        border = BorderStroke(1.dp, GlassBorder),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            MetricTile(
-                icon = Icons.Rounded.Timer,
-                iconTint = Color.White,
-                value = formatDuration(metrics.elapsedMs),
-                label = "Durasi",
-                modifier = Modifier.weight(1f)
-            )
-            MetricTile(
-                icon = Icons.Rounded.Speed,
-                iconTint = ElectricCyan,
-                value = "${metrics.currentRpm}",
-                label = "RPM",
-                modifier = Modifier.weight(1f)
-            )
-            MetricTile(
-                icon = Icons.Rounded.LocalFireDepartment,
-                iconTint = FlameOrange,
-                value = String.format(Locale.US, "%.1f", metrics.estimatedCalories),
-                label = "kkal",
-                modifier = Modifier.weight(1f)
-            )
-            MetricTile(
-                icon = Icons.Rounded.Whatshot,
-                iconTint = NeonLime,
-                value = "${metrics.peakRpm}",
-                label = "Peak RPM",
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun MetricTile(
-    icon: ImageVector,
-    iconTint: Color,
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = iconTint,
-            modifier = Modifier.size(18.dp)
-        )
-        Text(
-            text = value,
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = label,
-            color = Color.White.copy(alpha = 0.65f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
     }
 }
 
@@ -774,6 +1011,12 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
             }
         }
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun formatDuration(elapsedMs: Long): String {

@@ -17,10 +17,14 @@ import com.jumpropeai.ai.PoseFrame
 
 /**
  * CameraX ImageAnalysis.Analyzer backed by ML Kit Pose Detection (STREAM_MODE).
- * Extracts key body landmarks and delivers rotation-adjusted PoseFrames to the caller.
+ *
+ * Battery optimization:
+ * - Runs at full 25-30 FPS whenever a workout session is actively running (zero impact on detection).
+ * - Automatically throttles to ~12-15 FPS while idle/paused to save CPU and battery during rest/setup.
  */
 class PoseAnalyzer(
     private val isFrontCameraProvider: () -> Boolean,
+    private val isSessionRunningProvider: () -> Boolean,
     private val onPoseFrame: (PoseFrame) -> Unit
 ) : ImageAnalysis.Analyzer {
 
@@ -30,12 +34,23 @@ class PoseAnalyzer(
             .build()
     )
 
+    private var idleFrameCounter = 0
+
     @OptIn(ExperimentalGetImage::class)
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage == null) {
             imageProxy.close()
             return
+        }
+
+        // Save battery while paused/idle by analyzing every 2nd frame; full FPS when active.
+        if (!isSessionRunningProvider()) {
+            idleFrameCounter++
+            if (idleFrameCounter % 2 != 0) {
+                imageProxy.close()
+                return
+            }
         }
 
         val rotationDegrees = imageProxy.imageInfo.rotationDegrees
