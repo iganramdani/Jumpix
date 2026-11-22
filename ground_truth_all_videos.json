@@ -1,0 +1,416 @@
+[
+  {
+    "no": 1,
+    "drive_id": "1CNgHd06UzqUcnbv-1mpcOQeU5IFs5_5P",
+    "filename": "VID_20260812_164851.mp4",
+    "duration_s": 24.4,
+    "ground_truth_jumps": 24,
+    "method": "User Manual + Visual",
+    "notes": "User manual count (test2.mp4): single-unders + Double-Unders (6.2-19.1s); walking excluded"
+  },
+  {
+    "no": 2,
+    "drive_id": "1dP5jUABvEDYPcGvUAPnvQya8F9OON3lP",
+    "filename": "VID_20260812_165337.mp4",
+    "duration_s": 59.6,
+    "ground_truth_jumps": 109,
+    "method": "User Manual + Visual",
+    "notes": "User manual count: continuous outdoor skipping; walking start/end excluded"
+  },
+  {
+    "no": 3,
+    "drive_id": "16uGhVh4H-Hr7brAnBfsqRTzUx8t3hQk9",
+    "filename": "VID_20260821_164409.mp4",
+    "duration_s": 69.1,
+    "ground_truth_jumps": 56,
+    "method": "Visual + Raw Curve",
+    "notes": "User outdoor video: 3 sets in 26.0-58.0s; walking 0-26s & 59-69s excluded"
+  },
+  {
+    "no": 4,
+    "drive_id": "1PTsptYGEv3k5-rV5_qNR711XvA6GPj38",
+    "filename": "VID_20261105_163148.mp4",
+    "duration_s": 41.0,
+    "ground_truth_jumps": 63,
+    "method": "Visual + Raw Curve",
+    "notes": "User outdoor video: 63 crisp jumps (4.1-35.6s); trip & walk 36-41s excluded"
+  },
+  {
+    "no": 5,
+    "drive_id": "1aLroTBTGcVFb-Hr2EvxHOMGbkqmHnxqj",
+    "filename": "VID_20261105_163701.mp4",
+    "duration_s": 42.4,
+    "ground_truth_jumps": 62,
+    "method": "Visual + Raw Curve",
+    "notes": "User outdoor video: 62 crisp jumps (6.4-35.7s); walk start/end excluded"
+  },
+  {
+    "no": 6,
+    "drive_id": "18JNXb1fNbX13gVdY1teKmlbS-A9PxpI-",
+    "filename": "VID_20261122_043947_870.mp4",
+    "duration_s": 11.0,
+    "ground_truth_jumps": 13,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym single-unders + Double-Unders (0.2-6.5s); IG outro 7.5-11s excluded"
+  },
+  {
+    "no": 7,
+    "drive_id": "1aB1Hrbz6e4AYKgAY5PHZWYQC3_32Yl09",
+    "filename": "VID_20261122_044018_254.mp4",
+    "duration_s": 10.2,
+    "ground_truth_jumps": 11,
+    "method": "Visual + Raw Curve",
+    "notes": "5 single-unders (0.7-3.7s) + 6 high jumps (4.5-9.7s, continues under dimmed IG overlay)"
+  },
+  {
+    "no": 8,
+    "drive_id": "1aiG6yFw65dWTMn-wR5JbvZuoGDJG0z4I",
+    "filename": "VID_20261122_044029_086.mp4",
+    "duration_s": 12.6,
+    "ground_truth_jumps": 22,
+    "method": "Visual + Raw Curve",
+    "notes": "10 rapid high-knee/boxer hops (0.2-2.5s) + 7 single-unders (2.9-5.5s) + 5 high Double-Unders (6.0-8.6s); IG outro 9.0-12.6s"
+  },
+  {
+    "no": 9,
+    "drive_id": "1Zr3bOnNXPax320dorzMJdN5jE600mMIA",
+    "filename": "VID_20261122_044130_024.mp4",
+    "duration_s": 11.8,
+    "ground_truth_jumps": 15,
+    "method": "Visual + Raw Curve",
+    "notes": "4 single-unders + 7 high Double-Unders + 4 single-unders (0.4-7.7s); IG outro 8.0-11.8s"
+  },
+  {
+    "no": 10,
+    "drive_id": "1anpiHGGaRHJAJEvu1YuEI-3tiKoLjJYJ",
+    "filename": "VID_20261122_044136_077.mp4",
+    "duration_s": 19.2,
+    "ground_truth_jumps": 41,
+    "method": "Visual + Raw Curve",
+    "notes": "4 warm-up + 25 rhythmic single-unders (3.2-10.1s) + 12 high Double-Unders (10.4-15.1s); IG outro 15.5-19.2s"
+  },
+  {
+    "no": 11,
+    "drive_id": "1GbigEsbTzHbs5xRJdvnL1i2wZbr4MTCZ",
+    "filename": "VID_20261122_051817_914.mp4",
+    "duration_s": 42.1,
+    "ground_truth_jumps": 164,
+    "method": "Visual + Raw Curve",
+    "notes": "30s competition speed-sprint @cenxiaolin1 (6.5-36.5s, ~328 RPM bent-over ankle sprint)"
+  },
+  {
+    "no": 12,
+    "drive_id": "1vaMarzxQB1KdQ-8_wbV2YncVUeY-jgDt",
+    "filename": "VID_20261122_051924_969.mp4",
+    "duration_s": 55.3,
+    "ground_truth_jumps": 136,
+    "method": "Visual + Raw Curve",
+    "notes": "30s competition speed-sprint @cenxiaolin1 (20.5-50.5s, ~272 RPM bent-over ankle sprint)"
+  },
+  {
+    "no": 13,
+    "drive_id": "1uCbHmZ0VvmLhaZLmKSQFpevdj9AsJJGj",
+    "filename": "VID_20261122_051943_160.mp4",
+    "duration_s": 47.4,
+    "ground_truth_jumps": 145,
+    "method": "Visual + Raw Curve",
+    "notes": "30s competition speed-sprint @cenxiaolin1 (11.0-41.0s, ~290 RPM bent-over ankle sprint)"
+  },
+  {
+    "no": 14,
+    "drive_id": "1dGA3P62_DiBgif9DVA50KGdZ09-qJHwh",
+    "filename": "VID_20261122_052607_947.mp4",
+    "duration_s": 17.2,
+    "ground_truth_jumps": 41,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor continuous skipping (0.3-15.4s); stop at 16s excluded"
+  },
+  {
+    "no": 15,
+    "drive_id": "1boFhVkbUVxdDUMnJHfjhzZmZN25-LNPL",
+    "filename": "VID_20261122_052613_168.mp4",
+    "duration_s": 18.6,
+    "ground_truth_jumps": 30,
+    "method": "Visual + Raw Curve",
+    "notes": "Verified frame-by-frame: 15 cycles of (2 real jumps + 2 feet-planted side swings) = 30 real jumps (29 side swings excluded)"
+  },
+  {
+    "no": 16,
+    "drive_id": "1gRA73g493gvytj6N01FigaFbWiqRlToc",
+    "filename": "VID_20261122_052613_168.mp4",
+    "duration_s": 18.6,
+    "ground_truth_jumps": 30,
+    "method": "Visual + Raw Curve",
+    "notes": "Duplicate of 168: 30 real jumps + 29 feet-planted side swings excluded"
+  },
+  {
+    "no": 17,
+    "drive_id": "1Aklu0NicKSK9FU4Te9acFInifDKB7aA-",
+    "filename": "VID_20261122_052624_470.mp4",
+    "duration_s": 16.0,
+    "ground_truth_jumps": 36,
+    "method": "Visual + Raw Curve",
+    "notes": "36 clean rhythmic jumps (0.2-14.1s); stops & walks toward camera at 14.5-16.0s (peak 37 excluded)"
+  },
+  {
+    "no": 18,
+    "drive_id": "1CO3y5Cnv4BOojvYXCj89a3K4p_6ohGwY",
+    "filename": "VID_20261122_052629_070.mp4",
+    "duration_s": 12.8,
+    "ground_truth_jumps": 13,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor skipping (0.4-5.7s); headphones drop & bend 6-12.8s excluded"
+  },
+  {
+    "no": 19,
+    "drive_id": "17jxmBSNwt2W22tGzVkaaxhqPBv_9RIdj",
+    "filename": "VID_20261122_052646_683.mp4",
+    "duration_s": 15.5,
+    "ground_truth_jumps": 40,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor continuous skipping (0.4-14.9s)"
+  },
+  {
+    "no": 20,
+    "drive_id": "1vABspCMpkIZ8vInOLdrrtrsuB4vvCA9Y",
+    "filename": "VID_20261122_052648_939.mp4",
+    "duration_s": 14.4,
+    "ground_truth_jumps": 36,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor rhythmic skipping (0.2-14.0s)"
+  },
+  {
+    "no": 21,
+    "drive_id": "1J8sT9QDwW6aGPvxdEr2-5lR9oo-LW5pt",
+    "filename": "VID_20261122_054122_000.mp4",
+    "duration_s": 40.7,
+    "ground_truth_jumps": 98,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym weighted-ankle skipping + 12 Double-Unders (0.2-36.7s); IG outro excluded"
+  },
+  {
+    "no": 22,
+    "drive_id": "1HbhI5Qp9Ot6oA7BWCTkubQIB-NClBOF9",
+    "filename": "VID_20261122_054258_297.mp4",
+    "duration_s": 14.8,
+    "ground_truth_jumps": 25,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym rhythmic skipping (0.5-10.4s); black IG outro 11-14.8s excluded"
+  },
+  {
+    "no": 23,
+    "drive_id": "1WHnQqE9OLuNowwLRifUQVxxFR8f6aufI",
+    "filename": "VID_20261122_054319_730.mp4",
+    "duration_s": 26.6,
+    "ground_truth_jumps": 39,
+    "method": "Visual + Raw Curve",
+    "notes": "2-clip gym video: 20 jumps clip 1 (0-11.1s) + 19 jumps clip 2 (11.6-22.2s); IG outro excluded"
+  },
+  {
+    "no": 24,
+    "drive_id": "1QZo--MGYMBa1BFcO5pGwJ__3u1ATsemZ",
+    "filename": "VID_20261122_054403_520.mp4",
+    "duration_s": 53.6,
+    "ground_truth_jumps": 144,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym continuous fast skipping + high knees (0.2-49.3s); IG outro excluded"
+  },
+  {
+    "no": 25,
+    "drive_id": "10lwgqmItV3HdFFRPXfhyxrpdYojnYjtK",
+    "filename": "VID_20261122_054519_197.mp4",
+    "duration_s": 18.1,
+    "ground_truth_jumps": 10,
+    "method": "Visual + Raw Curve",
+    "notes": "6 warm-up hops (1.2-2.8s) + 3 setup/trick jumps (3.1, 4.1, 6.1s) + 1 slow-mo multi-under (8.2-13.1s); IG outro 14.8-18.1s"
+  },
+  {
+    "no": 26,
+    "drive_id": "1AGihF2sljWMy0-M9ZxscHbeXyNJi55pq",
+    "filename": "VID_20261122_054959_748.mp4",
+    "duration_s": 17.3,
+    "ground_truth_jumps": 28,
+    "method": "Visual + Raw Curve",
+    "notes": "Indoor footwork/cross skipping (0.2-10.9s); bow & IG outro 12-17.3s excluded"
+  },
+  {
+    "no": 27,
+    "drive_id": "1-jOnFYxhYjHp1vULy053uenzDYQfRrBM",
+    "filename": "VID_20261122_055036_328.mp4",
+    "duration_s": 27.2,
+    "ground_truth_jumps": 71,
+    "method": "Visual + Raw Curve",
+    "notes": "Indoor continuous skipping with 1 brief pause at 14.5s (0.7-23.4s); IG outro excluded"
+  },
+  {
+    "no": 28,
+    "drive_id": "1_iA5ccTqKcawkh9KUuQdnXNwtbZYTQLz",
+    "filename": "VID_20261122_055038_529.mp4",
+    "duration_s": 17.3,
+    "ground_truth_jumps": 23,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor skipping (1.2-10.4s); trip & walk 10.8-17.3s excluded"
+  },
+  {
+    "no": 29,
+    "drive_id": "1tK7Ov83HkZj0s9UDj0U1WG98G-vI-Rnl",
+    "filename": "VID_20261122_055205_353.mp4",
+    "duration_s": 39.4,
+    "ground_truth_jumps": 41,
+    "method": "Visual + Raw Curve",
+    "notes": "Tutorial: 15 demo hops (0.7-15.7s) + 26 continuous skips (20.0-32.0s); walk/outro excluded"
+  },
+  {
+    "no": 30,
+    "drive_id": "1xFbDeTWcfnhbhN_FaC5Cz9RaYvDts4rk",
+    "filename": "VID_20261122_055318_178.mp4",
+    "duration_s": 25.8,
+    "ground_truth_jumps": 37,
+    "method": "Visual + Raw Curve",
+    "notes": "2-clip gym combo: regular + Double-Unders + footwork (0.3-21.3s); IG outro excluded"
+  },
+  {
+    "no": 31,
+    "drive_id": "1KgXUpQ6oGNviKaYsm_Ek9NVCPU-DAF8g",
+    "filename": "VID_20261122_055324_085.mp4",
+    "duration_s": 22.6,
+    "ground_truth_jumps": 28,
+    "method": "Visual + Raw Curve",
+    "notes": "7 high jumps in clip 1 (0.5-4.7s) + 21 jumps in clip 2 (5.5-18.7s); IG outro 19.5-22.6s excluded"
+  },
+  {
+    "no": 32,
+    "drive_id": "1uQ6tXDofGlIWW_RhXp2xTev3zfAwlFyE",
+    "filename": "VID_20261122_055328_443.mp4",
+    "duration_s": 19.2,
+    "ground_truth_jumps": 19,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym combo: 19 real jumps (5+6+8); 5 wide-stance side swings & IG outro excluded"
+  },
+  {
+    "no": 33,
+    "drive_id": "1jWJWFtZspj3GHZdSRggnYzQTSykYViFW",
+    "filename": "VID_20261122_055354_868.mp4",
+    "duration_s": 20.2,
+    "ground_truth_jumps": 26,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym alternating high/low jumps (0.6-15.6s); IG outro excluded"
+  },
+  {
+    "no": 34,
+    "drive_id": "1QARs__pKiZG-DqQucF_Fxj6exJ348EoQ",
+    "filename": "VID_20261122_055415_506.mp4",
+    "duration_s": 23.7,
+    "ground_truth_jumps": 37,
+    "method": "Visual + Raw Curve",
+    "notes": "Gym high-knee warm-up (22 hops 0.5-9.8s) + 15 Double-Unders (10.1-19.0s); IG outro excluded"
+  },
+  {
+    "no": 35,
+    "drive_id": "1qaZUVpUmvTJslY01i6EQ_8EpS3tTEyZa",
+    "filename": "VID_20261122_055429_412.mp4",
+    "duration_s": 24.9,
+    "ground_truth_jumps": 46,
+    "method": "Visual + Raw Curve",
+    "notes": "15 alternating high/low jumps (0.4-10.0s) + 31 rapid footwork hops (10.5-21.4s); black IG outro 22.0-24.9s excluded"
+  },
+  {
+    "no": 36,
+    "drive_id": "14uYXAA8q9bSiQ3AGtjs0-IPjQfzfAEwr",
+    "filename": "VID_20261122_055507_107.mp4",
+    "duration_s": 16.4,
+    "ground_truth_jumps": 26,
+    "method": "Visual + Raw Curve",
+    "notes": "Indoor side-view footwork skipping (0.2-11.8s); IG outro excluded"
+  },
+  {
+    "no": 37,
+    "drive_id": "1AkHwFCk2sB2z9AZF3njRx07GaU76LX47",
+    "filename": "VID_20261122_055532_306.mp4",
+    "duration_s": 20.9,
+    "ground_truth_jumps": 27,
+    "method": "Visual + Raw Curve",
+    "notes": "Indoor mat skipping (0.3-14.6s); IG outro excluded"
+  },
+  {
+    "no": 38,
+    "drive_id": "1M4U1P5dzMzfjtiNp01EI5wRtLHQrgvYi",
+    "filename": "VID_20261122_055703_487.mp4",
+    "duration_s": 18.2,
+    "ground_truth_jumps": 42,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor night rope-flow/footwork skipping (0.1-14.0s); black IG outro excluded"
+  },
+  {
+    "no": 39,
+    "drive_id": "1dCPF7MJKVFNUJfMawmn1a4Ki7E5usW73",
+    "filename": "VID_20261122_060059_822.mp4",
+    "duration_s": 15.1,
+    "ground_truth_jumps": 26,
+    "method": "Visual + Raw Curve",
+    "notes": "26 footwork/dance skipping jumps (0.3-10.9s); IG outro 11.5-15.1s"
+  },
+  {
+    "no": 40,
+    "drive_id": "1FJFd14W7GypbLA3JemHFhhD63_KHDOKc",
+    "filename": "VID_20261122_060059_822.mp4",
+    "duration_s": 15.1,
+    "ground_truth_jumps": 26,
+    "method": "Visual + Raw Curve",
+    "notes": "Duplicate of 822: 26 dance footwork skips (0.3-10.9s); IG outro excluded"
+  },
+  {
+    "no": 41,
+    "drive_id": "1WDHi7HyMcbWYrTJ3zJQlNLuH06eM0ZiW",
+    "filename": "VID_20261122_111157_360.mp4",
+    "duration_s": 26.4,
+    "ground_truth_jumps": 54,
+    "method": "Visual + Raw Curve",
+    "notes": "Boxing footwork Level 1-3 @alwaysghadi (13+19+22 = 54 jumps, 0.2-21.1s); bow & IG outro excluded"
+  },
+  {
+    "no": 42,
+    "drive_id": "1AajvSVhcKfCz-xu6iOq9HDoTUb96TW7j",
+    "filename": "VID_20261122_111219_148.mp4",
+    "duration_s": 15.9,
+    "ground_truth_jumps": 22,
+    "method": "Visual + Raw Curve",
+    "notes": "Boxing footwork tutorial @alwaysghadi (0.6-10.6s, 22 jumps); IG outro excluded"
+  },
+  {
+    "no": 43,
+    "drive_id": "1jTzxLQNWc8fU5mY9zEMg5VVXqH3keve0",
+    "filename": "VID_20261122_111720_184.mp4",
+    "duration_s": 28.8,
+    "ground_truth_jumps": 41,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor single-unders + 11 Double-Unders + footwork (1.0-20.5s); walk & IG outro excluded"
+  },
+  {
+    "no": 44,
+    "drive_id": "1_-3nLhqicN7zyxqvI92fYFhBkdlkPVvE",
+    "filename": "VID_20261122_111819_109.mp4",
+    "duration_s": 20.0,
+    "ground_truth_jumps": 38,
+    "method": "Visual + Raw Curve",
+    "notes": "Outdoor park mat skipping (1.3-15.1s); IG outro excluded"
+  },
+  {
+    "no": 45,
+    "drive_id": "1yQucuVq4s3BrTByAp0AyTIk8q4S8x_gH",
+    "filename": "VID_20261122_112203_489.mp4",
+    "duration_s": 20.0,
+    "ground_truth_jumps": 42,
+    "method": "Visual + Raw Curve",
+    "notes": "2-person synchronized skipping (1.0-14.0s); IG outro excluded"
+  },
+  {
+    "no": 46,
+    "drive_id": "1544W5-UaTz3cDOv0O8f7vY7ykS3Opk3D",
+    "filename": "watermark video test 1.mp4",
+    "duration_s": 59.6,
+    "ground_truth_jumps": 109,
+    "method": "Visual + Raw Curve",
+    "notes": "Watermarked copy of VID_20260812_165337.mp4 (user manual = 109)"
+  }
+]
