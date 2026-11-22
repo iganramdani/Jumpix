@@ -203,12 +203,12 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             progress = uiState.videoProgress,
             result = uiState.videoResult,
             errorMessage = uiState.videoError,
-            onPickVideo = { mp4PickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
+            onPickVideo = { mp4PickerLauncher.launch(arrayOf("video/*")) },
             onShareResult = { res ->
                 val session = WorkoutSession(
                     id = "video_share",
                     timestampMillis = System.currentTimeMillis(),
-                    modeLabel = "Video MP4",
+                    modeLabel = "Video",
                     modeType = WorkoutModeType.FREE,
                     jumpCount = res.jumpCount,
                     durationMs = res.durationMs,
@@ -434,7 +434,7 @@ private fun LiveWorkoutHud(
                                 active = true,
                                 activeColor = ElectricCyan,
                                 icon = Icons.Rounded.Movie,
-                                contentDescription = "Hitung Video MP4"
+                                contentDescription = "Hitung Video"
                             )
                             HudIconButton(
                                 onClick = onToggleAudio,

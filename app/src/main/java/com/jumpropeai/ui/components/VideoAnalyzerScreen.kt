@@ -101,12 +101,12 @@ fun VideoAnalyzerScreen(
         if (imageBitmap != null) {
             Image(
                 bitmap = imageBitmap,
-                contentDescription = "Frame Video MP4",
+                contentDescription = "Frame Video",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Live AI Skeleton Overlay right on top of the MP4 frame!
+            // Live AI Skeleton Overlay right on top of the video frame!
             if (isAnalyzing && progress?.latestPose != null) {
                 PoseOverlay(
                     poseFrame = progress.latestPose,
@@ -171,7 +171,7 @@ fun VideoAnalyzerScreen(
 
                     Column {
                         Text(
-                            text = "Video MP4 Studio",
+                            text = "Video Studio",
                             color = Color.White,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold
@@ -537,7 +537,7 @@ fun VideoAnalyzerScreen(
                         )
 
                         Text(
-                            text = "Pilih video lompat tali (.mp4) dari galeri Anda. Anda bisa menonton live preview video + skeleton AI & angka lompatan bergerak real-time saat dihitung.",
+                            text = "Pilih video lompat tali dari galeri Anda. Anda bisa menonton live preview video + skeleton AI & angka lompatan bergerak real-time saat dihitung.",
                             color = Color.White.copy(alpha = 0.72f),
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center
@@ -568,7 +568,7 @@ fun VideoAnalyzerScreen(
                             Icon(Icons.Rounded.Movie, contentDescription = null, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "PILIH FILE MP4",
+                                text = "PILIH VIDEO",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 letterSpacing = 1.sp

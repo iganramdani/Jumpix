@@ -56,6 +56,8 @@ class JumpDetector(
     }
 
     private var warmupFrames = 0
+    private var prevFrameMs: Long? = null
+    private var avgFrameDtMs: Float = 33f
     private var smoothedY: Float? = null
     private var smoothedScale: Float? = null
 
@@ -69,6 +71,8 @@ class JumpDetector(
 
     fun reset() {
         warmupFrames = 0
+        prevFrameMs = null
+        avgFrameDtMs = 33f
         smoothedY = null
         smoothedScale = null
         phase = Phase.SEEK_PEAK
@@ -81,6 +85,12 @@ class JumpDetector(
     }
 
     fun processFrame(frame: PoseFrame, isCountingActive: Boolean): JumpDetectionResult {
+        prevFrameMs?.let { pMs ->
+            val dtFrame = (frame.timestampMs - pMs).coerceIn(16L, 300L).toFloat()
+            avgFrameDtMs = avgFrameDtMs * 0.85f + dtFrame * 0.15f
+        }
+        prevFrameMs = frame.timestampMs
+
         if (frame.landmarks.isEmpty()) {
             return JumpDetectionResult(
                 jumpDetected = false,
@@ -129,8 +139,14 @@ class JumpDetector(
             )
         }
 
+        // FPS-aware adaptive smoothing: preserves 1-frame jump apexes on low-end 8-15 FPS phones
+        // while keeping exact 0.55 smoothing on smooth 30 FPS devices.
+        val lowFpsFactor = ((avgFrameDtMs - 40f) / 60f).coerceIn(0f, 1f)
+        val effectiveAlpha = (smoothingAlpha + 0.33f * lowFpsFactor).coerceAtMost(0.90f)
+        val effectiveDropFrac = 0.40f - 0.08f * lowFpsFactor
+
         val currentY = smoothedY?.let { prev ->
-            prev + smoothingAlpha * (rawY - prev)
+            prev + effectiveAlpha * (rawY - prev)
         } ?: rawY
         smoothedY = currentY
 
@@ -220,7 +236,7 @@ class JumpDetector(
                     phase = Phase.SEEK_PEAK
                     valleyY = currentY
                     valleyTimeMs = nowMs
-                } else if (drop >= max(minProminence * 0.65f, amplitude * 0.40f)) {
+                } else if (drop >= max(minProminence * 0.65f, amplitude * effectiveDropFrac)) {
                     val sinceLast = lastJumpTimestampMs?.let { nowMs - it } ?: Long.MAX_VALUE
                     val validTiming = riseMs in minRiseDurationMs..maxRiseDurationMs
                     val validAmplitude = amplitude <= maxAmplitude

@@ -27,7 +27,7 @@ import java.util.Locale
 enum class CardTheme(val label: String) {
     DARK_POSTER("Poster Gelap"),
     TRANSPARENT_STICKER("Stiker Transparan"),
-    PHOTO_BACKDROP("Latar Video")
+    PHOTO_BACKDROP("Latar Foto")
 }
 
 /**
@@ -43,14 +43,15 @@ object WorkoutCardRenderer {
         session: WorkoutSession,
         theme: CardTheme,
         backdropBitmap: Bitmap? = null,
-        styleLabel: String? = null
+        styleLabel: String? = null,
+        overlayScale: Float = 1.0f
     ): Bitmap {
         val bmp = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
         val isTransparent = theme == CardTheme.TRANSPARENT_STICKER
 
-        // 1. Background Layer
+        // 1. Background Layer (always fills full 1080x1350 canvas)
         when (theme) {
             CardTheme.TRANSPARENT_STICKER -> {
                 canvas.drawColor(Color.TRANSPARENT)
@@ -59,7 +60,6 @@ object WorkoutCardRenderer {
             CardTheme.PHOTO_BACKDROP -> {
                 if (backdropBitmap != null && !backdropBitmap.isRecycled) {
                     drawCenterCropBitmap(canvas, backdropBitmap, WIDTH, HEIGHT)
-                    // Dark athletic vignette overlay for crisp text contrast
                     val scrim = Paint().apply {
                         shader = LinearGradient(
                             0f, 0f, 0f, HEIGHT.toFloat(),
@@ -82,6 +82,11 @@ object WorkoutCardRenderer {
                 drawDarkPosterBackground(canvas)
             }
         }
+
+        // Apply user-chosen watermark/stats scale cleanly around canvas center
+        val safeScale = overlayScale.coerceIn(0.55f, 1.35f)
+        canvas.save()
+        canvas.scale(safeScale, safeScale, WIDTH / 2f, HEIGHT / 2f)
 
         // 2. Top Brand Header + Date
         val dateText = SimpleDateFormat("dd MMM yyyy • HH:mm", Locale.getDefault())
@@ -232,6 +237,7 @@ object WorkoutCardRenderer {
             if (isTransparent) setShadowLayer(8f, 0f, 2f, Color.argb(180, 0, 0, 0))
         }
         canvas.drawText("TRACKED ON-DEVICE • JUMPROPE AI FUSION", WIDTH / 2f, HEIGHT - 72f, footerPaint)
+        canvas.restore()
 
         return bmp
     }

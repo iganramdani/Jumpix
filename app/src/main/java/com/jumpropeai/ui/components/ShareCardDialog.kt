@@ -1,7 +1,12 @@
 package com.jumpropeai.ui.components
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -19,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Share
@@ -28,10 +34,13 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -60,8 +69,11 @@ import com.jumpropeai.ui.theme.NeonLime
 
 /**
  * Strava-style Share / Save Screenshot Card Dialog.
- * Lets the user preview and switch between Dark Poster, Transparent Sticker, or Video Backdrop,
- * then save directly to Gallery (Pictures/JumpRopeAI) or share to Instagram/WhatsApp.
+ * Supports:
+ * - Custom background photo picker from gallery
+ * - Resizable stats watermark (60% - 130%) via smooth slider
+ * - 3 themes: Dark Poster, Transparent Sticker (PNG), and Custom Photo Backdrop
+ * - Save directly to Gallery (Pictures/JumpRopeAI) or Share to Instagram/WhatsApp
  */
 @Composable
 fun ShareCardDialog(
@@ -71,22 +83,40 @@ fun ShareCardDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val availableThemes = remember(backdropBitmap) {
-        if (backdropBitmap != null && !backdropBitmap.isRecycled) {
-            listOf(CardTheme.PHOTO_BACKDROP, CardTheme.DARK_POSTER, CardTheme.TRANSPARENT_STICKER)
-        } else {
-            listOf(CardTheme.DARK_POSTER, CardTheme.TRANSPARENT_STICKER)
+    var customPhoto by remember(backdropBitmap) { mutableStateOf(backdropBitmap) }
+    var selectedTheme by remember(backdropBitmap) {
+        mutableStateOf(
+            if (backdropBitmap != null && !backdropBitmap.isRecycled) {
+                CardTheme.PHOTO_BACKDROP
+            } else {
+                CardTheme.DARK_POSTER
+            }
+        )
+    }
+    var watermarkScale by remember { mutableFloatStateOf(1.0f) }
+    var savedSuccess by remember(selectedTheme, watermarkScale, customPhoto) { mutableStateOf(false) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val loaded = context.decodeSampledBitmap(uri, maxDim = 1440)
+            if (loaded != null) {
+                customPhoto = loaded
+                selectedTheme = CardTheme.PHOTO_BACKDROP
+            } else {
+                Toast.makeText(context, "Gagal memuat foto", Toast.LENGTH_SHORT).show()
+            }
         }
     }
-    var selectedTheme by remember(availableThemes) { mutableStateOf(availableThemes.first()) }
-    var savedSuccess by remember(selectedTheme) { mutableStateOf(false) }
 
-    val renderedBitmap = remember(session, selectedTheme, backdropBitmap, styleLabel) {
+    val renderedBitmap = remember(session, selectedTheme, customPhoto, styleLabel, watermarkScale) {
         WorkoutCardRenderer.renderCard(
             session = session,
             theme = selectedTheme,
-            backdropBitmap = backdropBitmap,
-            styleLabel = styleLabel
+            backdropBitmap = customPhoto,
+            styleLabel = styleLabel,
+            overlayScale = watermarkScale
         )
     }
 
@@ -100,21 +130,59 @@ fun ShareCardDialog(
             Column(
                 modifier = Modifier.padding(18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Kartu Statistik",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Kartu Statistik",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+
+                    // 1-tap Custom Photo Picker button
+                    Surface(
+                        onClick = { photoPickerLauncher.launch(arrayOf("image/*")) },
+                        shape = RoundedCornerShape(12.dp),
+                        color = GlassCard,
+                        border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.55f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AddPhotoAlternate,
+                                contentDescription = "Pilih Foto",
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Pilih Foto",
+                                color = ElectricCyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
                 // Theme selector chips
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
                 ) {
-                    availableThemes.forEach { theme ->
+                    val themes = if (customPhoto != null && !customPhoto!!.isRecycled) {
+                        listOf(CardTheme.PHOTO_BACKDROP, CardTheme.DARK_POSTER, CardTheme.TRANSPARENT_STICKER)
+                    } else {
+                        listOf(CardTheme.DARK_POSTER, CardTheme.TRANSPARENT_STICKER)
+                    }
+                    themes.forEach { theme ->
                         val selected = theme == selectedTheme
                         FilterChip(
                             selected = selected,
@@ -136,10 +204,10 @@ fun ShareCardDialog(
                     }
                 }
 
-                // Live Preview of the generated Strava-style PNG (with checkerboard behind transparent sticker!)
+                // Live Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.84f)
+                        .fillMaxWidth(0.78f)
                         .aspectRatio(1080f / 1350f)
                         .clip(RoundedCornerShape(18.dp))
                 ) {
@@ -151,6 +219,43 @@ fun ShareCardDialog(
                         contentDescription = "Preview Kartu Statistik",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                // Watermark / Stats Overlay Size Slider (60% - 130%)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Ukuran Watermark",
+                            color = Color.White.copy(alpha = 0.72f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${(watermarkScale * 100).toInt()}%",
+                            color = NeonLime,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = watermarkScale,
+                        onValueChange = { watermarkScale = it },
+                        valueRange = 0.60f..1.30f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = NeonLime,
+                            activeTrackColor = NeonLime,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                        ),
+                        modifier = Modifier.height(28.dp)
                     )
                 }
 
@@ -173,7 +278,7 @@ fun ShareCardDialog(
                         border = BorderStroke(1.dp, if (savedSuccess) MintGreen else GlassBorder),
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp)
+                            .height(48.dp)
                     ) {
                         Icon(
                             imageVector = if (savedSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
@@ -201,7 +306,7 @@ fun ShareCardDialog(
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp)
+                            .height(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Share,
@@ -219,6 +324,18 @@ fun ShareCardDialog(
             }
         }
     }
+}
+
+private fun Context.decodeSampledBitmap(uri: Uri, maxDim: Int): Bitmap? {
+    return runCatching {
+        val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, boundsOpts) }
+        val maxSide = maxOf(boundsOpts.outWidth, boundsOpts.outHeight)
+        var sample = 1
+        while (maxSide / sample > maxDim) sample *= 2
+        val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sample }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOpts) }
+    }.getOrNull()
 }
 
 @Composable

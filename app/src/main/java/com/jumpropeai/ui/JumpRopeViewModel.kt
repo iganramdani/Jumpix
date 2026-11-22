@@ -466,7 +466,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isAnalyzingVideo = false,
-                        videoError = "Gagal membaca video MP4: ${e.localizedMessage ?: "format tidak didukung"}"
+                        videoError = "Gagal membaca video: ${e.localizedMessage ?: "format tidak didukung"}"
                     )
                 }
             }
@@ -477,7 +477,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val session = WorkoutSession(
             id = UUID.randomUUID().toString(),
             timestampMillis = System.currentTimeMillis(),
-            modeLabel = "Video MP4 • ${result.style.label}",
+            modeLabel = "Video • ${result.style.label}",
             modeType = WorkoutModeType.FREE,
             jumpCount = result.jumpCount,
             durationMs = result.durationMs,
