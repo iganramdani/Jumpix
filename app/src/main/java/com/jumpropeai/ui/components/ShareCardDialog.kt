@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,6 +66,7 @@ import androidx.compose.ui.window.Dialog
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.share.CardTheme
 import com.jumpropeai.share.VideoWatermarkExporter
+import com.jumpropeai.share.WatermarkTemplate
 import com.jumpropeai.share.WorkoutCardRenderer
 import com.jumpropeai.ui.theme.DarkSurface
 import com.jumpropeai.ui.theme.ElectricCyan
@@ -75,12 +78,8 @@ import com.jumpropeai.ui.theme.SoftRed
 import java.io.File
 
 /**
- * Strava-style Share / Save Card & Custom Video Watermark Dialog.
- * Supports:
- * - Custom Photo Picker (gallery image as card backdrop)
- * - Custom Video Watermark Export (burns transparent stats watermark onto any gallery video via Media3!)
- * - Resizable stats watermark (60% - 130%) via smooth slider
- * - 3 themes: Dark Poster, Transparent Sticker (PNG), and Custom Photo Backdrop
+ * Strava-style Share / Save Card & Custom Video Watermark Dialog with 5 selectable templates,
+ * custom gallery photo/video pickers, and live watermark scale slider.
  */
 @Composable
 fun ShareCardDialog(
@@ -100,8 +99,9 @@ fun ShareCardDialog(
             }
         )
     }
+    var selectedTemplate by remember { mutableStateOf(WatermarkTemplate.MINIMAL_STRAVA) }
     var watermarkScale by remember { mutableFloatStateOf(1.0f) }
-    var savedSuccess by remember(selectedTheme, watermarkScale, customPhoto) { mutableStateOf(false) }
+    var savedSuccess by remember(selectedTheme, selectedTemplate, watermarkScale, customPhoto) { mutableStateOf(false) }
 
     // Custom Video Watermark export state
     var isExportingVideo by remember { mutableStateOf(false) }
@@ -135,6 +135,7 @@ fun ShareCardDialog(
             val transparentWatermark = WorkoutCardRenderer.renderCard(
                 session = session,
                 theme = CardTheme.TRANSPARENT_STICKER,
+                template = selectedTemplate,
                 backdropBitmap = null,
                 styleLabel = styleLabel,
                 overlayScale = watermarkScale
@@ -161,10 +162,11 @@ fun ShareCardDialog(
         }
     }
 
-    val renderedBitmap = remember(session, selectedTheme, customPhoto, styleLabel, watermarkScale) {
+    val renderedBitmap = remember(session, selectedTheme, selectedTemplate, customPhoto, styleLabel, watermarkScale) {
         WorkoutCardRenderer.renderCard(
             session = session,
             theme = selectedTheme,
+            template = selectedTemplate,
             backdropBitmap = customPhoto,
             styleLabel = styleLabel,
             overlayScale = watermarkScale
@@ -179,9 +181,9 @@ fun ShareCardDialog(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
-                modifier = Modifier.padding(18.dp),
+                modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -195,7 +197,6 @@ fun ShareCardDialog(
                         fontWeight = FontWeight.ExtraBold
                     )
 
-                    // Quick Custom Photo + Custom Video buttons
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Surface(
                             onClick = { if (!isExportingVideo) photoPickerLauncher.launch(arrayOf("image/*")) },
@@ -208,12 +209,7 @@ fun ShareCardDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.AddPhotoAlternate,
-                                    contentDescription = "Foto",
-                                    tint = ElectricCyan,
-                                    modifier = Modifier.size(15.dp)
-                                )
+                                Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = "Foto", tint = ElectricCyan, modifier = Modifier.size(15.dp))
                                 Text("Foto", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -229,19 +225,43 @@ fun ShareCardDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.VideoCall,
-                                    contentDescription = "Ke Video",
-                                    tint = NeonLime,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Icon(Icons.Rounded.VideoCall, contentDescription = "Ke Video", tint = NeonLime, modifier = Modifier.size(16.dp))
                                 Text("Video", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
 
-                // Theme selector chips
+                // 5 Design Template Selector (horizontal scroll)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    WatermarkTemplate.entries.forEach { tpl ->
+                        val selected = tpl == selectedTemplate
+                        FilterChip(
+                            selected = selected,
+                            onClick = { selectedTemplate = tpl },
+                            label = {
+                                Text(
+                                    text = tpl.label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = NeonLime,
+                                selectedLabelColor = Color(0xFF0A0D10),
+                                containerColor = GlassCard,
+                                labelColor = Color.White
+                            )
+                        )
+                    }
+                }
+
+                // Background Theme Chips
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
@@ -259,7 +279,7 @@ fun ShareCardDialog(
                             label = {
                                 Text(
                                     text = theme.label,
-                                    fontSize = 11.sp,
+                                    fontSize = 10.sp,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
                                 )
                             },
@@ -276,7 +296,7 @@ fun ShareCardDialog(
                 // Live Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.75f)
+                        .fillMaxWidth(0.72f)
                         .aspectRatio(1080f / 1350f)
                         .clip(RoundedCornerShape(18.dp))
                 ) {
@@ -291,7 +311,7 @@ fun ShareCardDialog(
                     )
                 }
 
-                // Watermark Export Progress or Result Banner
+                // Video Export Progress / Result
                 if (isExportingVideo) {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
@@ -341,7 +361,7 @@ fun ShareCardDialog(
                     Text(text = exportError!!, color = SoftRed, fontSize = 11.sp)
                 }
 
-                // Watermark Size Slider (60% - 130%)
+                // Watermark Size Slider
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -352,18 +372,8 @@ fun ShareCardDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "Ukuran Watermark",
-                            color = Color.White.copy(alpha = 0.72f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "${(watermarkScale * 100).toInt()}%",
-                            color = NeonLime,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Text("Ukuran Watermark", color = Color.White.copy(alpha = 0.72f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text("${(watermarkScale * 100).toInt()}%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
                         value = watermarkScale,
@@ -375,7 +385,7 @@ fun ShareCardDialog(
                             activeTrackColor = NeonLime,
                             inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                         ),
-                        modifier = Modifier.height(26.dp)
+                        modifier = Modifier.height(24.dp)
                     )
                 }
 
@@ -430,17 +440,9 @@ fun ShareCardDialog(
                             .weight(1f)
                             .height(46.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Share,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "BAGIKAN",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp
-                        )
+                        Text("BAGIKAN", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                     }
                 }
             }
