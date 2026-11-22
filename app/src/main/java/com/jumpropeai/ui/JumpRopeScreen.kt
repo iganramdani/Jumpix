@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.Cameraswitch
 import androidx.compose.material.icons.rounded.Check
@@ -39,8 +41,6 @@ import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.VolumeOff
-import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Whatshot
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -277,7 +277,7 @@ private fun LiveWorkoutHud(
                             onClick = onToggleAudio,
                             active = uiState.isAudioEnabled,
                             activeColor = NeonLime,
-                            icon = if (uiState.isAudioEnabled) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeOff,
+                            icon = if (uiState.isAudioEnabled) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
                             contentDescription = "Audio Feedback"
                         )
                         HudIconButton(
