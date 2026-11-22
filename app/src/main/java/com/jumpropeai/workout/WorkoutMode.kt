@@ -18,12 +18,25 @@ data class WorkoutConfig(
     val targetTimeSeconds: Int = 180,
     val hiitWorkSeconds: Int = 30,
     val hiitRestSeconds: Int = 15,
-    val hiitRounds: Int = 5
+    val hiitRounds: Int = 5,
+    val milestoneInterval: Int = 25,
+    val customLabel: String = ""
 ) {
     fun shortLabel(): String = when (mode) {
-        WorkoutModeType.FREE -> "Mode Bebas"
+        WorkoutModeType.FREE -> {
+            val name = customLabel.trim()
+            if (name.isNotEmpty()) name else "Mode Bebas"
+        }
         WorkoutModeType.TARGET_JUMPS -> "Target $targetJumps Lompat"
-        WorkoutModeType.TARGET_TIME -> "Target ${targetTimeSeconds / 60} Menit"
+        WorkoutModeType.TARGET_TIME -> {
+            val mins = targetTimeSeconds / 60
+            val secs = targetTimeSeconds % 60
+            when {
+                mins > 0 && secs > 0 -> "Target ${mins}m ${secs}d"
+                mins > 0 -> "Target $mins Menit"
+                else -> "Target ${secs} Detik"
+            }
+        }
         WorkoutModeType.HIIT -> "HIIT ${hiitWorkSeconds}s/${hiitRestSeconds}s × $hiitRounds"
     }
 }

@@ -270,7 +270,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         if (count % 10 == 0) {
             autoSaveIfNeeded()
         }
-        if (count % 25 == 0) {
+        val step = _uiState.value.workoutConfig.milestoneInterval.coerceAtLeast(5)
+        if (count > 0 && count % step == 0) {
             notifySpeakerPlayed(900L)
             _audioCues.tryEmit(AudioCue.Milestone(count))
         } else {

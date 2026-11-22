@@ -16,8 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EmojiEvents
@@ -32,6 +35,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,6 +77,16 @@ fun WorkoutModeSheet(
 ) {
     var draft by remember(currentConfig) { mutableStateOf(currentConfig) }
 
+    // Custom text input states synced with presets & user typing
+    var freeLabelText by remember(currentConfig) { mutableStateOf(currentConfig.customLabel) }
+    var milestoneText by remember(currentConfig) { mutableStateOf(currentConfig.milestoneInterval.toString()) }
+    var targetJumpsText by remember(currentConfig) { mutableStateOf(currentConfig.targetJumps.toString()) }
+    var targetMinText by remember(currentConfig) { mutableStateOf((currentConfig.targetTimeSeconds / 60).toString()) }
+    var targetSecText by remember(currentConfig) { mutableStateOf((currentConfig.targetTimeSeconds % 60).toString()) }
+    var hiitWorkText by remember(currentConfig) { mutableStateOf(currentConfig.hiitWorkSeconds.toString()) }
+    var hiitRestText by remember(currentConfig) { mutableStateOf(currentConfig.hiitRestSeconds.toString()) }
+    var hiitRoundsText by remember(currentConfig) { mutableStateOf(currentConfig.hiitRounds.toString()) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = DarkSurface,
@@ -79,9 +95,10 @@ fun WorkoutModeSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
                 text = "Pilih Mode Latihan",
@@ -116,13 +133,66 @@ fun WorkoutModeSheet(
                 }
             }
 
-            // Mode-specific presets
+            // Mode-specific presets + custom inputs
             when (draft.mode) {
                 WorkoutModeType.FREE -> {
                     Text(
-                        text = "Lompat bebas tanpa batas waktu atau target. Tekan Selesai kapan saja untuk menyimpan sesi ke riwayat.",
+                        text = "Lompat bebas tanpa batas waktu atau target. Atur nama sesi & pengingat suara sesuai keinginan.",
                         color = Color.White.copy(alpha = 0.72f),
                         fontSize = 13.sp
+                    )
+                    CustomInputTextField(
+                        value = freeLabelText,
+                        onValueChange = { text ->
+                            val clean = text.take(28)
+                            freeLabelText = clean
+                            draft = draft.copy(customLabel = clean)
+                        },
+                        label = "Nama Sesi Custom (opsional)",
+                        placeholder = "Contoh: Pemanasan Pagi / Double Under",
+                        accentColor = NeonLime,
+                        isNumeric = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "Pengingat Suara (Tiap X Lompatan)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NeonLime
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(10, 25, 50, 100).forEach { step ->
+                            val selected = draft.milestoneInterval == step
+                            FilterChip(
+                                selected = selected,
+                                onClick = {
+                                    milestoneText = step.toString()
+                                    draft = draft.copy(milestoneInterval = step)
+                                },
+                                label = { Text("$step") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = NeonLime,
+                                    selectedLabelColor = Color(0xFF0A0D10),
+                                    containerColor = GlassCard,
+                                    labelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                    CustomInputTextField(
+                        value = milestoneText,
+                        onValueChange = { raw ->
+                            val digits = raw.filter { it.isDigit() }.take(4)
+                            milestoneText = digits
+                            digits.toIntOrNull()?.takeIf { it >= 5 }?.let {
+                                draft = draft.copy(milestoneInterval = it.coerceIn(5, 1000))
+                            }
+                        },
+                        label = "Custom Interval Pengingat (5–1000 lompatan)",
+                        placeholder = "25",
+                        accentColor = NeonLime,
+                        isNumeric = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
 
@@ -134,11 +204,14 @@ fun WorkoutModeSheet(
                         color = ElectricCyan
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(50, 100, 200, 300, 500).forEach { target ->
+                        listOf(50, 100, 200, 300, 500, 1000).forEach { target ->
                             val selected = draft.targetJumps == target
                             FilterChip(
                                 selected = selected,
-                                onClick = { draft = draft.copy(targetJumps = target) },
+                                onClick = {
+                                    targetJumpsText = target.toString()
+                                    draft = draft.copy(targetJumps = target)
+                                },
                                 label = { Text("$target") },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = ElectricCyan,
@@ -149,6 +222,21 @@ fun WorkoutModeSheet(
                             )
                         }
                     }
+                    CustomInputTextField(
+                        value = targetJumpsText,
+                        onValueChange = { raw ->
+                            val digits = raw.filter { it.isDigit() }.take(5)
+                            targetJumpsText = digits
+                            digits.toIntOrNull()?.takeIf { it >= 1 }?.let {
+                                draft = draft.copy(targetJumps = it.coerceIn(1, 99999))
+                            }
+                        },
+                        label = "Custom Target Lompatan (1–99.999)",
+                        placeholder = "Contoh: 150",
+                        accentColor = ElectricCyan,
+                        isNumeric = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 WorkoutModeType.TARGET_TIME -> {
@@ -163,7 +251,11 @@ fun WorkoutModeSheet(
                             val selected = draft.targetTimeSeconds == sec
                             FilterChip(
                                 selected = selected,
-                                onClick = { draft = draft.copy(targetTimeSeconds = sec) },
+                                onClick = {
+                                    targetMinText = (sec / 60).toString()
+                                    targetSecText = (sec % 60).toString()
+                                    draft = draft.copy(targetTimeSeconds = sec)
+                                },
                                 label = { Text(label) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = ElectricCyan,
@@ -174,11 +266,54 @@ fun WorkoutModeSheet(
                             )
                         }
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CustomInputTextField(
+                            value = targetMinText,
+                            onValueChange = { raw ->
+                                val digits = raw.filter { it.isDigit() }.take(3)
+                                targetMinText = digits
+                                val m = (digits.toIntOrNull() ?: 0).coerceIn(0, 180)
+                                val s = (targetSecText.toIntOrNull() ?: 0).coerceIn(0, 59)
+                                val total = (m * 60 + s).coerceAtLeast(10)
+                                draft = draft.copy(targetTimeSeconds = total)
+                            },
+                            label = "Menit (0–180)",
+                            placeholder = "3",
+                            accentColor = ElectricCyan,
+                            isNumeric = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CustomInputTextField(
+                            value = targetSecText,
+                            onValueChange = { raw ->
+                                val digits = raw.filter { it.isDigit() }.take(2)
+                                targetSecText = digits
+                                val m = (targetMinText.toIntOrNull() ?: 0).coerceIn(0, 180)
+                                val s = (digits.toIntOrNull() ?: 0).coerceIn(0, 59)
+                                val total = (m * 60 + s).coerceAtLeast(10)
+                                draft = draft.copy(targetTimeSeconds = total)
+                            },
+                            label = "Detik (0–59)",
+                            placeholder = "0",
+                            accentColor = ElectricCyan,
+                            isNumeric = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        text = "Total target: ${draft.shortLabel()}",
+                        color = ElectricCyan.copy(alpha = 0.85f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 WorkoutModeType.HIIT -> {
                     Text(
-                        text = "Preset Interval HIIT (Lompat / Istirahat × Ronde)",
+                        text = "Preset & Custom Interval HIIT",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = FlameOrange
@@ -189,42 +324,114 @@ fun WorkoutModeSheet(
                         Triple(45, 15, 6) to "Intens: 45s / 15s × 6",
                         Triple(60, 20, 5) to "Pro: 60s / 20s × 5"
                     )
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         presets.forEach { (cfg, label) ->
                             val selected = draft.hiitWorkSeconds == cfg.first &&
                                 draft.hiitRestSeconds == cfg.second &&
                                 draft.hiitRounds == cfg.third
-                            Surface(
+                            FilterChip(
+                                selected = selected,
                                 onClick = {
+                                    hiitWorkText = cfg.first.toString()
+                                    hiitRestText = cfg.second.toString()
+                                    hiitRoundsText = cfg.third.toString()
                                     draft = draft.copy(
                                         hiitWorkSeconds = cfg.first,
                                         hiitRestSeconds = cfg.second,
                                         hiitRounds = cfg.third
                                     )
                                 },
-                                shape = RoundedCornerShape(14.dp),
-                                color = if (selected) FlameOrange.copy(alpha = 0.22f) else GlassCard,
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (selected) FlameOrange else GlassBorder
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (selected) FlameOrange else Color.White,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                                label = { Text(label, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = FlameOrange,
+                                    selectedLabelColor = Color(0xFF0A0D10),
+                                    containerColor = GlassCard,
+                                    labelColor = Color.White
                                 )
-                            }
+                            )
                         }
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CustomInputTextField(
+                            value = hiitWorkText,
+                            onValueChange = { raw ->
+                                val digits = raw.filter { it.isDigit() }.take(3)
+                                hiitWorkText = digits
+                                digits.toIntOrNull()?.takeIf { it >= 5 }?.let {
+                                    draft = draft.copy(hiitWorkSeconds = it.coerceIn(5, 600))
+                                }
+                            },
+                            label = "Lompat (d)",
+                            placeholder = "30",
+                            accentColor = FlameOrange,
+                            isNumeric = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CustomInputTextField(
+                            value = hiitRestText,
+                            onValueChange = { raw ->
+                                val digits = raw.filter { it.isDigit() }.take(3)
+                                hiitRestText = digits
+                                digits.toIntOrNull()?.takeIf { it >= 5 }?.let {
+                                    draft = draft.copy(hiitRestSeconds = it.coerceIn(5, 300))
+                                }
+                            },
+                            label = "Istirahat (d)",
+                            placeholder = "15",
+                            accentColor = FlameOrange,
+                            isNumeric = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CustomInputTextField(
+                            value = hiitRoundsText,
+                            onValueChange = { raw ->
+                                val digits = raw.filter { it.isDigit() }.take(2)
+                                hiitRoundsText = digits
+                                digits.toIntOrNull()?.takeIf { it >= 1 }?.let {
+                                    draft = draft.copy(hiitRounds = it.coerceIn(1, 50))
+                                }
+                            },
+                            label = "Ronde",
+                            placeholder = "5",
+                            accentColor = FlameOrange,
+                            isNumeric = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    val totalHiitSec = draft.hiitRounds * draft.hiitWorkSeconds +
+                        (draft.hiitRounds - 1).coerceAtLeast(0) * draft.hiitRestSeconds
+                    Text(
+                        text = "Total HIIT: ${totalHiitSec / 60}m ${totalHiitSec % 60}d (${draft.hiitWorkSeconds}s lompat / ${draft.hiitRestSeconds}s istirahat × ${draft.hiitRounds} ronde)",
+                        color = FlameOrange.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
             Button(
-                onClick = { onApply(draft) },
+                onClick = {
+                    // Normalize & clamp all custom inputs before applying
+                    val finalConfig = draft.copy(
+                        customLabel = freeLabelText.trim(),
+                        milestoneInterval = (milestoneText.toIntOrNull() ?: draft.milestoneInterval).coerceIn(5, 1000),
+                        targetJumps = (targetJumpsText.toIntOrNull() ?: draft.targetJumps).coerceIn(1, 99999),
+                        targetTimeSeconds = (
+                            (targetMinText.toIntOrNull() ?: 0).coerceIn(0, 180) * 60 +
+                                (targetSecText.toIntOrNull() ?: 0).coerceIn(0, 59)
+                            ).coerceAtLeast(10),
+                        hiitWorkSeconds = (hiitWorkText.toIntOrNull() ?: draft.hiitWorkSeconds).coerceIn(5, 600),
+                        hiitRestSeconds = (hiitRestText.toIntOrNull() ?: draft.hiitRestSeconds).coerceIn(5, 300),
+                        hiitRounds = (hiitRoundsText.toIntOrNull() ?: draft.hiitRounds).coerceIn(1, 50)
+                    )
+                    onApply(finalConfig)
+                },
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = NeonLime,
@@ -242,6 +449,41 @@ fun WorkoutModeSheet(
             }
         }
     }
+}
+
+@Composable
+private fun CustomInputTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+    accentColor: Color,
+    isNumeric: Boolean,
+    modifier: Modifier = Modifier
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isNumeric) KeyboardType.Number else KeyboardType.Text
+        ),
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = accentColor,
+            unfocusedBorderColor = GlassBorder,
+            focusedLabelColor = accentColor,
+            unfocusedLabelColor = Color.White.copy(alpha = 0.65f),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = accentColor,
+            focusedContainerColor = GlassCard,
+            unfocusedContainerColor = GlassCard
+        ),
+        modifier = modifier
+    )
 }
 
 @Composable
