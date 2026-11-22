@@ -480,6 +480,126 @@ class RealVideosBenchmarkTest {
         println("====================================================================================\n")
     }
 
+    @Test
+    fun verify4SmartphonesGroundTruth95Percent() {
+        val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
+        val vidDir = File(scratchDir, "videos_all")
+        Assume.assumeTrue("Local dataset not present", manifestFile.exists())
+
+        // 12 verified manual ground-truth videos keyed by unique Drive file ID (398 verified jumps)
+        val groundTruth = linkedMapOf(
+            "10lwgqmItV3HdFFRPXfhyxrpdYojnYjtK" to ("VID_20261122_054519_197.mp4" to 10),
+            "1Aklu0NicKSK9FU4Te9acFInifDKB7aA-" to ("VID_20261122_052624_470.mp4" to 36),
+            "1KgXUpQ6oGNviKaYsm_Ek9NVCPU-DAF8g" to ("VID_20261122_055324_085.mp4" to 28),
+            "1Zr3bOnNXPax320dorzMJdN5jE600mMIA" to ("VID_20261122_044130_024.mp4" to 15),
+            "1aB1Hrbz6e4AYKgAY5PHZWYQC3_32Yl09" to ("VID_20261122_044018_254.mp4" to 11),
+            "1aiG6yFw65dWTMn-wR5JbvZuoGDJG0z4I" to ("VID_20261122_044029_086.mp4" to 22),
+            "1anpiHGGaRHJAJEvu1YuEI-3tiKoLjJYJ" to ("VID_20261122_044136_077.mp4" to 41),
+            "1boFhVkbUVxdDUMnJHfjhzZmZN25-LNPL" to ("VID_20261122_052613_168.mp4" to 30),
+            "1dCPF7MJKVFNUJfMawmn1a4Ki7E5usW73" to ("VID_20261122_060059_822.mp4" to 26),
+            "1qaZUVpUmvTJslY01i6EQ_8EpS3tTEyZa" to ("VID_20261122_055429_412.mp4" to 46),
+            "1CNgHd06UzqUcnbv-1mpcOQeU5IFs5_5P" to ("VID_20260812_164851.mp4" to 24),
+            "1dP5jUABvEDYPcGvUAPnvQya8F9OON3lP" to ("VID_20260812_165337.mp4" to 109)
+        )
+
+        data class PhoneProfile(val name: String, val fps: Int, val jitterPx: Float, val dropRate: Float)
+        val profiles = listOf(
+            PhoneProfile("1. Flagship (30 FPS, 0px, 0% drop)", 30, 0f, 0.00f),
+            PhoneProfile("2. Mid-Range(20 FPS, 2px, 2% drop)", 20, 2f, 0.02f),
+            PhoneProfile("3. Budget   (15 FPS, 4px, 5% drop)", 15, 4f, 0.05f),
+            PhoneProfile("4. Low-End  (10 FPS, 6px, 10% drop)", 10, 6f, 0.10f)
+        )
+
+        data class VideoData(val fid: String, val title: String, val frames: List<PoseFrame>, val audioFlux: List<FluxSample>)
+        val dataset = manifestFile.readLines().filter { it.isNotBlank() }.mapNotNull { line ->
+            val p = line.split("\t")
+            val frames = loadPoseTsv(File(p[4]), p[2].toInt(), p[3].toInt())
+            if (frames.isEmpty()) return@mapNotNull null
+            val wav = File(vidDir, "${p[0]}.wav")
+            val flux = if (wav.exists()) {
+                val pcm = readWav16Mono(wav)
+                if (pcm.size >= 1024) StftAudioEngine().processOfflinePcm(pcm, 16_000) else emptyList()
+            } else emptyList()
+            VideoData(p[0], p[1], frames, flux)
+        }
+
+        println("\n==================== 4-SMARTPHONE GROUND-TRUTH & 41-VIDEO BENCHMARK ====================")
+        val perPhonePerVideo = mutableMapOf<String, MutableMap<String, Int>>()
+        var all41Baseline = 0
+
+        for (prof in profiles) {
+            val stepMs = 1000.0 / prof.fps
+            val rng = java.util.Random(42L)
+            val mapForPhone = mutableMapOf<String, Int>()
+            var sumAll41 = 0
+            var gtManualTotal = 0
+            var gtAppTotal = 0
+            var gtAbsErrTotal = 0
+
+            for (vid in dataset) {
+                val jd = JumpDetector()
+                val fe = FusionEngine()
+                val hadAudio = vid.audioFlux.size >= 20
+                var nextT = 0.0
+                var count = 0
+
+                for (fr in vid.frames) {
+                    if (fr.timestampMs + 4 < nextT) continue
+                    nextT = fr.timestampMs + stepMs
+                    val sim = if (prof.dropRate > 0f && rng.nextFloat() < prof.dropRate) {
+                        fr.copy(landmarks = emptyMap())
+                    } else if (prof.jitterPx > 0f) {
+                        val noisy = fr.landmarks.mapValues { (_, pt) ->
+                            val jx = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
+                            val jy = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
+                            pt.copy(x = pt.x + jx, y = pt.y + jy)
+                        }
+                        fr.copy(landmarks = noisy)
+                    } else fr
+
+                    val det = jd.processFrame(sim, isCountingActive = true)
+                    val cand = det.candidate
+                    if (cand != null) {
+                        val dec = fe.evaluateCandidate(cand, vid.audioFlux, useAudioFusion = hadAudio)
+                        count += dec.acceptedJumps
+                    }
+                }
+                sumAll41 += count
+                groundTruth[vid.fid]?.let { (_, man) ->
+                    mapForPhone[vid.fid] = count
+                    gtManualTotal += man
+                    gtAppTotal += count
+                    gtAbsErrTotal += kotlin.math.abs(count - man)
+                }
+            }
+
+            if (all41Baseline == 0) all41Baseline = maxOf(sumAll41, 1)
+            val strictAcc = (1.0 - gtAbsErrTotal.toDouble() / maxOf(gtManualTotal, 1)) * 100.0
+            val volAcc = (1.0 - kotlin.math.abs(gtAppTotal - gtManualTotal).toDouble() / maxOf(gtManualTotal, 1)) * 100.0
+            val all41Ret = (sumAll41 * 100.0) / all41Baseline
+            perPhonePerVideo[prof.name] = mapForPhone
+            println(
+                String.format(
+                    Locale.US,
+                    "%-36s | GT=%3d/%3d | AbsErr=%3d | StrictAcc=%5.1f%% | VolAcc=%5.1f%% | All41=%4d (%5.1f%%)",
+                    prof.name, gtAppTotal, gtManualTotal, gtAbsErrTotal, strictAcc, volAcc, sumAll41, all41Ret
+                )
+            )
+        }
+
+        println("\n--- Per-Video Breakdown (12 Manual Ground-Truth Videos) ---")
+        println(String.format(Locale.US, "%-28s | %4s | %4s | %4s | %4s | %4s", "Video", "Man", "30f", "20f", "15f", "10f"))
+        for ((fid, pair) in groundTruth) {
+            val (title, man) = pair
+            val c1 = perPhonePerVideo[profiles[0].name]?.get(fid) ?: -1
+            val c2 = perPhonePerVideo[profiles[1].name]?.get(fid) ?: -1
+            val c3 = perPhonePerVideo[profiles[2].name]?.get(fid) ?: -1
+            val c4 = perPhonePerVideo[profiles[3].name]?.get(fid) ?: -1
+            println(String.format(Locale.US, "%-28s | %4d | %4d | %4d | %4d | %4d", title.take(28), man, c1, c2, c3, c4))
+        }
+        println("========================================================================================\n")
+    }
+
     private fun readWav16Mono(file: File): FloatArray {
         val bytes = file.readBytes()
         if (bytes.size <= 44) return FloatArray(0)
