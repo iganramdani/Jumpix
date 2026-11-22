@@ -4,6 +4,11 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -28,11 +33,14 @@ import com.google.common.collect.ImmutableList
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import kotlin.math.roundToInt
 
 /**
  * Hardware-accelerated custom video watermark exporter powered by Jetpack Media3 Transformer.
- * Burns the transparent JumpRope AI stats sticker (scaled to user preference) directly onto
- * any user-selected video while preserving the original audio track.
+ *
+ * Automatically inspects the source video's exact aspect ratio (9:16 portrait, 4:5, 1:1, 16:9)
+ * and fits the transparent watermark inside a matching-aspect transparent canvas so ZERO pixels
+ * are ever clipped on left, right, top, or bottom!
  */
 object VideoWatermarkExporter {
 
@@ -49,11 +57,14 @@ object VideoWatermarkExporter {
         val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
         val outFile = File(outDir, "JumpRopeAI_${System.currentTimeMillis()}.mp4")
 
+        // Match the watermark canvas aspect ratio to the source video so Media3 never clips edges!
+        val fittedWatermark = fitWatermarkToVideoAspect(context, sourceVideoUri, watermarkBitmap)
+
         val overlaySettings = OverlaySettings.Builder()
             .setAlphaScale(1.0f)
             .build()
 
-        val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(watermarkBitmap, overlaySettings)
+        val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(fittedWatermark, overlaySettings)
         val overlayEffect = OverlayEffect(ImmutableList.of(bitmapOverlay))
         val effects = Effects(emptyList(), listOf(overlayEffect))
 
@@ -86,7 +97,6 @@ object VideoWatermarkExporter {
 
         transformer.start(editedMediaItem, outFile.absolutePath)
 
-        // Poll Media3 Transformer progress smoothly on main looper
         val pollRunnable = object : Runnable {
             override fun run() {
                 if (isFinished) return
@@ -98,6 +108,76 @@ object VideoWatermarkExporter {
             }
         }
         mainHandler.postDelayed(pollRunnable, 200L)
+    }
+
+    /**
+     * Reads the display-oriented video aspect ratio and embeds the watermark inside a transparent
+     * bitmap with the exact same aspect ratio + safe horizontal margin so edges are never clipped.
+     */
+    private fun fitWatermarkToVideoAspect(
+        context: Context,
+        videoUri: Uri,
+        watermark: Bitmap
+    ): Bitmap {
+        val (vidW, vidH) = readVideoDisplaySize(context, videoUri)
+        if (vidW <= 0 || vidH <= 0) return watermark
+
+        val videoAspect = vidW.toFloat() / vidH.toFloat()
+        val wmAspect = watermark.width.toFloat() / watermark.height.toFloat()
+
+        // Build a crisp high-res transparent canvas matching the exact video aspect ratio
+        val canvasW: Int
+        val canvasH: Int
+        if (videoAspect <= 1f) {
+            // Portrait or square video (e.g. 9:16 -> 1080 x 1920)
+            canvasW = 1080
+            canvasH = (1080f / videoAspect).roundToInt().coerceIn(1080, 2400)
+        } else {
+            // Landscape video (e.g. 16:9 -> 1920 x 1080)
+            canvasH = 1080
+            canvasW = (1080f * videoAspect).roundToInt().coerceIn(1080, 2400)
+        }
+
+        val out = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.drawColor(Color.TRANSPARENT)
+
+        // Fit watermark cleanly inside canvas with 4% safe padding on every side
+        val safeW = canvasW * 0.94f
+        val safeH = canvasH * 0.94f
+        val scale = minOf(safeW / watermark.width.toFloat(), safeH / watermark.height.toFloat())
+        val drawW = watermark.width * scale
+        val drawH = watermark.height * scale
+        val left = (canvasW - drawW) / 2f
+        // On tall 9:16 videos, place watermark slightly lower-centered so top/bottom feel balanced
+        val top = if (videoAspect < wmAspect) {
+            (canvasH - drawH) * 0.65f
+        } else {
+            (canvasH - drawH) / 2f
+        }
+
+        canvas.drawBitmap(
+            watermark,
+            null,
+            RectF(left, top, left + drawW, top + drawH),
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        )
+        return out
+    }
+
+    private fun readVideoDisplaySize(context: Context, uri: Uri): Pair<Int, Int> {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, uri)
+            val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
+            val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
+            val rot = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+            if (rot == 90 || rot == 270) h to w else w to h
+        } catch (_: Exception) {
+            0 to 0
+        } finally {
+            runCatching { retriever.release() }
+        }
     }
 
     fun shareVideoFile(context: Context, videoFile: File) {
