@@ -105,6 +105,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private var videoJob: Job? = null
     private var lastHiitPhase: HiitPhase? = null
     private var lastCountdownSecond: Int = -1
+    private var activeSessionId: String? = null
+    private var activeSessionStartEpochMs: Long = 0L
+    private var lastAutoSavedJumpCount: Int = 0
 
     init {
         val loaded = historyRepository.loadSessions()
@@ -264,6 +267,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun emitJumpCue(count: Int) {
+        if (count % 10 == 0) {
+            autoSaveIfNeeded()
+        }
         if (count % 25 == 0) {
             notifySpeakerPlayed(900L)
             _audioCues.tryEmit(AudioCue.Milestone(count))
@@ -305,12 +311,50 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         startTicker()
     }
 
+    fun autoSaveIfNeeded(nowMs: Long = SystemClock.elapsedRealtime()) {
+        val totalJumps = metricsTracker.jumpCount
+        val durationMs = metricsTracker.getElapsedMs(nowMs)
+        if (totalJumps == 0 || totalJumps == lastAutoSavedJumpCount) return
+
+        val sessionId = activeSessionId ?: UUID.randomUUID().toString().also {
+            activeSessionId = it
+            activeSessionStartEpochMs = System.currentTimeMillis()
+        }
+        val avgRpm = if (durationMs >= 1000L) {
+            (totalJumps * 60_000.0 / durationMs).roundToInt()
+        } else {
+            0
+        }
+        val config = _uiState.value.workoutConfig
+        val session = WorkoutSession(
+            id = sessionId,
+            timestampMillis = activeSessionStartEpochMs,
+            modeLabel = "${config.shortLabel()} • ${_uiState.value.sensorMode.label}",
+            modeType = config.mode,
+            jumpCount = totalJumps,
+            durationMs = durationMs,
+            averageRpm = avgRpm,
+            peakRpm = metricsTracker.peakRpm,
+            estimatedCalories = metricsTracker.estimatedCalories,
+            bestStreak = metricsTracker.bestStreak
+        )
+        val updated = historyRepository.upsertSession(session)
+        lastAutoSavedJumpCount = totalJumps
+        _uiState.update {
+            it.copy(
+                historySessions = updated,
+                cumulativeStats = WorkoutHistoryRepository.computeStats(updated)
+            )
+        }
+    }
+
     fun pauseSession() {
         val nowMs = SystemClock.elapsedRealtime()
         metricsTracker.pause(nowMs)
         tickerJob?.cancel()
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
+        autoSaveIfNeeded(nowMs)
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
@@ -346,9 +390,11 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
 
         val config = _uiState.value.workoutConfig
+        val sessionId = activeSessionId ?: UUID.randomUUID().toString()
+        val sessionTs = if (activeSessionStartEpochMs > 0L) activeSessionStartEpochMs else System.currentTimeMillis()
         val session = WorkoutSession(
-            id = UUID.randomUUID().toString(),
-            timestampMillis = System.currentTimeMillis(),
+            id = sessionId,
+            timestampMillis = sessionTs,
             modeLabel = "${config.shortLabel()} • ${_uiState.value.sensorMode.label}",
             modeType = config.mode,
             jumpCount = totalJumps,
@@ -359,7 +405,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             bestStreak = metricsTracker.bestStreak
         )
 
-        val updatedHistory = historyRepository.saveSession(session)
+        val updatedHistory = historyRepository.upsertSession(session)
         if (completedByTarget) {
             notifySpeakerPlayed(1500L)
             _audioCues.tryEmit(AudioCue.WorkoutCompleted(totalJumps))
@@ -369,6 +415,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         fusionEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
+        activeSessionId = null
+        activeSessionStartEpochMs = 0L
+        lastAutoSavedJumpCount = 0
         lastHiitPhase = null
         lastCountdownSecond = -1
 
@@ -390,6 +439,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun resetSession() {
+        // Auto-save before reset if user had >= 5 jumps so accidental reset never loses data
+        if (metricsTracker.jumpCount >= 5) {
+            autoSaveIfNeeded()
+        }
         tickerJob?.cancel()
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
@@ -397,6 +450,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         fusionEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
+        activeSessionId = null
+        activeSessionStartEpochMs = 0L
+        lastAutoSavedJumpCount = 0
         lastHiitPhase = null
         lastCountdownSecond = -1
         _uiState.update { state ->
@@ -412,7 +468,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // --- MP4 Video Analysis ---
+    // --- Video Analysis ---
 
     fun openVideoSheet() {
         if (_uiState.value.isSessionRunning) pauseSession()
@@ -453,11 +509,30 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 val result = videoAnalyzer.analyzeVideo(uri, fileName) { prog ->
                     _uiState.update { it.copy(videoProgress = prog) }
                 }
+                // Auto-save analyzed video session to history immediately so user never forgets!
+                var updatedHistory = _uiState.value.historySessions
+                if (result.jumpCount > 0) {
+                    val autoSession = WorkoutSession(
+                        id = UUID.randomUUID().toString(),
+                        timestampMillis = System.currentTimeMillis(),
+                        modeLabel = "Video • ${result.style.label}",
+                        modeType = WorkoutModeType.FREE,
+                        jumpCount = result.jumpCount,
+                        durationMs = result.durationMs,
+                        averageRpm = result.averageRpm,
+                        peakRpm = result.peakRpm,
+                        estimatedCalories = result.estimatedCalories,
+                        bestStreak = result.bestStreak
+                    )
+                    updatedHistory = historyRepository.upsertSession(autoSession)
+                }
                 _uiState.update {
                     it.copy(
                         isAnalyzingVideo = false,
                         videoResult = result,
-                        videoProgress = null
+                        videoProgress = null,
+                        historySessions = updatedHistory,
+                        cumulativeStats = WorkoutHistoryRepository.computeStats(updatedHistory)
                     )
                 }
             } catch (_: CancellationException) {
@@ -474,23 +549,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveVideoResultToHistory(result: VideoAnalysisResult) {
-        val session = WorkoutSession(
-            id = UUID.randomUUID().toString(),
-            timestampMillis = System.currentTimeMillis(),
-            modeLabel = "Video • ${result.style.label}",
-            modeType = WorkoutModeType.FREE,
-            jumpCount = result.jumpCount,
-            durationMs = result.durationMs,
-            averageRpm = result.averageRpm,
-            peakRpm = result.peakRpm,
-            estimatedCalories = result.estimatedCalories,
-            bestStreak = result.bestStreak
-        )
-        val updated = historyRepository.saveSession(session)
+        // Already auto-saved on completion; close cleanly
         _uiState.update {
             it.copy(
-                historySessions = updated,
-                cumulativeStats = WorkoutHistoryRepository.computeStats(updated),
                 showVideoSheet = false,
                 videoResult = null
             )

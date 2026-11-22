@@ -25,4 +25,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStop() {
+        super.onStop()
+        // Auto-save active workout immediately when app goes to background or screen turns off
+        viewModel.autoSaveIfNeeded()
+    }
 }

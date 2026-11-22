@@ -386,11 +386,11 @@ fun VideoAnalyzerScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text(
-                            text = "ANALISIS SELESAI",
-                            color = NeonLime,
-                            fontSize = 12.sp,
+                            text = "ANALISIS SELESAI • TERSIMPAN OTOMATIS ✓",
+                            color = MintGreen,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 2.sp
+                            letterSpacing = 1.5.sp
                         )
 
                         Text(

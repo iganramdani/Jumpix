@@ -22,17 +22,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.VideoCall
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -41,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.share.CardTheme
+import com.jumpropeai.share.VideoWatermarkExporter
 import com.jumpropeai.share.WorkoutCardRenderer
 import com.jumpropeai.ui.theme.DarkSurface
 import com.jumpropeai.ui.theme.ElectricCyan
@@ -66,14 +71,16 @@ import com.jumpropeai.ui.theme.GlassBorder
 import com.jumpropeai.ui.theme.GlassCard
 import com.jumpropeai.ui.theme.MintGreen
 import com.jumpropeai.ui.theme.NeonLime
+import com.jumpropeai.ui.theme.SoftRed
+import java.io.File
 
 /**
- * Strava-style Share / Save Screenshot Card Dialog.
+ * Strava-style Share / Save Card & Custom Video Watermark Dialog.
  * Supports:
- * - Custom background photo picker from gallery
+ * - Custom Photo Picker (gallery image as card backdrop)
+ * - Custom Video Watermark Export (burns transparent stats watermark onto any gallery video via Media3!)
  * - Resizable stats watermark (60% - 130%) via smooth slider
  * - 3 themes: Dark Poster, Transparent Sticker (PNG), and Custom Photo Backdrop
- * - Save directly to Gallery (Pictures/JumpRopeAI) or Share to Instagram/WhatsApp
  */
 @Composable
 fun ShareCardDialog(
@@ -96,6 +103,12 @@ fun ShareCardDialog(
     var watermarkScale by remember { mutableFloatStateOf(1.0f) }
     var savedSuccess by remember(selectedTheme, watermarkScale, customPhoto) { mutableStateOf(false) }
 
+    // Custom Video Watermark export state
+    var isExportingVideo by remember { mutableStateOf(false) }
+    var exportProgress by remember { mutableIntStateOf(0) }
+    var exportedVideoFile by remember { mutableStateOf<File?>(null) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -110,6 +123,44 @@ fun ShareCardDialog(
         }
     }
 
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            isExportingVideo = true
+            exportProgress = 0
+            exportedVideoFile = null
+            exportError = null
+
+            val transparentWatermark = WorkoutCardRenderer.renderCard(
+                session = session,
+                theme = CardTheme.TRANSPARENT_STICKER,
+                backdropBitmap = null,
+                styleLabel = styleLabel,
+                overlayScale = watermarkScale
+            )
+            VideoWatermarkExporter.exportWatermarkedVideo(
+                context = context,
+                sourceVideoUri = uri,
+                watermarkBitmap = transparentWatermark,
+                onProgress = { pct -> exportProgress = pct },
+                onSuccess = { outFile, savedToGallery ->
+                    isExportingVideo = false
+                    exportedVideoFile = outFile
+                    Toast.makeText(
+                        context,
+                        if (savedToGallery) "Video watermark tersimpan di Galeri (Movies/JumpRopeAI)!" else "Video siap dibagikan!",
+                        Toast.LENGTH_LONG
+                    ).show()
+                },
+                onError = { err ->
+                    isExportingVideo = false
+                    exportError = err
+                }
+            )
+        }
+    }
+
     val renderedBitmap = remember(session, selectedTheme, customPhoto, styleLabel, watermarkScale) {
         WorkoutCardRenderer.renderCard(
             session = session,
@@ -120,7 +171,7 @@ fun ShareCardDialog(
         )
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { if (!isExportingVideo) onDismiss() }) {
         Surface(
             shape = RoundedCornerShape(26.dp),
             color = DarkSurface,
@@ -140,34 +191,52 @@ fun ShareCardDialog(
                     Text(
                         text = "Kartu Statistik",
                         color = Color.White,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
 
-                    // 1-tap Custom Photo Picker button
-                    Surface(
-                        onClick = { photoPickerLauncher.launch(arrayOf("image/*")) },
-                        shape = RoundedCornerShape(12.dp),
-                        color = GlassCard,
-                        border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.55f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    // Quick Custom Photo + Custom Video buttons
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Surface(
+                            onClick = { if (!isExportingVideo) photoPickerLauncher.launch(arrayOf("image/*")) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = GlassCard,
+                            border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.55f))
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AddPhotoAlternate,
-                                contentDescription = "Pilih Foto",
-                                tint = ElectricCyan,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = "Pilih Foto",
-                                color = ElectricCyan,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                    contentDescription = "Foto",
+                                    tint = ElectricCyan,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text("Foto", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            onClick = { if (!isExportingVideo) videoPickerLauncher.launch(arrayOf("video/*")) },
+                            shape = RoundedCornerShape(12.dp),
+                            color = GlassCard,
+                            border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.55f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.VideoCall,
+                                    contentDescription = "Ke Video",
+                                    tint = NeonLime,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text("Video", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
@@ -207,7 +276,7 @@ fun ShareCardDialog(
                 // Live Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.78f)
+                        .fillMaxWidth(0.75f)
                         .aspectRatio(1080f / 1350f)
                         .clip(RoundedCornerShape(18.dp))
                 ) {
@@ -222,7 +291,57 @@ fun ShareCardDialog(
                     )
                 }
 
-                // Watermark / Stats Overlay Size Slider (60% - 130%)
+                // Watermark Export Progress or Result Banner
+                if (isExportingVideo) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Memasang watermark ke video...", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text("$exportProgress%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        LinearProgressIndicator(
+                            progress = { exportProgress / 100f },
+                            color = NeonLime,
+                            trackColor = Color.White.copy(alpha = 0.15f),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(CircleShape)
+                        )
+                    }
+                } else if (exportedVideoFile != null) {
+                    Surface(
+                        onClick = { VideoWatermarkExporter.shareVideoFile(context, exportedVideoFile!!) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = MintGreen.copy(alpha = 0.18f),
+                        border = BorderStroke(1.dp, MintGreen.copy(alpha = 0.65f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MintGreen, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Video Tersimpan! Ketuk untuk Bagikan",
+                                color = MintGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                } else if (exportError != null) {
+                    Text(text = exportError!!, color = SoftRed, fontSize = 11.sp)
+                }
+
+                // Watermark Size Slider (60% - 130%)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -249,17 +368,18 @@ fun ShareCardDialog(
                     Slider(
                         value = watermarkScale,
                         onValueChange = { watermarkScale = it },
+                        enabled = !isExportingVideo,
                         valueRange = 0.60f..1.30f,
                         colors = SliderDefaults.colors(
                             thumbColor = NeonLime,
                             activeTrackColor = NeonLime,
                             inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                         ),
-                        modifier = Modifier.height(28.dp)
+                        modifier = Modifier.height(26.dp)
                     )
                 }
 
-                // Save to Gallery + Share buttons
+                // Save PNG + Share PNG buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -274,11 +394,12 @@ fun ShareCardDialog(
                                 Toast.LENGTH_SHORT
                             ).show()
                         },
+                        enabled = !isExportingVideo,
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, if (savedSuccess) MintGreen else GlassBorder),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(46.dp)
                     ) {
                         Icon(
                             imageVector = if (savedSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
@@ -291,7 +412,7 @@ fun ShareCardDialog(
                             text = if (savedSuccess) "TERSIMPAN" else "SIMPAN",
                             color = if (savedSuccess) MintGreen else Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
 
@@ -299,6 +420,7 @@ fun ShareCardDialog(
                         onClick = {
                             WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "JumpRopeAI")
                         },
+                        enabled = !isExportingVideo,
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = NeonLime,
@@ -306,7 +428,7 @@ fun ShareCardDialog(
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .height(46.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Share,
@@ -317,7 +439,7 @@ fun ShareCardDialog(
                         Text(
                             text = "BAGIKAN",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
                 }

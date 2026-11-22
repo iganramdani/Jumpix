@@ -44,8 +44,13 @@ class WorkoutHistoryRepository(private val storageFile: File) {
         }
     }
 
-    fun saveSession(session: WorkoutSession): List<WorkoutSession> {
-        val updated = (listOf(session) + loadSessions()).take(100)
+    fun saveSession(session: WorkoutSession): List<WorkoutSession> = upsertSession(session)
+
+    fun upsertSession(session: WorkoutSession): List<WorkoutSession> {
+        val existing = loadSessions().filterNot { it.id == session.id }
+        val updated = (listOf(session) + existing)
+            .sortedByDescending { it.timestampMillis }
+            .take(100)
         writeSessions(updated)
         return updated
     }
