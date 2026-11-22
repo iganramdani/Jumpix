@@ -78,7 +78,7 @@ data class JumpRopeUiState(
     val videoError: String? = null
 ) {
     val isCameraActive: Boolean
-        get() = sensorMode != SensorMode.AUDIO_ONLY
+        get() = sensorMode != SensorMode.AUDIO_ONLY && !showVideoSheet
 
     val hasActiveProgress: Boolean
         get() = metrics.jumpCount > 0 || metrics.elapsedMs >= 1000L

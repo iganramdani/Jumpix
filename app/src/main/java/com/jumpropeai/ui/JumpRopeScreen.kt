@@ -91,7 +91,7 @@ import com.jumpropeai.metrics.WorkoutMetrics
 import com.jumpropeai.ui.components.CameraPreview
 import com.jumpropeai.ui.components.PoseOverlay
 import com.jumpropeai.ui.components.SessionSummaryDialog
-import com.jumpropeai.ui.components.VideoAnalyzerSheet
+import com.jumpropeai.ui.components.VideoAnalyzerScreen
 import com.jumpropeai.ui.components.WorkoutHistorySheet
 import com.jumpropeai.ui.components.WorkoutModeSheet
 import com.jumpropeai.ui.theme.DarkSurface
@@ -192,6 +192,16 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 )
             }
         )
+    } else if (uiState.showVideoSheet) {
+        VideoAnalyzerScreen(
+            isAnalyzing = uiState.isAnalyzingVideo,
+            progress = uiState.videoProgress,
+            result = uiState.videoResult,
+            errorMessage = uiState.videoError,
+            onPickVideo = { mp4PickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
+            onSaveResultToHistory = viewModel::saveVideoResultToHistory,
+            onClose = viewModel::closeVideoSheet
+        )
     } else {
         LiveWorkoutHud(
             uiState = uiState,
@@ -224,18 +234,6 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 sessions = uiState.historySessions,
                 onDeleteSession = viewModel::deleteHistorySession,
                 onDismiss = { viewModel.setShowHistorySheet(false) }
-            )
-        }
-
-        if (uiState.showVideoSheet) {
-            VideoAnalyzerSheet(
-                isAnalyzing = uiState.isAnalyzingVideo,
-                progress = uiState.videoProgress,
-                result = uiState.videoResult,
-                errorMessage = uiState.videoError,
-                onPickVideo = { mp4PickerLauncher.launch(arrayOf("video/mp4", "video/*")) },
-                onSaveResultToHistory = viewModel::saveVideoResultToHistory,
-                onDismiss = viewModel::closeVideoSheet
             )
         }
 
@@ -355,12 +353,106 @@ private fun LiveWorkoutHud(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // TOP BAR
+            // TOP BAR: Fixed-position toolbar (never shifts!) + separate centered AI Status pill
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left: Fixed-width Eco toggle pill (or spacer in Audio-Only)
+                    if (uiState.isCameraActive) {
+                        Surface(
+                            onClick = onToggleEcoMode,
+                            shape = CircleShape,
+                            color = GlassDark,
+                            border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.45f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Bedtime,
+                                    contentDescription = "Mode Eco",
+                                    tint = NeonLime,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = "Eco",
+                                    color = NeonLime,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else {
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+
+                    // Right: Fixed icon toolbar (never pushed by status text!)
+                    AnimatedVisibility(
+                        visible = showFullControls,
+                        enter = fadeIn(),
+                        exit = fadeOut()
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            HudIconButton(
+                                onClick = onOpenVideoSheet,
+                                active = true,
+                                activeColor = ElectricCyan,
+                                icon = Icons.Rounded.Movie,
+                                contentDescription = "Hitung Video MP4"
+                            )
+                            HudIconButton(
+                                onClick = onToggleAudio,
+                                active = uiState.isAudioEnabled,
+                                activeColor = NeonLime,
+                                icon = if (uiState.isAudioEnabled) {
+                                    Icons.AutoMirrored.Rounded.VolumeUp
+                                } else {
+                                    Icons.AutoMirrored.Rounded.VolumeOff
+                                },
+                                contentDescription = "Audio Coach"
+                            )
+                            if (uiState.isCameraActive) {
+                                HudIconButton(
+                                    onClick = onToggleSkeleton,
+                                    active = uiState.showSkeletonOverlay,
+                                    activeColor = ElectricCyan,
+                                    icon = if (uiState.showSkeletonOverlay) {
+                                        Icons.Rounded.AccessibilityNew
+                                    } else {
+                                        Icons.Rounded.VisibilityOff
+                                    },
+                                    contentDescription = "Skeleton"
+                                )
+                            }
+                            HudIconButton(
+                                onClick = onOpenHistory,
+                                active = false,
+                                activeColor = Color.White,
+                                icon = Icons.Rounded.History,
+                                contentDescription = "Riwayat"
+                            )
+                            if (uiState.isCameraActive) {
+                                HudIconButton(
+                                    onClick = onToggleCamera,
+                                    active = false,
+                                    activeColor = Color.White,
+                                    icon = Icons.Rounded.Cameraswitch,
+                                    contentDescription = "Ganti Kamera"
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Dedicated centered AI Status pill — changing text never affects toolbar layout!
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     AiStatusPill(
                         sensorMode = uiState.sensorMode,
@@ -368,92 +460,6 @@ private fun LiveWorkoutHud(
                         isSessionRunning = uiState.isSessionRunning,
                         calibrationProgress = metrics.calibrationProgress
                     )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (uiState.isCameraActive) {
-                            Surface(
-                                onClick = onToggleEcoMode,
-                                shape = CircleShape,
-                                color = GlassDark,
-                                border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.45f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Bedtime,
-                                        contentDescription = "Mode Eco",
-                                        tint = NeonLime,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = "Eco",
-                                        color = NeonLime,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        AnimatedVisibility(
-                            visible = showFullControls,
-                            enter = fadeIn(),
-                            exit = fadeOut()
-                        ) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                HudIconButton(
-                                    onClick = onOpenVideoSheet,
-                                    active = true,
-                                    activeColor = ElectricCyan,
-                                    icon = Icons.Rounded.Movie,
-                                    contentDescription = "Hitung Video MP4"
-                                )
-                                HudIconButton(
-                                    onClick = onToggleAudio,
-                                    active = uiState.isAudioEnabled,
-                                    activeColor = NeonLime,
-                                    icon = if (uiState.isAudioEnabled) {
-                                        Icons.AutoMirrored.Rounded.VolumeUp
-                                    } else {
-                                        Icons.AutoMirrored.Rounded.VolumeOff
-                                    },
-                                    contentDescription = "Audio Coach"
-                                )
-                                if (uiState.isCameraActive) {
-                                    HudIconButton(
-                                        onClick = onToggleSkeleton,
-                                        active = uiState.showSkeletonOverlay,
-                                        activeColor = ElectricCyan,
-                                        icon = if (uiState.showSkeletonOverlay) {
-                                            Icons.Rounded.AccessibilityNew
-                                        } else {
-                                            Icons.Rounded.VisibilityOff
-                                        },
-                                        contentDescription = "Skeleton"
-                                    )
-                                }
-                                HudIconButton(
-                                    onClick = onOpenHistory,
-                                    active = false,
-                                    activeColor = Color.White,
-                                    icon = Icons.Rounded.History,
-                                    contentDescription = "Riwayat"
-                                )
-                                if (uiState.isCameraActive) {
-                                    HudIconButton(
-                                        onClick = onToggleCamera,
-                                        active = false,
-                                        activeColor = Color.White,
-                                        icon = Icons.Rounded.Cameraswitch,
-                                        contentDescription = "Ganti Kamera"
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
 
                 // Sensor Mode + Workout Mode minimal selector pills (auto-hide when running)
