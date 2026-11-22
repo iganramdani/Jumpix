@@ -109,16 +109,17 @@ class FusionEngine {
             totalAcceptedSinceLastAdapt = 0
         }
 
-        // 2. PLL Occlusion Gap Bridging
+        // 2. PLL Occlusion Gap Bridging (strict >= 1.90x tempo prevents false bridging on slow Double-Unders!)
         var pllBridged = 0
         var prevT = lastAcceptedTimeMs
-        if (hasAudio && intervals.size >= 2 && prevT != null) {
+        if (hasAudio && intervals.size >= 3 && prevT != null) {
             val tempo = StftAudioEngine.medianLong(intervals.toList())
             val gap = pt - prevT
-            if (gap in (tempo * 1.65).toLong()..(tempo * 3.6).toLong()) {
+            if (gap in (tempo * 1.90).toLong()..(tempo * 3.6).toLong()) {
                 var predT = prevT + tempo
-                while (predT < pt - (tempo * 0.55).toLong()) {
-                    if (hasStrongAudioHitAt(audioHistory, predT + learnedLagMs.toLong(), halfWindowMs = 80L)) {
+                val minMargin = maxOf(280L, (tempo * 0.65).toLong())
+                while (predT <= pt - minMargin) {
+                    if (hasStrongAudioHitAt(audioHistory, predT + learnedLagMs.toLong(), halfWindowMs = 70L)) {
                         pllBridged++
                         totalPllBridged++
                         currentStreakInEngine++
@@ -143,8 +144,10 @@ class FusionEngine {
             }
         }
 
-        // 4. Vision Kinematic Score
+        // 4. Vision Kinematic Score (penalize extreme >0.75 isolated walks unless on-rhythm)
+        val isIsolated = dt > 1500L
         val vScore = when {
+            isIsolated && amp > 0.72f -> 0.45f
             amp in 0.065f..0.85f -> 0.86f
             amp in 0.055f..0.065f || amp in 0.85f..1.05f -> 0.65f
             else -> 0.42f

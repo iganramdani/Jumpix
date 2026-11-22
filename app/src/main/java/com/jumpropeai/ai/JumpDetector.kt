@@ -67,6 +67,7 @@ class JumpDetector(
     private var peakY: Float = 0f
     private var peakTimeMs: Long = 0L
     private var lastJumpTimestampMs: Long? = null
+    private var lastJumpAmplitude: Float = 0f
     private val recentAnkleDiffs = ArrayDeque<Float>()
 
     fun reset() {
@@ -81,6 +82,7 @@ class JumpDetector(
         peakY = 0f
         peakTimeMs = 0L
         lastJumpTimestampMs = null
+        lastJumpAmplitude = 0f
         recentAnkleDiffs.clear()
     }
 
@@ -238,9 +240,11 @@ class JumpDetector(
                     valleyTimeMs = nowMs
                 } else if (drop >= max(minProminence * 0.65f, amplitude * effectiveDropFrac)) {
                     val sinceLast = lastJumpTimestampMs?.let { nowMs - it } ?: Long.MAX_VALUE
+                    // High/Double-Under jumps (>= 0.35x torso) need >= 350ms before next jump to block landing knee-rebounds
+                    val effectiveMinIntervalMs = if (lastJumpAmplitude >= 0.35f) 350L else minJumpIntervalMs
                     val validTiming = riseMs in minRiseDurationMs..maxRiseDurationMs
                     val validAmplitude = amplitude <= maxAmplitude
-                    if (validTiming && validAmplitude && sinceLast >= minJumpIntervalMs) {
+                    if (validTiming && validAmplitude && sinceLast >= effectiveMinIntervalMs) {
                         val ankleAlt = computeAnkleAlternation()
                         candidate = JumpCandidate(
                             peakTimeMs = peakTimeMs,
@@ -251,6 +255,7 @@ class JumpDetector(
                         // Standalone Vision-only threshold remains >= 0.06f
                         jumpDetected = amplitude >= standaloneProminence
                         lastJumpTimestampMs = nowMs
+                        lastJumpAmplitude = amplitude
                     }
                     phase = Phase.SEEK_PEAK
                     valleyY = currentY
