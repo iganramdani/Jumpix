@@ -31,16 +31,18 @@ import java.util.concurrent.Executors
 private const val TAG = "CameraPreview"
 
 /**
- * CameraX host supporting two modes:
- * - Normal (`isPreviewEnabled = true`): binds Preview + ImageAnalysis (480x640 high-FPS).
- * - Eco / Hidden (`isPreviewEnabled = false`): unbinds Preview completely to eliminate GPU/display
- *   preview rendering while keeping ML Kit ImageAnalysis running at full 25-30 FPS.
+ * CameraX host supporting 3 power modes:
+ * - Normal (`isCameraActive = true, isPreviewEnabled = true`): Preview + ImageAnalysis (480x640).
+ * - Headless Eco (`isCameraActive = true, isPreviewEnabled = false`): ImageAnalysis only (0 GPU preview).
+ * - Audio-Only (`isCameraActive = false`): CameraX completely unbound (0 camera/ML Kit power!).
  */
 @Composable
 fun CameraPreview(
     lensFacing: Int,
+    isCameraActive: Boolean,
     isPreviewEnabled: Boolean,
     isSessionRunning: Boolean,
+    isDynamicEcoLowFps: Boolean,
     onPoseFrame: (PoseFrame) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -48,6 +50,7 @@ fun CameraPreview(
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentLensFacing by rememberUpdatedState(lensFacing)
     val currentSessionRunning by rememberUpdatedState(isSessionRunning)
+    val currentDynamicEco by rememberUpdatedState(isDynamicEcoLowFps)
     val currentOnPoseFrame by rememberUpdatedState(onPoseFrame)
 
     val previewView = remember {
@@ -66,6 +69,7 @@ fun CameraPreview(
         PoseAnalyzer(
             isFrontCameraProvider = { currentLensFacing == CameraSelector.LENS_FACING_FRONT },
             isSessionRunningProvider = { currentSessionRunning },
+            isDynamicEcoLowFpsProvider = { currentDynamicEco },
             onPoseFrame = { frame -> currentOnPoseFrame(frame) }
         )
     }
@@ -77,12 +81,18 @@ fun CameraPreview(
         }
     }
 
-    LaunchedEffect(lensFacing, isPreviewEnabled, lifecycleOwner) {
+    LaunchedEffect(lensFacing, isCameraActive, isPreviewEnabled, lifecycleOwner) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener(
             {
                 try {
                     val cameraProvider = cameraProviderFuture.get()
+                    cameraProvider.unbindAll()
+
+                    if (!isCameraActive) {
+                        // Audio-Only Ultra-Eco Mode: Camera completely off!
+                        return@addListener
+                    }
 
                     val resolutionSelector = ResolutionSelector.Builder()
                         .setResolutionStrategy(
@@ -111,7 +121,6 @@ fun CameraPreview(
                         CameraSelector.DEFAULT_BACK_CAMERA
                     }
 
-                    cameraProvider.unbindAll()
                     if (isPreviewEnabled) {
                         val preview = Preview.Builder().build().also {
                             it.surfaceProvider = previewView.surfaceProvider
@@ -123,7 +132,6 @@ fun CameraPreview(
                             imageAnalysis
                         )
                     } else {
-                        // Headless Eco Mode: only ImageAnalysis runs -> major GPU/battery savings!
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             cameraSelector,
@@ -138,13 +146,12 @@ fun CameraPreview(
         )
     }
 
-    if (isPreviewEnabled) {
+    if (isCameraActive && isPreviewEnabled) {
         AndroidView(
             factory = { previewView },
             modifier = modifier
         )
     } else {
-        // Pure AMOLED Black surface
         Box(modifier = modifier.background(Color.Black))
     }
 }

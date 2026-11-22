@@ -12,8 +12,16 @@ enum class DetectorStatus {
     ACTIVE
 }
 
+data class JumpCandidate(
+    val peakTimeMs: Long,
+    val landTimeMs: Long,
+    val amplitude: Float,
+    val ankleAlternation: Float
+)
+
 data class JumpDetectionResult(
     val jumpDetected: Boolean,
+    val candidate: JumpCandidate? = null,
     val isAirborne: Boolean,
     val status: DetectorStatus,
     val normalizedDisplacement: Float = 0f,
@@ -21,26 +29,26 @@ data class JumpDetectionResult(
 )
 
 /**
- * Real-time, baseline-free Peak-Valley biomechanical jump rope detector.
+ * Full-body kinematic Peak-Valley jump detector (v6).
  *
- * Calibrated and verified against real 30 FPS jump rope videos:
- * - Tracks rigid upper-body vertical anchor (nose + shoulders + hips) normalized by smoothed torso height.
- * - Uses an online Peak-Valley (local extremum) state machine instead of a fixed standing baseline,
- *   so walking back from the phone, drifting closer/farther, or bending knees never breaks detection.
- * - Applies biomechanical rise/drop duration and amplitude bounds to reject walking, bending, and
- *   single-frame ML Kit jitter spikes while accurately counting both low fast hops (130+ RPM) and high jumps.
+ * Calibrated on 19 real-world jump rope videos:
+ * - Upper-body rigid vertical anchor (nose + shoulders + hips) normalized by smoothed torso height.
+ * - Ankle alternation tracking to distinguish Regular Bounce, Boxer Step, and Power/High jumps.
+ * - Emits both strong and soft jump candidates (0.045..1.05x torso) so FusionEngine can apply
+ *   Self-Learning STFT Audio verification, PLL bridging, and trick-jump support.
  */
 class JumpDetector(
     private val minLandmarkConfidence: Float = 0.4f,
     private val warmupFramesRequired: Int = 3,
     private val smoothingAlpha: Float = 0.55f,
     private val scaleSmoothingAlpha: Float = 0.10f,
-    private val minProminence: Float = 0.06f,
-    private val maxAmplitude: Float = 0.85f,
-    private val minRiseDurationMs: Long = 60L,
-    private val maxRiseDurationMs: Long = 550L,
+    private val minProminence: Float = 0.045f,
+    private val standaloneProminence: Float = 0.06f,
+    private val maxAmplitude: Float = 1.05f,
+    private val minRiseDurationMs: Long = 50L,
+    private val maxRiseDurationMs: Long = 580L,
     private val maxDropDurationMs: Long = 450L,
-    private val minJumpIntervalMs: Long = 210L
+    private val minJumpIntervalMs: Long = 200L
 ) {
     private enum class Phase {
         SEEK_PEAK,
@@ -57,6 +65,7 @@ class JumpDetector(
     private var peakY: Float = 0f
     private var peakTimeMs: Long = 0L
     private var lastJumpTimestampMs: Long? = null
+    private val recentAnkleDiffs = ArrayDeque<Float>()
 
     fun reset() {
         warmupFrames = 0
@@ -68,6 +77,7 @@ class JumpDetector(
         peakY = 0f
         peakTimeMs = 0L
         lastJumpTimestampMs = null
+        recentAnkleDiffs.clear()
     }
 
     fun processFrame(frame: PoseFrame, isCountingActive: Boolean): JumpDetectionResult {
@@ -84,6 +94,8 @@ class JumpDetector(
         val rightShoulder = frame.landmarks[BodyLandmark.RIGHT_SHOULDER]?.takeIf { it.confidence >= minLandmarkConfidence }
         val leftHip = frame.landmarks[BodyLandmark.LEFT_HIP]?.takeIf { it.confidence >= minLandmarkConfidence }
         val rightHip = frame.landmarks[BodyLandmark.RIGHT_HIP]?.takeIf { it.confidence >= minLandmarkConfidence }
+        val leftAnkle = frame.landmarks[BodyLandmark.LEFT_ANKLE]?.takeIf { it.confidence >= minLandmarkConfidence }
+        val rightAnkle = frame.landmarks[BodyLandmark.RIGHT_ANKLE]?.takeIf { it.confidence >= minLandmarkConfidence }
 
         val shoulderMidY = averageY(leftShoulder, rightShoulder)
         val hipMidY = averageY(leftHip, rightHip)
@@ -96,7 +108,6 @@ class JumpDetector(
             )
         }
 
-        // Rigid upper-body vertical anchor (nose + shoulders + hips).
         val rawY = when {
             nose != null && hipMidY != null -> 0.25f * nose.y + 0.50f * shoulderMidY + 0.25f * hipMidY
             hipMidY != null -> 0.60f * shoulderMidY + 0.40f * hipMidY
@@ -128,7 +139,11 @@ class JumpDetector(
         } ?: rawScale
         smoothedScale = currentScale
 
-        // Quick 3-frame warmup to lock scale & initial valley.
+        if (leftAnkle != null && rightAnkle != null) {
+            recentAnkleDiffs.addLast(abs(leftAnkle.y - rightAnkle.y) / currentScale)
+            while (recentAnkleDiffs.size > 12) recentAnkleDiffs.removeFirst()
+        }
+
         if (warmupFrames < warmupFramesRequired) {
             warmupFrames++
             valleyY = currentY
@@ -152,7 +167,6 @@ class JumpDetector(
         }
 
         if (!isCountingActive) {
-            // Keep valley synced while paused so starting is instantaneous.
             phase = Phase.SEEK_PEAK
             valleyY = currentY
             valleyTimeMs = frame.timestampMs
@@ -169,16 +183,15 @@ class JumpDetector(
 
         val nowMs = frame.timestampMs
         var jumpDetected = false
+        var candidate: JumpCandidate? = null
         var normalizedRise = 0f
 
         when (phase) {
             Phase.SEEK_PEAK -> {
-                // In image coordinates, larger Y = lower on screen (grounded valley).
                 if (currentY >= valleyY) {
                     valleyY = currentY
                     valleyTimeMs = nowMs
                 } else if ((nowMs - valleyTimeMs) > maxRiseDurationMs) {
-                    // Slow upward drift (e.g., walking closer or standing up slowly) -> reset valley.
                     valleyY = currentY
                     valleyTimeMs = nowMs
                 }
@@ -192,7 +205,6 @@ class JumpDetector(
             }
 
             Phase.SEEK_VALLEY -> {
-                // Smaller Y = higher on screen (jump apex).
                 if (currentY <= peakY) {
                     peakY = currentY
                     peakTimeMs = nowMs
@@ -205,7 +217,6 @@ class JumpDetector(
                 normalizedRise = (valleyY - currentY) / currentScale
 
                 if (dropMs > maxDropDurationMs) {
-                    // Stayed elevated too long (not a rhythmic jump) -> reset cleanly.
                     phase = Phase.SEEK_PEAK
                     valleyY = currentY
                     valleyTimeMs = nowMs
@@ -214,7 +225,15 @@ class JumpDetector(
                     val validTiming = riseMs in minRiseDurationMs..maxRiseDurationMs
                     val validAmplitude = amplitude <= maxAmplitude
                     if (validTiming && validAmplitude && sinceLast >= minJumpIntervalMs) {
-                        jumpDetected = true
+                        val ankleAlt = computeAnkleAlternation()
+                        candidate = JumpCandidate(
+                            peakTimeMs = peakTimeMs,
+                            landTimeMs = nowMs,
+                            amplitude = amplitude,
+                            ankleAlternation = ankleAlt
+                        )
+                        // Standalone Vision-only threshold remains >= 0.06f
+                        jumpDetected = amplitude >= standaloneProminence
                         lastJumpTimestampMs = nowMs
                     }
                     phase = Phase.SEEK_PEAK
@@ -226,11 +245,19 @@ class JumpDetector(
 
         return JumpDetectionResult(
             jumpDetected = jumpDetected,
+            candidate = candidate,
             isAirborne = phase == Phase.SEEK_VALLEY,
             status = DetectorStatus.ACTIVE,
             normalizedDisplacement = normalizedRise,
             calibrationProgress = 1f
         )
+    }
+
+    private fun computeAnkleAlternation(): Float {
+        if (recentAnkleDiffs.size < 3) return 0f
+        val sorted = recentAnkleDiffs.sorted()
+        val p80Idx = (sorted.lastIndex * 0.8f).toInt().coerceIn(0, sorted.lastIndex)
+        return sorted[p80Idx]
     }
 
     private fun averageY(a: LandmarkPoint?, b: LandmarkPoint?): Float? {
