@@ -75,8 +75,15 @@ object WorkoutCardRenderer {
             CardTheme.DARK_POSTER -> drawDarkPosterBackground(canvas)
         }
 
-        // 2. Apply user watermark scale around bottom-center (or center for editorial/HUD)
-        val safeScale = overlayScale.coerceIn(0.60f, 1.30f)
+        // 2. Apply user watermark scale without EVER overflowing the 1080x1350 canvas!
+        // 60%..100% maps to 0.56..0.88 (balanced breathing room at 100%),
+        // 100%..130% maps to 0.88..1.00 (full safe-frame fill at 130%, zero clipping).
+        val sliderClamped = overlayScale.coerceIn(0.60f, 1.30f)
+        val safeScale = if (sliderClamped <= 1.0f) {
+            0.56f + ((sliderClamped - 0.60f) / 0.40f) * 0.32f
+        } else {
+            0.88f + ((sliderClamped - 1.00f) / 0.30f) * 0.12f
+        }
         val pivotY = when (template) {
             WatermarkTemplate.MINIMAL_STRAVA,
             WatermarkTemplate.ACTIVITY_RING,

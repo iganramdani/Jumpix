@@ -18,6 +18,7 @@ import android.provider.MediaStore
 import androidx.annotation.OptIn
 import androidx.core.content.FileProvider
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.Size
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
@@ -33,16 +34,26 @@ import com.google.common.collect.ImmutableList
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
  * Hardware-accelerated custom video watermark exporter powered by Jetpack Media3 Transformer.
  *
- * Automatically inspects the source video's exact aspect ratio (9:16 portrait, 4:5, 1:1, 16:9)
- * and fits the transparent watermark inside a matching-aspect transparent canvas so ZERO pixels
- * are ever clipped on left, right, top, or bottom!
+ * IMPORTANT Media3 detail:
+ * In Media3 1.4.x, `OverlayMatrixProvider` scales every `BitmapOverlay` by
+ * `(overlaySize.width / videoSize.width, overlaySize.height / videoSize.height)` in pixel space —
+ * it does NOT auto-fit the bitmap to the video frame! Therefore, passing a 1080x1920 bitmap onto
+ * a 720x1280 video blows the watermark up by 150% (1080/720 = 1.5x) and clips all 4 edges.
+ *
+ * `VideoFittedBitmapOverlay` overrides `TextureOverlay.configure(videoSize)` to receive Media3's
+ * exact post-rotation frame dimensions and builds the transparent canvas at exact 1:1 pixel size
+ * (with exact scale compensation if capped for 4K), guaranteeing ZERO unintended enlargement or
+ * edge clipping across 480p, 720p, 1080p, 4K, portrait, square, and landscape videos.
  */
 object VideoWatermarkExporter {
+
+    private const val MAX_OVERLAY_DIM = 2160
 
     @OptIn(UnstableApi::class)
     fun exportWatermarkedVideo(
@@ -57,14 +68,12 @@ object VideoWatermarkExporter {
         val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
         val outFile = File(outDir, "JumpRopeAI_${System.currentTimeMillis()}.mp4")
 
-        // Match the watermark canvas aspect ratio to the source video so Media3 never clips edges!
-        val fittedWatermark = fitWatermarkToVideoAspect(context, sourceVideoUri, watermarkBitmap)
-
-        val overlaySettings = OverlaySettings.Builder()
-            .setAlphaScale(1.0f)
-            .build()
-
-        val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(fittedWatermark, overlaySettings)
+        val fallbackSize = readVideoDisplaySize(context, sourceVideoUri)
+        val bitmapOverlay = VideoFittedBitmapOverlay(
+            sourceWatermark = watermarkBitmap,
+            fallbackVideoWidth = fallbackSize.first,
+            fallbackVideoHeight = fallbackSize.second
+        )
         val overlayEffect = OverlayEffect(ImmutableList.of(bitmapOverlay))
         val effects = Effects(emptyList(), listOf(overlayEffect))
 
@@ -111,47 +120,108 @@ object VideoWatermarkExporter {
     }
 
     /**
-     * Reads the display-oriented video aspect ratio and embeds the watermark inside a transparent
-     * bitmap with the exact same aspect ratio + safe horizontal margin so edges are never clipped.
+     * Custom Media3 [BitmapOverlay] that hooks [configure] to match the exact post-rotation video
+     * frame resolution, preventing Media3's `overlaySize / backgroundSize` matrix from enlarging
+     * or shrinking the watermark on 480p / 720p / 1080p / 4K videos.
      */
-    private fun fitWatermarkToVideoAspect(
-        context: Context,
-        videoUri: Uri,
-        watermark: Bitmap
-    ): Bitmap {
-        val (vidW, vidH) = readVideoDisplaySize(context, videoUri)
-        if (vidW <= 0 || vidH <= 0) return watermark
+    @UnstableApi
+    private class VideoFittedBitmapOverlay(
+        private val sourceWatermark: Bitmap,
+        private val fallbackVideoWidth: Int,
+        private val fallbackVideoHeight: Int
+    ) : BitmapOverlay() {
 
-        val videoAspect = vidW.toFloat() / vidH.toFloat()
-        val wmAspect = watermark.width.toFloat() / watermark.height.toFloat()
+        private var configuredVideoSize: Size? = null
+        private var fittedBitmap: Bitmap? = null
+        private var overlaySettings: OverlaySettings = OverlaySettings.Builder()
+            .setAlphaScale(1.0f)
+            .build()
 
-        // Build a crisp high-res transparent canvas matching the exact video aspect ratio
-        val canvasW: Int
-        val canvasH: Int
-        if (videoAspect <= 1f) {
-            // Portrait or square video (e.g. 9:16 -> 1080 x 1920)
-            canvasW = 1080
-            canvasH = (1080f / videoAspect).roundToInt().coerceIn(1080, 2400)
-        } else {
-            // Landscape video (e.g. 16:9 -> 1920 x 1080)
-            canvasH = 1080
-            canvasW = (1080f * videoAspect).roundToInt().coerceIn(1080, 2400)
+        override fun configure(videoSize: Size) {
+            super.configure(videoSize)
+            if (configuredVideoSize == videoSize && fittedBitmap != null) return
+            configuredVideoSize = videoSize
+            rebuildFittedBitmap(videoSize.width, videoSize.height)
         }
 
+        override fun getBitmap(presentationTimeUs: Long): Bitmap {
+            fittedBitmap?.let { if (!it.isRecycled) return it }
+            val w = configuredVideoSize?.width ?: fallbackVideoWidth
+            val h = configuredVideoSize?.height ?: fallbackVideoHeight
+            return rebuildFittedBitmap(w, h)
+        }
+
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = overlaySettings
+
+        override fun release() {
+            super.release()
+            fittedBitmap?.let { bmp ->
+                if (bmp !== sourceWatermark && !bmp.isRecycled) {
+                    bmp.recycle()
+                }
+            }
+            fittedBitmap = null
+        }
+
+        private fun rebuildFittedBitmap(videoW: Int, videoH: Int): Bitmap {
+            if (videoW <= 0 || videoH <= 0) {
+                overlaySettings = OverlaySettings.Builder().setAlphaScale(1.0f).build()
+                fittedBitmap = sourceWatermark
+                return sourceWatermark
+            }
+
+            // Cap bitmap dimensions at MAX_OVERLAY_DIM for 4K memory safety; compensate in OverlaySettings
+            val maxSide = max(videoW, videoH)
+            val downscale = if (maxSide > MAX_OVERLAY_DIM) MAX_OVERLAY_DIM.toFloat() / maxSide else 1.0f
+            val canvasW = (videoW * downscale).roundToInt().coerceAtLeast(1)
+            val canvasH = (videoH * downscale).roundToInt().coerceAtLeast(1)
+
+            val out = renderWatermarkIntoExactCanvas(sourceWatermark, canvasW, canvasH)
+
+            // Exact scale so (canvasW / videoW) * scaleX == 1.0f and (canvasH / videoH) * scaleY == 1.0f
+            val scaleX = videoW.toFloat() / canvasW.toFloat()
+            val scaleY = videoH.toFloat() / canvasH.toFloat()
+            overlaySettings = OverlaySettings.Builder()
+                .setAlphaScale(1.0f)
+                .setScale(scaleX, scaleY)
+                .build()
+
+            fittedBitmap?.let { old ->
+                if (old !== sourceWatermark && old !== out && !old.isRecycled) {
+                    old.recycle()
+                }
+            }
+            fittedBitmap = out
+            return out
+        }
+    }
+
+    /**
+     * Draws [watermark] centered inside a transparent [canvasW] x [canvasH] bitmap with 3% safe
+     * margin on every edge so zero pixels are ever clipped.
+     */
+    internal fun renderWatermarkIntoExactCanvas(
+        watermark: Bitmap,
+        canvasW: Int,
+        canvasH: Int
+    ): Bitmap {
         val out = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         canvas.drawColor(Color.TRANSPARENT)
 
-        // Fit watermark cleanly inside canvas with 4% safe padding on every side
+        val videoAspect = canvasW.toFloat() / canvasH.toFloat()
+        val wmAspect = watermark.width.toFloat() / watermark.height.toFloat()
+
+        // Fit cleanly inside exact video canvas with 3% safe margin on every side
         val safeW = canvasW * 0.94f
         val safeH = canvasH * 0.94f
         val scale = minOf(safeW / watermark.width.toFloat(), safeH / watermark.height.toFloat())
         val drawW = watermark.width * scale
         val drawH = watermark.height * scale
         val left = (canvasW - drawW) / 2f
-        // On tall 9:16 videos, place watermark slightly lower-centered so top/bottom feel balanced
         val top = if (videoAspect < wmAspect) {
-            (canvasH - drawH) * 0.65f
+            // Tall portrait (e.g. 9:16): slightly lower-centered to stay balanced & avoid top notch
+            (canvasH - drawH) * 0.56f
         } else {
             (canvasH - drawH) / 2f
         }
