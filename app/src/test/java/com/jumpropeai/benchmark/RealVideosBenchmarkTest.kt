@@ -484,23 +484,21 @@ class RealVideosBenchmarkTest {
     fun verify4SmartphonesGroundTruth95Percent() {
         val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
         val vidDir = File(scratchDir, "videos_all")
-        Assume.assumeTrue("Local dataset not present", manifestFile.exists())
+        val gtCsv = File("/home/antigravity/JumpRopeAI/ground_truth_all_videos.csv")
+        Assume.assumeTrue("Local dataset not present", manifestFile.exists() && gtCsv.exists())
 
-        // 12 verified manual ground-truth videos keyed by unique Drive file ID (398 verified jumps)
-        val groundTruth = linkedMapOf(
-            "10lwgqmItV3HdFFRPXfhyxrpdYojnYjtK" to ("VID_20261122_054519_197.mp4" to 10),
-            "1Aklu0NicKSK9FU4Te9acFInifDKB7aA-" to ("VID_20261122_052624_470.mp4" to 36),
-            "1KgXUpQ6oGNviKaYsm_Ek9NVCPU-DAF8g" to ("VID_20261122_055324_085.mp4" to 28),
-            "1Zr3bOnNXPax320dorzMJdN5jE600mMIA" to ("VID_20261122_044130_024.mp4" to 15),
-            "1aB1Hrbz6e4AYKgAY5PHZWYQC3_32Yl09" to ("VID_20261122_044018_254.mp4" to 11),
-            "1aiG6yFw65dWTMn-wR5JbvZuoGDJG0z4I" to ("VID_20261122_044029_086.mp4" to 22),
-            "1anpiHGGaRHJAJEvu1YuEI-3tiKoLjJYJ" to ("VID_20261122_044136_077.mp4" to 41),
-            "1boFhVkbUVxdDUMnJHfjhzZmZN25-LNPL" to ("VID_20261122_052613_168.mp4" to 30),
-            "1dCPF7MJKVFNUJfMawmn1a4Ki7E5usW73" to ("VID_20261122_060059_822.mp4" to 26),
-            "1qaZUVpUmvTJslY01i6EQ_8EpS3tTEyZa" to ("VID_20261122_055429_412.mp4" to 46),
-            "1CNgHd06UzqUcnbv-1mpcOQeU5IFs5_5P" to ("VID_20260812_164851.mp4" to 24),
-            "1dP5jUABvEDYPcGvUAPnvQya8F9OON3lP" to ("VID_20260812_165337.mp4" to 109)
-        )
+        // Load ALL 46 verified Ground-Truth videos from ground_truth_all_videos.csv
+        val groundTruth = linkedMapOf<String, Pair<String, Int>>()
+        gtCsv.readLines().drop(1).filter { it.isNotBlank() }.forEach { line ->
+            // CSV columns: no,drive_id,filename,duration_s,ground_truth_jumps,method,notes
+            val cols = line.split(",", limit = 7)
+            if (cols.size >= 5) {
+                val fid = cols[1].trim()
+                val title = cols[2].trim()
+                val man = cols[4].trim().toIntOrNull() ?: return@forEach
+                groundTruth[fid] = title to man
+            }
+        }
 
         data class PhoneProfile(val name: String, val fps: Int, val jitterPx: Float, val dropRate: Float)
         val profiles = listOf(
@@ -523,15 +521,15 @@ class RealVideosBenchmarkTest {
             VideoData(p[0], p[1], frames, flux)
         }
 
-        println("\n==================== 4-SMARTPHONE GROUND-TRUTH & 41-VIDEO BENCHMARK ====================")
+        println("\n==================== 4-SMARTPHONE 46-VIDEO GROUND-TRUTH BENCHMARK ====================")
         val perPhonePerVideo = mutableMapOf<String, MutableMap<String, Int>>()
-        var all41Baseline = 0
+        var all46Baseline = 0
 
         for (prof in profiles) {
             val stepMs = 1000.0 / prof.fps
             val rng = java.util.Random(42L)
             val mapForPhone = mutableMapOf<String, Int>()
-            var sumAll41 = 0
+            var sumAll46 = 0
             var gtManualTotal = 0
             var gtAppTotal = 0
             var gtAbsErrTotal = 0
@@ -564,7 +562,7 @@ class RealVideosBenchmarkTest {
                         count += dec.acceptedJumps
                     }
                 }
-                sumAll41 += count
+                sumAll46 += count
                 groundTruth[vid.fid]?.let { (_, man) ->
                     mapForPhone[vid.fid] = count
                     gtManualTotal += man
@@ -573,21 +571,21 @@ class RealVideosBenchmarkTest {
                 }
             }
 
-            if (all41Baseline == 0) all41Baseline = maxOf(sumAll41, 1)
+            if (all46Baseline == 0) all46Baseline = maxOf(sumAll46, 1)
             val strictAcc = (1.0 - gtAbsErrTotal.toDouble() / maxOf(gtManualTotal, 1)) * 100.0
             val volAcc = (1.0 - kotlin.math.abs(gtAppTotal - gtManualTotal).toDouble() / maxOf(gtManualTotal, 1)) * 100.0
-            val all41Ret = (sumAll41 * 100.0) / all41Baseline
+            val all46Ret = (sumAll46 * 100.0) / all46Baseline
             perPhonePerVideo[prof.name] = mapForPhone
             println(
                 String.format(
                     Locale.US,
-                    "%-36s | GT=%3d/%3d | AbsErr=%3d | StrictAcc=%5.1f%% | VolAcc=%5.1f%% | All41=%4d (%5.1f%%)",
-                    prof.name, gtAppTotal, gtManualTotal, gtAbsErrTotal, strictAcc, volAcc, sumAll41, all41Ret
+                    "%-36s | GT=%4d/%4d | AbsErr=%3d | StrictAcc=%5.2f%% | VolAcc=%5.2f%% | Ret=%5.1f%%",
+                    prof.name, gtAppTotal, gtManualTotal, gtAbsErrTotal, strictAcc, volAcc, all46Ret
                 )
             )
         }
 
-        println("\n--- Per-Video Breakdown (12 Manual Ground-Truth Videos) ---")
+        println("\n--- Per-Video Breakdown (All 46 Ground-Truth Videos) ---")
         println(String.format(Locale.US, "%-28s | %4s | %4s | %4s | %4s | %4s", "Video", "Man", "30f", "20f", "15f", "10f"))
         for ((fid, pair) in groundTruth) {
             val (title, man) = pair

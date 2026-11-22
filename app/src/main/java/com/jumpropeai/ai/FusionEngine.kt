@@ -37,14 +37,16 @@ data class FusionDecision(
 )
 
 /**
- * Fusion v10 Master Engine with Continuous Self-Learning Acoustic Fingerprint:
+ * Fusion v11 Master Engine with Continuous Self-Learning Acoustic Fingerprint & Speed-Sprint Audio Hybrid:
  *
  * 1. 1-Jump Pending Confirmation after long pauses (>1250ms): eliminates isolated walking steps
  *    and static/outro glitches while keeping active streaks 100% real-time.
  * 2. Post-Streak Outro Guard: ignores weak post-gap ripples after strong jump streaks.
  * 3. Rhythmic Soft-Candidate Gating: rescues low-amplitude fast skipping hops strictly on-rhythm
  *    without letting flat-footed side swings through.
- * 4. Continuous Self-Learning 3-Band STFT Audio + Nyquist-Shannon Aliasing & Drop-Aware PLL:
+ * 4. Vision-Gated 100 Hz STFT Audio Speed-Sprint Counter: resolves 270-350+ RPM bent-over competition
+ *    speed sprints uniformly across 30, 20, 15, and 10 FPS phones without camera Nyquist aliasing.
+ * 5. Continuous Self-Learning 3-Band STFT Audio + Nyquist-Shannon Aliasing & Drop-Aware PLL:
  *    recovers missed fast jumps on Low-End 10 FPS smartphones without false-bridging pauses.
  */
 class FusionEngine {
@@ -68,6 +70,7 @@ class FusionEngine {
     private var pendingJump: PendingJump? = null
     private var currentStreakInEngine = 0
     private var totalAcceptedSinceLastAdapt = 0
+    private var lastSprintAudioTimeMs: Long = -1L
 
     var totalTrips: Int = 0
         private set
@@ -89,6 +92,7 @@ class FusionEngine {
         pendingJump = null
         currentStreakInEngine = 0
         totalAcceptedSinceLastAdapt = 0
+        lastSprintAudioTimeMs = -1L
         totalTrips = 0
         totalPllBridged = 0
         latestStyle = JumpStyle.REGULAR
@@ -111,6 +115,46 @@ class FusionEngine {
         val amp = candidate.amplitude
         val prom = candidate.prominence
         val hasAudio = useAudioFusion && audioHistory.size >= 20
+
+        // 0. Vision-Gated 100 Hz STFT Audio Speed-Sprint Counter:
+        // During bent-over competition speed sprints (>270 RPM), 100 Hz STFT audio resolves every
+        // rope+foot slap uniformly across Flagship (30 FPS) to Low-End (10 FPS) with zero Nyquist aliasing.
+        if (candidate.isSpeedSprint && hasAudio) {
+            if (lastSprintAudioTimeMs < 0L || (pt - lastSprintAudioTimeMs) > 1500L) {
+                var baseStart = if (candidate.sprintStartMs > 0L) candidate.sprintStartMs else (pt - 1200L)
+                lastAcceptedTimeMs?.let { lastAcc ->
+                    baseStart = maxOf(baseStart, lastAcc + 120L)
+                }
+                lastSprintAudioTimeMs = maxOf(baseStart, pt - 1800L)
+            }
+            val bg = audioHistory.filter { it.timestampMs in maxOf(0L, pt - 3000L)..(pt + 100L) }
+            var sprintAccepted = 0
+            if (bg.size >= 30) {
+                val bgVals = bg.map { it.valueFor(AcousticBand.MID) }
+                val med = StftAudioEngine.median(bgVals) + 1e-5f
+                val mad = StftAudioEngine.median(bgVals.map { abs(it - med) }) + 1e-5f
+                val scanFrom = lastSprintAudioTimeMs + 10L
+                for (k in 1 until (audioHistory.size - 1)) {
+                    val tk = audioHistory[k].timestampMs
+                    if (tk < scanFrom) continue
+                    if (tk > pt) break
+                    val v0 = audioHistory[k].valueFor(AcousticBand.MID)
+                    if (v0 >= audioHistory[k - 1].valueFor(AcousticBand.MID) &&
+                        v0 > audioHistory[k + 1].valueFor(AcousticBand.MID)
+                    ) {
+                        if ((v0 - med) / mad >= 1.20f && (tk - lastSprintAudioTimeMs) >= 148L) {
+                            sprintAccepted++
+                            currentStreakInEngine++
+                            lastSprintAudioTimeMs = tk
+                            lastAcceptedTimeMs = tk
+                        }
+                    }
+                }
+            }
+            pendingJump = null
+            latestStyle = JumpStyle.BOXER_STEP
+            return buildDecision(sprintAccepted, pllBridged = 0, tripDetected = false, hasAudio = true)
+        }
 
         // 1. Continuous Self-Learning: initial calibration at 3 jumps, then re-adapt every 10 jumps
         if (hasAudio && acceptedPeakTimes.size >= 3 && (!isCalibrated || totalAcceptedSinceLastAdapt >= 10)) {
@@ -187,10 +231,10 @@ class FusionEngine {
                     var ok = hasAudio && hasStrongAudioHitAt(
                         audioHistory = audioHistory,
                         targetTimeMs = predT + learnedLagMs.toLong(),
-                        zThr = 2.8f,
-                        ratioThr = 1.65f
+                        zThr = 2.3f,
+                        ratioThr = 1.55f
                     )
-                    if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.25f &&
+                    if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.23f &&
                         bridgedHere < 2 && gap <= (medTempo * 3.35).toLong()
                     ) {
                         ok = true
