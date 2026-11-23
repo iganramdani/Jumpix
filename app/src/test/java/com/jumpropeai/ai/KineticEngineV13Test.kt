@@ -46,9 +46,15 @@ class KineticEngineV13Test {
     fun detectsCrissCrossHighKneesBoxerStepDoubleUnderAndSideSwing() {
         val coach = KineticTrickCoach()
 
-        // 1. Criss-Cross (wrists crossed over torso midline)
+        // Warm-up 2 clean regular jumps (must stay REGULAR — zero false tricks!)
+        val r1 = coach.processFrame(makePose(tsMs = 400L, lAnkleY = 0.87f, rAnkleY = 0.88f), true, true, 0.08f, emptyList(), false)
+        val r2 = coach.processFrame(makePose(tsMs = 800L, lAnkleY = 0.87f, rAnkleY = 0.88f), true, true, 0.08f, emptyList(), false)
+        assertEquals(KineticMove.REGULAR, r1.currentMove)
+        assertEquals(KineticMove.REGULAR, r2.currentMove)
+
+        // 1. Criss-Cross (front-facing, deep wrist cross > 0.35 * shoulderSpan)
         val cc = coach.processFrame(
-            frame = makePose(tsMs = 1000L, lWristX = 0.62f, rWristX = 0.38f),
+            frame = makePose(tsMs = 1200L, lWristX = 0.64f, rWristX = 0.36f),
             isAirborne = true,
             jumpAccepted = true,
             jumpAmplitude = 0.08f,
@@ -57,9 +63,9 @@ class KineticEngineV13Test {
         )
         assertEquals(KineticMove.CRISS_CROSS, cc.currentMove)
 
-        // 2. High Knees (left knee lifted up to hip level)
+        // 2. High Knees (left knee lifted near hip + strong L/R knee asymmetry)
         val hk = coach.processFrame(
-            frame = makePose(tsMs = 1500L, lKneeY = 0.56f, rKneeY = 0.74f),
+            frame = makePose(tsMs = 1600L, lKneeY = 0.56f, rKneeY = 0.74f),
             isAirborne = true,
             jumpAccepted = true,
             jumpAmplitude = 0.08f,
@@ -68,9 +74,10 @@ class KineticEngineV13Test {
         )
         assertEquals(KineticMove.HIGH_KNEES, hk.currentMove)
 
-        // 3. Boxer Step (alternating left/right ankle elevation)
+        // 3. Boxer Step (true anti-phase left/right ankle alternation across consecutive jumps)
+        coach.processFrame(makePose(tsMs = 2000L, lAnkleY = 0.83f, rAnkleY = 0.89f), true, true, 0.08f, emptyList(), false)
         val bs = coach.processFrame(
-            frame = makePose(tsMs = 2000L, lAnkleY = 0.80f, rAnkleY = 0.89f),
+            frame = makePose(tsMs = 2400L, lAnkleY = 0.89f, rAnkleY = 0.83f),
             isAirborne = true,
             jumpAccepted = true,
             jumpAmplitude = 0.08f,
@@ -79,14 +86,14 @@ class KineticEngineV13Test {
         )
         assertEquals(KineticMove.BOXER_STEP, bs.currentMove)
 
-        // 4. Double Under (high jump + dual acoustic whip bursts)
+        // 4. Double Under (warmed baseline + elevated jump + dual high-band acoustic bursts 110ms apart)
         val audio = (0 until 50).map { i ->
-            val t = 2250L + i * 10L
-            val burst = if (t == 2400L || t == 2510L) 16f else 1f
+            val t = 2650L + i * 10L
+            val burst = if (t == 2800L || t == 2910L) 16f else 1f
             FluxSample(t, mid = 1f, high1 = burst, high2 = burst, wideHigh = burst)
         }
         val du = coach.processFrame(
-            frame = makePose(tsMs = 2500L),
+            frame = makePose(tsMs = 2900L),
             isAirborne = true,
             jumpAccepted = true,
             jumpAmplitude = 0.14f,
@@ -95,9 +102,10 @@ class KineticEngineV13Test {
         )
         assertEquals(KineticMove.DOUBLE_UNDER, du.currentMove)
 
-        // 5. Side Swing (both wrists shifted to left of torso while grounded)
+        // 5. Side Swing (active skipping window + front-facing + active wrist motion far to left of hip)
+        coach.processFrame(makePose(tsMs = 3250L, lWristX = 0.42f, rWristX = 0.50f), false, false, 0f, emptyList(), false)
         val sw = coach.processFrame(
-            frame = makePose(tsMs = 3600L, lWristX = 0.25f, rWristX = 0.36f),
+            frame = makePose(tsMs = 3300L, lWristX = 0.28f, rWristX = 0.36f),
             isAirborne = false,
             jumpAccepted = false,
             jumpAmplitude = 0f,

@@ -1,5 +1,7 @@
 package com.jumpropeai.ui.components
 
+import android.net.Uri
+import android.widget.VideoView
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -33,18 +35,26 @@ import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.UploadFile
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -63,6 +73,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.jumpropeai.share.VideoWatermarkExporter
 import com.jumpropeai.ui.theme.DangerSoft
 import com.jumpropeai.ui.theme.DeepMidnight
@@ -75,7 +86,9 @@ import com.jumpropeai.ui.theme.TextPrimary
 import com.jumpropeai.ui.theme.TextSecondary
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
+import kotlinx.coroutines.delay
 import java.util.Locale
+import kotlin.math.roundToLong
 
 /**
  * Modern Two-Tone Video Studio tab (Deep Midnight + Ice Mint).
@@ -463,82 +476,17 @@ fun VideoAnalyzerScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // 1-Tap Auto-Highlight Peak Clip Export (when video has a peak window)
-            val context = LocalContext.current
-            var isExportingHighlight by remember(result.fileName) { mutableStateOf(false) }
-            var highlightProgress by remember(result.fileName) { mutableIntStateOf(0) }
-            var highlightStatus by remember(result.fileName) { mutableStateOf<String?>(null) }
-
+            // Interactive Custom-Second Video Clipper + Live Preview Player
             val srcUri = result.sourceUri
-            if (srcUri != null && result.highlightEndMs > result.highlightStartMs) {
-                OutlinedButton(
-                    enabled = !isExportingHighlight,
-                    onClick = {
-                        isExportingHighlight = true
-                        highlightProgress = 0
-                        highlightStatus = null
-                        VideoWatermarkExporter.exportHighlightClip(
-                            context = context,
-                            sourceVideoUri = srcUri,
-                            clipStartMs = result.highlightStartMs,
-                            clipEndMs = result.highlightEndMs,
-                            onProgress = { pct -> highlightProgress = pct },
-                            onSuccess = { file, saved ->
-                                isExportingHighlight = false
-                                highlightStatus = if (saved) {
-                                    "Peak highlight saved to Gallery!"
-                                } else {
-                                    "Peak highlight ready!"
-                                }
-                                VideoWatermarkExporter.shareVideoFile(context, file)
-                            },
-                            onError = { err ->
-                                isExportingHighlight = false
-                                highlightStatus = "Highlight export failed: $err"
-                            }
-                        )
-                    },
-                    shape = CircleShape,
-                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.65f)),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = IceMintSoft,
-                        contentColor = IceMint
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ContentCut,
-                        contentDescription = null,
-                        tint = IceMint,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (isExportingHighlight) {
-                            "Cutting Peak Highlight ($highlightProgress%)..."
-                        } else {
-                            "Auto-Highlight Clip • ${result.highlightSummary}"
-                        },
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (highlightStatus != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = highlightStatus ?: "",
-                        color = IceMint,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
+            if (srcUri != null && result.durationMs >= 2000L) {
+                InteractiveVideoClipperCard(
+                    sourceUri = srcUri,
+                    totalDurationMs = result.durationMs,
+                    peakStartMs = result.highlightStartMs,
+                    peakEndMs = result.highlightEndMs,
+                    peakSummary = result.highlightSummary
+                )
+                Spacer(Modifier.height(12.dp))
             }
 
             // Primary CTA: Export & Share
@@ -672,3 +620,386 @@ private fun StudioMetricCard(
         }
     }
 }
+
+@Composable
+private fun InteractiveVideoClipperCard(
+    sourceUri: Uri,
+    totalDurationMs: Long,
+    peakStartMs: Long,
+    peakEndMs: Long,
+    peakSummary: String
+) {
+    val context = LocalContext.current
+    val totalSec = (totalDurationMs / 1000f).coerceAtLeast(2f)
+
+    val defaultStartSec = if (peakEndMs > peakStartMs) {
+        (peakStartMs / 1000f).coerceIn(0f, (totalSec - 1f).coerceAtLeast(0f))
+    } else {
+        0f
+    }
+    val defaultEndSec = if (peakEndMs > peakStartMs) {
+        (peakEndMs / 1000f).coerceIn((defaultStartSec + 1f).coerceAtMost(totalSec), totalSec)
+    } else {
+        minOf(10f, totalSec)
+    }
+
+    var clipRange by remember(sourceUri) { mutableStateOf(defaultStartSec..defaultEndSec) }
+    var showPreview by remember(sourceUri) { mutableStateOf(false) }
+    var isPlayingPreview by remember(sourceUri) { mutableStateOf(true) }
+    var currentPreviewMs by remember(sourceUri) { mutableLongStateOf((defaultStartSec * 1000f).roundToLong()) }
+    var videoViewRef by remember(sourceUri) { mutableStateOf<VideoView?>(null) }
+
+    var isExporting by remember(sourceUri) { mutableStateOf(false) }
+    var exportProgress by remember(sourceUri) { mutableIntStateOf(0) }
+    var exportStatus by remember(sourceUri) { mutableStateOf<String?>(null) }
+
+    val clipStartMs = (clipRange.start * 1000f).roundToLong().coerceAtLeast(0L)
+    val clipEndMs = (clipRange.endInclusive * 1000f).roundToLong().coerceAtMost(totalDurationMs)
+    val clipDurationSec = ((clipEndMs - clipStartMs).coerceAtLeast(1000L) / 1000.0).roundToLong()
+
+    // Loop VideoView strictly within [clipStartMs..clipEndMs] when preview is open
+    LaunchedEffect(showPreview, isPlayingPreview, clipStartMs, clipEndMs, videoViewRef) {
+        val vv = videoViewRef ?: return@LaunchedEffect
+        if (!showPreview) return@LaunchedEffect
+        if (isPlayingPreview) {
+            if (!vv.isPlaying) {
+                vv.seekTo(clipStartMs.toInt())
+                vv.start()
+            }
+            while (showPreview && isPlayingPreview) {
+                val pos = runCatching { vv.currentPosition.toLong() }.getOrDefault(clipStartMs)
+                currentPreviewMs = pos
+                if (pos < clipStartMs - 150L || pos >= clipEndMs) {
+                    vv.seekTo(clipStartMs.toInt())
+                    if (!vv.isPlaying) vv.start()
+                }
+                delay(120L)
+            }
+        } else {
+            if (vv.isPlaying) vv.pause()
+        }
+    }
+
+    // Re-seek immediately whenever user drags slider or taps a duration preset
+    LaunchedEffect(clipStartMs, showPreview) {
+        val vv = videoViewRef
+        if (showPreview && vv != null) {
+            runCatching { vv.seekTo(clipStartMs.toInt()) }
+            currentPreviewMs = clipStartMs
+        }
+    }
+
+    DisposableEffect(sourceUri) {
+        onDispose {
+            runCatching { videoViewRef?.stopPlayback() }
+        }
+    }
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MidnightSurface,
+        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCut,
+                        contentDescription = null,
+                        tint = IceMint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Video Clipper",
+                        color = TextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = IceMintSoft
+                ) {
+                    Text(
+                        text = "${formatClipSec(clipStartMs)} – ${formatClipSec(clipEndMs)} (${clipDurationSec}s)",
+                        color = IceMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Quick Duration Presets (Peak / 5s / 10s / 15s / 30s)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val presets = listOf(
+                    "Peak" to -1f,
+                    "5s" to 5f,
+                    "10s" to 10f,
+                    "15s" to 15f,
+                    "30s" to 30f
+                )
+                presets.forEach { (label, durSec) ->
+                    val isSelected = if (durSec < 0f) {
+                        peakEndMs > peakStartMs && clipStartMs == peakStartMs && clipEndMs == peakEndMs
+                    } else {
+                        clipDurationSec == durSec.toLong()
+                    }
+                    Surface(
+                        onClick = {
+                            if (durSec < 0f && peakEndMs > peakStartMs) {
+                                clipRange = defaultStartSec..defaultEndSec
+                            } else if (durSec > 0f) {
+                                val start = clipRange.start.coerceIn(0f, (totalSec - 1f).coerceAtLeast(0f))
+                                val end = (start + durSec).coerceAtMost(totalSec)
+                                val adjStart = if (end - start < durSec) (end - durSec).coerceAtLeast(0f) else start
+                                clipRange = adjStart..end
+                            }
+                        },
+                        shape = CircleShape,
+                        color = if (isSelected) IceMint else MidnightElevated,
+                        border = BorderStroke(1.dp, if (isSelected) IceMint else MidnightBorder),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) DeepMidnight else TextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(vertical = 7.dp)
+                        )
+                    }
+                }
+            }
+
+            // Custom Start & End Seconds RangeSlider
+            Column {
+                RangeSlider(
+                    value = clipRange,
+                    onValueChange = { next ->
+                        val minSpan = minOf(2f, totalSec)
+                        if (next.endInclusive - next.start >= minSpan) {
+                            clipRange = next
+                        }
+                    },
+                    valueRange = 0f..totalSec,
+                    colors = SliderDefaults.colors(
+                        thumbColor = IceMint,
+                        activeTrackColor = IceMint,
+                        inactiveTrackColor = MidnightElevated
+                    )
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Start ${formatClipSec(clipStartMs)}",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (peakSummary.isNotBlank()) {
+                        Text(
+                            text = "AI Peak: $peakSummary",
+                            color = IceMint.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = "End ${formatClipSec(clipEndMs)}",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            // Live Looping Video Clipper Preview Player
+            if (showPreview) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AndroidView(
+                        factory = { ctx ->
+                            VideoView(ctx).apply {
+                                setVideoURI(sourceUri)
+                                setOnPreparedListener { mp ->
+                                    mp.isLooping = false
+                                    seekTo(clipStartMs.toInt())
+                                    if (isPlayingPreview) start()
+                                }
+                                videoViewRef = this
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+
+                    // Play / Pause Floating Button
+                    Surface(
+                        onClick = { isPlayingPreview = !isPlayingPreview },
+                        shape = CircleShape,
+                        color = DeepMidnight.copy(alpha = 0.72f),
+                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(10.dp)
+                            .size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = if (isPlayingPreview) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = if (isPlayingPreview) "Pause preview" else "Play preview",
+                                tint = IceMint,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Live Clip Timecode Badge
+                    Surface(
+                        shape = CircleShape,
+                        color = DeepMidnight.copy(alpha = 0.78f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = "${formatClipSec(currentPreviewMs)} / ${formatClipSec(clipEndMs)}",
+                            color = TextPrimary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
+            // Preview Toggle + Export Custom Clip Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        showPreview = !showPreview
+                        if (showPreview) isPlayingPreview = true
+                    },
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, MidnightBorder),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = MidnightElevated,
+                        contentColor = TextPrimary
+                    ),
+                    modifier = Modifier
+                        .weight(0.44f)
+                        .height(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Visibility,
+                        contentDescription = null,
+                        tint = IceMint,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (showPreview) "Hide" else "Preview",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
+                    )
+                }
+
+                Button(
+                    enabled = !isExporting,
+                    onClick = {
+                        isExporting = true
+                        exportProgress = 0
+                        exportStatus = null
+                        showPreview = false
+                        VideoWatermarkExporter.exportHighlightClip(
+                            context = context,
+                            sourceVideoUri = sourceUri,
+                            clipStartMs = clipStartMs,
+                            clipEndMs = clipEndMs,
+                            onProgress = { pct -> exportProgress = pct },
+                            onSuccess = { file, saved ->
+                                isExporting = false
+                                exportStatus = if (saved) {
+                                    "Clip (${clipDurationSec}s) saved to Gallery!"
+                                } else {
+                                    "Clip (${clipDurationSec}s) ready!"
+                                }
+                                VideoWatermarkExporter.shareVideoFile(context, file)
+                            },
+                            onError = { err ->
+                                isExporting = false
+                                exportStatus = "Clip export failed: $err"
+                            }
+                        )
+                    },
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = IceMintSoft,
+                        contentColor = IceMint
+                    ),
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
+                    modifier = Modifier
+                        .weight(0.56f)
+                        .height(48.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCut,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = if (isExporting) "Cutting ($exportProgress%)..." else "Export ${clipDurationSec}s Clip",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            if (exportStatus != null) {
+                Text(
+                    text = exportStatus ?: "",
+                    color = IceMint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+private fun formatClipSec(ms: Long): String {
+    val sec = (ms / 1000L).coerceAtLeast(0L)
+    return String.format(Locale.US, "%d:%02d", sec / 60L, sec % 60L)
+}
+
