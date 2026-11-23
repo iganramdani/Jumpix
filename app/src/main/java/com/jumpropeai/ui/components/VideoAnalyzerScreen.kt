@@ -210,6 +210,27 @@ fun VideoAnalyzerScreen(
                             )
                         }
 
+                        // Live AI Detected Trick / Move Pill in Top-Left during analysis
+                        if (isAnalyzing && progress != null && liveJumpCount > 0) {
+                            Surface(
+                                shape = CircleShape,
+                                color = DeepMidnight.copy(alpha = 0.78f),
+                                border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = progress.currentMove.label.uppercase(Locale.US),
+                                    color = IceMint,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+
                         // Crisp Ice Mint Jump Counter Badge in Top-Right
                         Surface(
                             shape = CircleShape,

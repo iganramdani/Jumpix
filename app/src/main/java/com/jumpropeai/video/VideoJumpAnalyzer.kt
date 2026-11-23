@@ -56,6 +56,7 @@ data class VideoAnalysisProgress(
     val currentStreak: Int = 0,
     val isAirborne: Boolean = false,
     val style: JumpStyle = JumpStyle.REGULAR,
+    val currentMove: KineticMove = KineticMove.REGULAR,
     val fingerprint: AcousticFingerprint = AcousticFingerprint(),
     val previewBitmap: Bitmap? = null,
     val latestPose: PoseFrame? = null
@@ -290,10 +291,18 @@ class VideoJumpAnalyzer(private val context: Context) {
                                         metricsTracker.recordJump(cand.landTimeMs)
                                         jumpTimestamps.add(cand.landTimeMs)
                                     }
+                                    if (hadAudio) {
+                                        beatSyncEngine.recordMoveOnBeat(cand.landTimeMs)
+                                    }
                                 }
                             }
 
-                            // Run AI v13.4 Trick & Form Coach in parallel
+                            // Update STFT Music BPM & Beat-Sync every ~500ms during Video Studio analysis
+                            if (hadAudio && (currentMs / 500L) != (prevProcMs.coerceAtLeast(0L) / 500L)) {
+                                beatSyncEngine.updateFromAudio(audioFlux, currentMs)
+                            }
+
+                            // Run AI v13.5 Trick & Form Coach in parallel
                             val kineticRes = kineticTrickCoach.processFrame(
                                 frame = poseFrame,
                                 isAirborne = det.isAirborne,
@@ -357,6 +366,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                                         currentStreak = metricsTracker.getActiveStreak(currentMs),
                                         isAirborne = det.isAirborne,
                                         style = fusionEngine.latestStyle,
+                                        currentMove = kineticRes.currentMove,
                                         fingerprint = fusionEngine.currentFingerprint(),
                                         previewBitmap = lastDisplayedBitmap,
                                         latestPose = poseFrame

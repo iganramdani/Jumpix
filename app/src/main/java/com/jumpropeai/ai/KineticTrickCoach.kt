@@ -356,13 +356,17 @@ class KineticTrickCoach {
             false
         }
 
-        // 4. Heel-Toe Tap (one foot plants heel-down with toes lifted up < 0.04 while other foot is normal > 0.12)
+        // 4. Heel-Toe Tap (calibrated from 21 real Redmi Note 9 videos: one foot heel-down toes-up < 0.08f
+        //    with strong pitch contrast >= 0.14f against the opposite toe-pivot foot)
+        val pitchContrast = if (hasBothFeet) abs(lFootPitch - rFootPitch) else 0f
+        val minFootPitch = if (hasBothFeet) min(lFootPitch, rFootPitch) else 0.16f
         val isHeelToe = hasBothFeet && (
             (lFootPitch < 0.04f && rFootPitch > 0.12f) ||
-                (rFootPitch < 0.04f && lFootPitch > 0.12f)
+                (rFootPitch < 0.04f && lFootPitch > 0.12f) ||
+                (minFootPitch < 0.08f && pitchContrast >= 0.14f)
             )
 
-        // 5. Authentic Melbourne Shuffle Dance Footwork (classified in ALL modes; counts non-jump steps in Shuffle mode!)
+        // 5. Authentic Melbourne Shuffle Dance Footwork (camera-angle aware!)
         val ankleSep = abs(lAx - rAx) / torsoH
         val ankleSepVel = (ankleSep - prevAnkleSep) / dtSec
         val hasAnkles = lAnkle != null && rAnkle != null
@@ -370,9 +374,11 @@ class KineticTrickCoach {
         val knAsymVal = if (lKnee != null && rKnee != null) abs(lKnee.y - rKnee.y) / torsoH else 0f
         val ankDyVal = if (hasAnkles) abs(lAy - rAy) / torsoH else 0f
         val vProd = vLx * vRx
+        val shRatioVal = shoulderSpan / torsoH
+        val isSideView = shRatioVal < 0.32f
 
         // Store Zero-GC telemetry for optional diagnostic CSV logger
-        lastShRatio = shoulderSpan / torsoH
+        lastShRatio = shRatioVal
         lastAnkSep = ankleSep
         lastAnkDy = ankDyVal
         lastKnAsym = knAsymVal
@@ -397,10 +403,13 @@ class KineticTrickCoach {
             val sustainedHipShiftX = computeRecentHipShiftX(torsoH)
             val runningManBounceOk = hipVertStd < 0.22f
 
-            // Running Man: strong opposing front/back ankle glide (above p90 noise) + wide stride + alternating knee drive
-            val opposingGlide = (vProd < -1.80f) && ankleSep > 0.36f
-            val kneeDrive = knAsymVal > 0.18f
-            val heelGlideContrast = hasBothFeet && abs(lFootPitch - rFootPitch) > 0.12f
+            // Camera-angle-aware Running Man:
+            // In side-view (shRatio < 0.32), normal Boxer Step & Heel-Toe project onto X-axis, so require a true wide
+            // Melbourne Shuffle scissor stride (> 0.72 * torsoH) & faster opposing glide (< -3.80) + real knee drive!
+            val minRmSep = if (isSideView) 0.72f else 0.45f
+            val minRmVProd = if (isSideView) -3.80f else -2.20f
+            val opposingGlide = (vProd < minRmVProd) && ankleSep > minRmSep
+            val kneeDrive = knAsymVal > 0.20f
 
             // T-Step: true sustained sideways travel (>= 0.26 * torsoH over ~400ms) + clear heel-toe yaw pivot
             val lateralTravel = sustainedHipShiftX >= 0.26f && abs(hipVx) > 0.55f
@@ -433,7 +442,7 @@ class KineticTrickCoach {
                 (abs(vYawL) + abs(vYawR) > 2.2f)
 
             val candidateMove = when {
-                runningManBounceOk && opposingGlide && (kneeDrive || heelGlideContrast) -> KineticMove.SHUFFLE_RUNNING_MAN
+                !isHeelToe && runningManBounceOk && opposingGlide && kneeDrive -> KineticMove.SHUFFLE_RUNNING_MAN
                 tStepMotion -> KineticMove.SHUFFLE_T_STEP
                 charlestonMotion -> KineticMove.SHUFFLE_CHARLESTON
                 else -> null
@@ -479,13 +488,16 @@ class KineticTrickCoach {
                     (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && hasDualAudioBurst(audioHistory, nowMs))
                 )
 
-            // Boxer Step: anti-phase L/R ankle alternation OR heel-lift pitch alternation across consecutive jumps
-            val ankleDelta = if (hasAnkles) (lAy - rAy) / torsoH else 0f
+            // Boxer Step (300ms windowed): capture peak signed L/R ankle asymmetry during the jump transfer phase,
+            // not just the single landing frame where both feet momentarily level out!
+            val instAnkleDelta = if (hasAnkles) (lAy - rAy) / torsoH else 0f
+            val peakWinAnkleDelta = if (hasAnkles) computeRecentPeakSignedAnkleDelta(torsoH, nowMs) else 0f
+            val ankleDelta = if (abs(peakWinAnkleDelta) >= abs(instAnkleDelta)) peakWinAnkleDelta else instAnkleDelta
             val pitchDelta = if (hasBothFeet) (lFootPitch - rFootPitch) else 0f
             val absAnkleDelta = abs(ankleDelta)
             val currSign = when {
-                ankleDelta > 0.13f || pitchDelta > 0.10f -> 1
-                ankleDelta < -0.13f || pitchDelta < -0.10f -> -1
+                ankleDelta > 0.14f || pitchDelta > 0.11f -> 1
+                ankleDelta < -0.14f || pitchDelta < -0.11f -> -1
                 else -> 0
             }
             if (currSign != 0 && lastBoxerAnkleSign != 0 && currSign != lastBoxerAnkleSign) {
@@ -497,7 +509,7 @@ class KineticTrickCoach {
 
             val isBoxerStep = hasAnkles && (
                 (absAnkleDelta > 0.22f) ||
-                    ((absAnkleDelta > 0.14f || abs(pitchDelta) > 0.11f) && boxerFlipConfirmCount >= 1)
+                    ((absAnkleDelta > 0.15f || abs(pitchDelta) > 0.12f) && boxerFlipConfirmCount >= 1)
                 )
 
             val recentShuffleHold = (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
@@ -505,9 +517,9 @@ class KineticTrickCoach {
                 isDoubleUnder -> KineticMove.DOUBLE_UNDER
                 isCrissCross -> KineticMove.CRISS_CROSS
                 isHighKnees -> KineticMove.HIGH_KNEES
+                isHeelToe -> KineticMove.HEEL_TOE
                 detectedShuffleMove != null -> detectedShuffleMove
                 recentShuffleHold -> pendingShuffleMove!!
-                isHeelToe -> KineticMove.HEEL_TOE
                 isBoxerStep -> KineticMove.BOXER_STEP
                 else -> KineticMove.REGULAR
             }
@@ -712,6 +724,24 @@ class KineticTrickCoach {
             idx++
         }
         return peaks >= 2
+    }
+
+    private fun computeRecentPeakSignedAnkleDelta(torsoH: Float, nowMs: Long): Float {
+        if (bufCount < 2) return 0f
+        val startMs = nowMs - 300L
+        var best = 0f
+        var bestAbs = 0f
+        for (i in 0 until bufCount) {
+            val idx = (bufHead - 1 - i + BUF_SIZE) % BUF_SIZE
+            if (timesMs[idx] < startMs) break
+            val delta = (leftAnkleY[idx] - rightAnkleY[idx]) / torsoH
+            val a = abs(delta)
+            if (a > bestAbs) {
+                bestAbs = a
+                best = delta
+            }
+        }
+        return best
     }
 
     private fun samplePeakAudioMid(audioHistory: List<FluxSample>, nowMs: Long): Float {
