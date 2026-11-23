@@ -9,11 +9,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.AcousticFingerprint
+import com.jumpropeai.ai.FormCoachSnapshot
 import com.jumpropeai.ai.FusionEngine
 import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.JumpStyle
+import com.jumpropeai.ai.KineticMove
+import com.jumpropeai.ai.KineticTrickCoach
 import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.audio.AudioCue
+import com.jumpropeai.audio.BeatSyncEngine
+import com.jumpropeai.audio.BeatSyncSnapshot
 import com.jumpropeai.audio.StftAudioEngine
 import com.jumpropeai.data.CumulativeStats
 import com.jumpropeai.data.WorkoutHistoryRepository
@@ -69,6 +74,10 @@ data class JumpRopeUiState(
     val latestPose: PoseFrame? = null,
     val metrics: WorkoutMetrics = WorkoutMetrics(),
     val jumpStyle: JumpStyle = JumpStyle.REGULAR,
+    val currentMove: KineticMove = KineticMove.REGULAR,
+    val moveCounts: Map<KineticMove, Int> = emptyMap(),
+    val formCoach: FormCoachSnapshot = FormCoachSnapshot(),
+    val beatSync: BeatSyncSnapshot = BeatSyncSnapshot(),
     val fingerprint: AcousticFingerprint = AcousticFingerprint(),
     val tripsCount: Int = 0,
     val workoutConfig: WorkoutConfig = WorkoutConfig(),
@@ -105,6 +114,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private val prefs = application.getSharedPreferences("jumpvex_prefs", Context.MODE_PRIVATE)
     private val jumpDetector = JumpDetector()
     private val fusionEngine = FusionEngine()
+    private val kineticTrickCoach = KineticTrickCoach()
+    private val beatSyncEngine = BeatSyncEngine()
     private val stftAudioEngine = StftAudioEngine()
     private val metricsTracker = MetricsTracker()
     private val videoAnalyzer = VideoJumpAnalyzer(application.applicationContext)
@@ -179,6 +190,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         if (currentState.sensorMode == SensorMode.AUDIO_ONLY) return
 
         val isCountingAllowed = currentState.isSessionRunning && currentState.workoutProgress.isCountingAllowed
+        val isShuffleMode = currentState.workoutConfig.mode == WorkoutModeType.FREESTYLE_SHUFFLE
         val result = jumpDetector.processFrame(frame, isCountingActive = isCountingAllowed)
 
         var jumpsAccepted = 0
@@ -186,13 +198,15 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         var latestFingerprint = currentState.fingerprint
         var recommendLowFps = currentState.recommendEcoLowFps
 
+        val useAudio = currentState.hasAudioPermission && currentState.sensorMode == SensorMode.FUSION
+        val audioSnapshot = if (useAudio && isCountingAllowed) stftAudioEngine.snapshotHistory() else emptyList()
+
         val candidate = result.candidate
         if (candidate != null && isCountingAllowed) {
             if (currentState.sensorMode == SensorMode.FUSION) {
-                val useAudio = currentState.hasAudioPermission
                 val decision = fusionEngine.evaluateCandidate(
                     candidate = candidate,
-                    audioHistory = if (useAudio) stftAudioEngine.snapshotHistory() else emptyList(),
+                    audioHistory = audioSnapshot,
                     useAudioFusion = useAudio
                 )
                 jumpsAccepted = decision.acceptedJumps
@@ -204,8 +218,41 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        if (jumpsAccepted > 0 && isCountingAllowed) {
-            repeat(jumpsAccepted) {
+        // Parallel AI v13 Kinetic Trick, Shuffle Footwork & Form Coach (Zero-GC, never alters jump counter!)
+        val kineticRes = if (isCountingAllowed) {
+            kineticTrickCoach.processFrame(
+                frame = frame,
+                isAirborne = result.isAirborne,
+                jumpAccepted = jumpsAccepted > 0,
+                jumpAmplitude = candidate?.amplitude ?: 0f,
+                audioHistory = audioSnapshot,
+                isShuffleMode = isShuffleMode
+            )
+        } else {
+            null
+        }
+
+        // In Freestyle / Shuffle mode, also count rhythmic Shuffle Dance steps (Running Man, T-Step, Charleston)
+        val totalMovesAccepted = when {
+            jumpsAccepted > 0 -> jumpsAccepted
+            isShuffleMode && kineticRes?.shuffleStepDetected == true -> 1
+            else -> 0
+        }
+
+        val beatSnapshot = if (isCountingAllowed && useAudio) {
+            val snap = beatSyncEngine.updateFromAudio(audioSnapshot, frame.timestampMs)
+            if (totalMovesAccepted > 0) {
+                beatSyncEngine.recordMoveOnBeat(frame.timestampMs)
+                beatSyncEngine.snapshot()
+            } else {
+                snap
+            }
+        } else {
+            currentState.beatSync
+        }
+
+        if (totalMovesAccepted > 0 && isCountingAllowed) {
+            repeat(totalMovesAccepted) {
                 metricsTracker.recordJump(frame.timestampMs)
             }
             emitJumpCue(metricsTracker.jumpCount)
@@ -213,7 +260,16 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         val needsSkeletonRender = currentState.showSkeletonOverlay && !currentState.isEcoMode
         val prevMetrics = currentState.metrics
-        val stateChanged = jumpsAccepted > 0 ||
+        val moveChanged = kineticRes != null && (
+            kineticRes.currentMove != currentState.currentMove ||
+                kineticRes.formSnapshot.overallScore != currentState.formCoach.overallScore
+            )
+        val beatChanged = beatSnapshot.detectedBpm != currentState.beatSync.detectedBpm ||
+            beatSnapshot.beatSyncScore != currentState.beatSync.beatSyncScore
+
+        val stateChanged = totalMovesAccepted > 0 ||
+            moveChanged ||
+            beatChanged ||
             result.isAirborne != prevMetrics.isAirborne ||
             result.status != prevMetrics.detectorStatus ||
             result.calibrationProgress != prevMetrics.calibrationProgress
@@ -237,6 +293,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 latestPose = if (needsSkeletonRender) frame else null,
                 workoutProgress = progress,
                 jumpStyle = latestStyle,
+                currentMove = kineticRes?.currentMove ?: state.currentMove,
+                moveCounts = kineticRes?.moveCounts ?: state.moveCounts,
+                formCoach = kineticRes?.formSnapshot ?: state.formCoach,
+                beatSync = beatSnapshot,
                 fingerprint = latestFingerprint,
                 tripsCount = fusionEngine.totalTrips,
                 recommendEcoLowFps = recommendLowFps,
@@ -492,6 +552,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         jumpDetector.reset()
         fusionEngine.reset()
+        kineticTrickCoach.reset()
+        beatSyncEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
         activeSessionId = null
@@ -507,6 +569,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 isEcoMode = false,
                 recommendEcoLowFps = false,
                 tripsCount = 0,
+                currentMove = KineticMove.REGULAR,
+                moveCounts = emptyMap(),
+                formCoach = FormCoachSnapshot(),
+                beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress(),
@@ -522,11 +588,14 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         if (metricsTracker.jumpCount >= 5) {
             autoSaveIfNeeded()
         }
+        cancelPreStartCountdown()
         tickerJob?.cancel()
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
         jumpDetector.reset()
         fusionEngine.reset()
+        kineticTrickCoach.reset()
+        beatSyncEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
         activeSessionId = null
@@ -540,6 +609,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 isControlsVisible = true,
                 recommendEcoLowFps = false,
                 tripsCount = 0,
+                currentMove = KineticMove.REGULAR,
+                moveCounts = emptyMap(),
+                formCoach = FormCoachSnapshot(),
+                beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress()

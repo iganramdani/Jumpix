@@ -4,7 +4,8 @@ enum class WorkoutModeType(val label: String) {
     FREE("Free"),
     TARGET_JUMPS("Target Jumps"),
     TARGET_TIME("Target Time"),
-    HIIT("HIIT")
+    HIIT("HIIT"),
+    FREESTYLE_SHUFFLE("Shuffle & Tricks")
 }
 
 enum class HiitPhase {
@@ -38,6 +39,7 @@ data class WorkoutConfig(
             }
         }
         WorkoutModeType.HIIT -> "HIIT ${hiitWorkSeconds}s/${hiitRestSeconds}s × $hiitRounds"
+        WorkoutModeType.FREESTYLE_SHUFFLE -> "Shuffle & Tricks"
     }
 }
 
@@ -52,7 +54,7 @@ data class WorkoutProgress(
 )
 
 /**
- * Pure Kotlin evaluator for workout modes (Free, Target Jumps, Target Time, HIIT Interval).
+ * Pure Kotlin evaluator for workout modes (Free, Target Jumps, Target Time, HIIT Interval, Shuffle & Tricks).
  */
 object WorkoutModeEvaluator {
 
@@ -62,7 +64,7 @@ object WorkoutModeEvaluator {
         elapsedMs: Long
     ): WorkoutProgress {
         return when (config.mode) {
-            WorkoutModeType.FREE -> WorkoutProgress(
+            WorkoutModeType.FREE, WorkoutModeType.FREESTYLE_SHUFFLE -> WorkoutProgress(
                 progressFraction = 0f,
                 remainingMs = null,
                 isCompleted = false,

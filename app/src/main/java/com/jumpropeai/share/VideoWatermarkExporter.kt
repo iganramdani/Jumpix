@@ -60,13 +60,16 @@ object VideoWatermarkExporter {
         context: Context,
         sourceVideoUri: Uri,
         watermarkBitmap: Bitmap,
+        clipStartMs: Long? = null,
+        clipEndMs: Long? = null,
         onProgress: (Int) -> Unit,
         onSuccess: (File, Boolean) -> Unit,
         onError: (String) -> Unit
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
         val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
-        val outFile = File(outDir, "Jumpvex_${System.currentTimeMillis()}.mp4")
+        val prefix = if (clipStartMs != null && clipEndMs != null) "Jumpvex_Highlight_" else "Jumpvex_"
+        val outFile = File(outDir, "${prefix}${System.currentTimeMillis()}.mp4")
 
         val fallbackSize = readVideoDisplaySize(context, sourceVideoUri)
         val bitmapOverlay = VideoFittedBitmapOverlay(
@@ -77,10 +80,81 @@ object VideoWatermarkExporter {
         val overlayEffect = OverlayEffect(ImmutableList.of(bitmapOverlay))
         val effects = Effects(emptyList(), listOf(overlayEffect))
 
-        val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(sourceVideoUri))
+        val mediaItemBuilder = MediaItem.Builder().setUri(sourceVideoUri)
+        if (clipStartMs != null && clipEndMs != null && clipEndMs > clipStartMs) {
+            mediaItemBuilder.setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(clipStartMs.coerceAtLeast(0L))
+                    .setEndPositionMs(clipEndMs)
+                    .build()
+            )
+        }
+
+        val editedMediaItem = EditedMediaItem.Builder(mediaItemBuilder.build())
             .setEffects(effects)
             .build()
 
+        runTransformerExport(
+            context = context,
+            editedMediaItem = editedMediaItem,
+            outFile = outFile,
+            mainHandler = mainHandler,
+            onProgress = onProgress,
+            onSuccess = onSuccess,
+            onError = onError
+        )
+    }
+
+    /**
+     * 1-Tap Auto-Highlight Clip Exporter using hardware-accelerated Media3 ClippingConfiguration.
+     */
+    @OptIn(UnstableApi::class)
+    fun exportHighlightClip(
+        context: Context,
+        sourceVideoUri: Uri,
+        clipStartMs: Long,
+        clipEndMs: Long,
+        onProgress: (Int) -> Unit,
+        onSuccess: (File, Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
+        val outFile = File(outDir, "Jumpvex_Highlight_${System.currentTimeMillis()}.mp4")
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(sourceVideoUri)
+            .setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(clipStartMs.coerceAtLeast(0L))
+                    .setEndPositionMs(clipEndMs.coerceAtLeast(clipStartMs + 1000L))
+                    .build()
+            )
+            .build()
+
+        val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
+
+        runTransformerExport(
+            context = context,
+            editedMediaItem = editedMediaItem,
+            outFile = outFile,
+            mainHandler = mainHandler,
+            onProgress = onProgress,
+            onSuccess = onSuccess,
+            onError = onError
+        )
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun runTransformerExport(
+        context: Context,
+        editedMediaItem: EditedMediaItem,
+        outFile: File,
+        mainHandler: Handler,
+        onProgress: (Int) -> Unit,
+        onSuccess: (File, Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
         val progressHolder = ProgressHolder()
         var isFinished = false
 
@@ -99,7 +173,7 @@ object VideoWatermarkExporter {
                     exportException: ExportException
                 ) {
                     isFinished = true
-                    onError(exportException.localizedMessage ?: "Gagal mengekspor video")
+                    onError(exportException.localizedMessage ?: "Failed to export video")
                 }
             })
             .build()

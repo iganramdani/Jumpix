@@ -437,7 +437,7 @@ private fun DynamicRingLiveHud(
 
     // Compute intuitive ring progress for ALL 4 modes
     val rawRingProgress = when (config.mode) {
-        WorkoutModeType.FREE -> {
+        WorkoutModeType.FREE, WorkoutModeType.FREESTYLE_SHUFFLE -> {
             val interval = config.milestoneInterval.coerceAtLeast(10)
             if (metrics.jumpCount == 0) 0f
             else {
@@ -612,7 +612,8 @@ private fun DynamicRingLiveHud(
 
             Spacer(Modifier.weight(0.55f))
 
-            // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump Counter
+            // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump/Move Counter
+            val isShuffleMode = config.mode == WorkoutModeType.FREESTYLE_SHUFFLE
             val ringSubLabel = when {
                 config.mode == WorkoutModeType.HIIT && uiState.isSessionRunning -> {
                     val phaseTxt = if (progress.hiitPhase == HiitPhase.WORK) "WORK" else "REST"
@@ -621,6 +622,7 @@ private fun DynamicRingLiveHud(
                 metrics.detectorStatus == DetectorStatus.NO_PERSON && uiState.sensorMode != SensorMode.AUDIO_ONLY ->
                     "STEP INTO FRAME"
                 metrics.detectorStatus == DetectorStatus.CALIBRATING -> "CALIBRATING..."
+                isShuffleMode -> "MOVES"
                 else -> "JUMPS"
             }
 
@@ -631,6 +633,47 @@ private fun DynamicRingLiveHud(
                 isAirborne = metrics.isAirborne,
                 scaleFactor = countScale
             )
+
+            // Clean Two-Tone Live AI Trick, Form Coach & Beat-Sync Pill (visible once moving)
+            if (uiState.isSessionRunning && (metrics.jumpCount > 0 || uiState.beatSync.detectedBpm > 0)) {
+                Spacer(Modifier.height(14.dp))
+                val formScore = uiState.formCoach.overallScore
+                val bpm = uiState.beatSync.detectedBpm
+                val syncScore = uiState.beatSync.beatSyncScore
+                val badgeText = buildString {
+                    append(uiState.currentMove.label.uppercase(Locale.US))
+                    if (formScore > 0) append("  •  FORM $formScore%")
+                    if (bpm > 0 && isShuffleMode) {
+                        append("  •  $bpm BPM")
+                        if (syncScore > 0) append(" ($syncScore%)")
+                    }
+                }
+                Surface(
+                    shape = CircleShape,
+                    color = MidnightGlass,
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.4f))
+                ) {
+                    Text(
+                        text = badgeText,
+                        color = IceMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                    )
+                }
+                if (formScore in 1..79) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = uiState.formCoach.coachingTip,
+                        color = TextPrimary.copy(alpha = 0.85f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
 
             Spacer(Modifier.weight(1f))
 

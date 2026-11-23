@@ -12,8 +12,8 @@ android {
         applicationId = "com.jumpropeai"
         minSdk = 24
         targetSdk = 35
-        versionCode = 21
-        versionName = "3.2.0"
+        versionCode = 22
+        versionName = "3.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

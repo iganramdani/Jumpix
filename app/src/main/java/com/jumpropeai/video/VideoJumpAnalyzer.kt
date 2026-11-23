@@ -23,6 +23,8 @@ import com.jumpropeai.ai.BodyLandmark
 import com.jumpropeai.ai.FusionEngine
 import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.JumpStyle
+import com.jumpropeai.ai.KineticMove
+import com.jumpropeai.ai.KineticTrickCoach
 import com.jumpropeai.ai.LandmarkPoint
 import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.audio.FluxSample
@@ -35,6 +37,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
@@ -68,7 +71,14 @@ data class VideoAnalysisResult(
     val style: JumpStyle,
     val fingerprint: AcousticFingerprint,
     val hadAudioTrack: Boolean,
-    val finalPreviewBitmap: Bitmap? = null
+    val finalPreviewBitmap: Bitmap? = null,
+    val sourceUri: Uri? = null,
+    val formScore: Int = 0,
+    val formTip: String = "",
+    val moveCounts: Map<KineticMove, Int> = emptyMap(),
+    val highlightStartMs: Long = 0L,
+    val highlightEndMs: Long = 0L,
+    val highlightSummary: String = ""
 )
 
 /**
@@ -109,7 +119,9 @@ class VideoJumpAnalyzer(private val context: Context) {
 
         val jumpDetector = JumpDetector()
         val fusionEngine = FusionEngine()
+        val kineticTrickCoach = KineticTrickCoach()
         val metricsTracker = MetricsTracker()
+        val jumpTimestamps = ArrayList<Long>(256)
         var lastDisplayedBitmap: Bitmap? = null
 
         try {
@@ -126,7 +138,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                 }
             }
             if (videoTrackIndex < 0 || videoFormat == null) {
-                throw IllegalArgumentException("Track video tidak ditemukan di file MP4")
+                throw IllegalArgumentException("Video track not found in file")
             }
 
             extractor.selectTrack(videoTrackIndex)
@@ -258,9 +270,20 @@ class VideoJumpAnalyzer(private val context: Context) {
                                     jumpJustCounted = true
                                     repeat(decision.acceptedJumps) {
                                         metricsTracker.recordJump(cand.landTimeMs)
+                                        jumpTimestamps.add(cand.landTimeMs)
                                     }
                                 }
                             }
+
+                            // Run AI v13 Trick & Form Coach in parallel
+                            kineticTrickCoach.processFrame(
+                                frame = poseFrame,
+                                isAirborne = det.isAirborne,
+                                jumpAccepted = jumpJustCounted,
+                                jumpAmplitude = cand?.amplitude ?: 0f,
+                                audioHistory = audioFlux,
+                                isShuffleMode = false
+                            )
 
                             // Emit smooth live preview + skeleton on EVERY processed frame (capped at ~30 FPS wall-clock)
                             if (wantUiFrame || jumpJustCounted) {
@@ -304,6 +327,8 @@ class VideoJumpAnalyzer(private val context: Context) {
             metricsTracker.pause(finalDur)
             val totalJumps = metricsTracker.jumpCount
             val avgRpm = (totalJumps * 60_000.0 / finalDur).roundToInt()
+            val formSnap = kineticTrickCoach.currentFormSnapshot()
+            val (hlStart, hlEnd, hlSummary) = computePeakHighlightWindow(jumpTimestamps, finalDur)
 
             VideoAnalysisResult(
                 fileName = fileName,
@@ -318,7 +343,14 @@ class VideoJumpAnalyzer(private val context: Context) {
                 style = fusionEngine.latestStyle,
                 fingerprint = fusionEngine.currentFingerprint(),
                 hadAudioTrack = hadAudio,
-                finalPreviewBitmap = lastDisplayedBitmap
+                finalPreviewBitmap = lastDisplayedBitmap,
+                sourceUri = uri,
+                formScore = formSnap.overallScore,
+                formTip = formSnap.coachingTip,
+                moveCounts = kineticTrickCoach.snapshotMoveCounts(),
+                highlightStartMs = hlStart,
+                highlightEndMs = hlEnd,
+                highlightSummary = hlSummary
             )
         } finally {
             runCatching { codec?.stop() }
@@ -326,6 +358,44 @@ class VideoJumpAnalyzer(private val context: Context) {
             runCatching { extractor.release() }
             runCatching { poseDetector.close() }
         }
+    }
+
+    /**
+     * O(N) sliding-window scan that locates the densest 10-second Peak-Action highlight segment.
+     */
+    private fun computePeakHighlightWindow(
+        jumpTimestamps: List<Long>,
+        totalDurationMs: Long
+    ): Triple<Long, Long, String> {
+        if (jumpTimestamps.size < 3 || totalDurationMs <= 2000L) {
+            return Triple(0L, 0L, "")
+        }
+        val windowMs = minOf(10_000L, totalDurationMs)
+        var left = 0
+        var bestCount = 0
+        var bestStartMs = 0L
+
+        for (right in jumpTimestamps.indices) {
+            while (jumpTimestamps[right] - jumpTimestamps[left] > windowMs) {
+                left++
+            }
+            val count = right - left + 1
+            if (count > bestCount) {
+                bestCount = count
+                bestStartMs = (jumpTimestamps[left] - 600L).coerceAtLeast(0L)
+            }
+        }
+        val bestEndMs = (bestStartMs + windowMs).coerceAtMost(totalDurationMs)
+        val actualDurSec = ((bestEndMs - bestStartMs).coerceAtLeast(1000L)) / 1000.0
+        val burstRpm = (bestCount * 60.0 / actualDurSec).roundToInt()
+        val startFmt = formatShortTime(bestStartMs)
+        val endFmt = formatShortTime(bestEndMs)
+        return Triple(bestStartMs, bestEndMs, "$startFmt–$endFmt • $bestCount jumps ($burstRpm RPM)")
+    }
+
+    private fun formatShortTime(ms: Long): String {
+        val sec = (ms / 1000L).coerceAtLeast(0L)
+        return String.format(Locale.US, "%d:%02d", sec / 60L, sec % 60L)
     }
 
     private suspend fun awaitTask(

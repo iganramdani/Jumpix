@@ -407,10 +407,25 @@ fun WorkoutModeSheet(
                     val totalHiitSec = draft.hiitRounds * draft.hiitWorkSeconds +
                         (draft.hiitRounds - 1).coerceAtLeast(0) * draft.hiitRestSeconds
                     Text(
-                        text = "Total HIIT: ${totalHiitSec / 60}m ${totalHiitSec % 60}d (${draft.hiitWorkSeconds}s lompat / ${draft.hiitRestSeconds}s istirahat × ${draft.hiitRounds} ronde)",
+                        text = "Total HIIT: ${totalHiitSec / 60}m ${totalHiitSec % 60}s (${draft.hiitWorkSeconds}s work / ${draft.hiitRestSeconds}s rest × ${draft.hiitRounds} rounds)",
                         color = FlameOrange.copy(alpha = 0.9f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                WorkoutModeType.FREESTYLE_SHUFFLE -> {
+                    Text(
+                        text = "Freestyle Jump Tricks & Shuffle Dance",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = NeonLime
+                    )
+                    Text(
+                        text = "Detects Running Man, T-Step, Charleston, Criss-Cross, Double Under, Boxer Step, High Knees & live Music BPM Beat-Sync Score — 100% on-device.",
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
                     )
                 }
             }
