@@ -66,7 +66,7 @@ object VideoWatermarkExporter {
     ) {
         val mainHandler = Handler(Looper.getMainLooper())
         val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
-        val outFile = File(outDir, "JumpRopeAI_${System.currentTimeMillis()}.mp4")
+        val outFile = File(outDir, "Jumpix_${System.currentTimeMillis()}.mp4")
 
         val fallbackSize = readVideoDisplaySize(context, sourceVideoUri)
         val bitmapOverlay = VideoFittedBitmapOverlay(
@@ -260,7 +260,7 @@ object VideoWatermarkExporter {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "video/mp4"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Latihan lompat tali dengan JumpRope AI!")
+                putExtra(Intent.EXTRA_TEXT, "Latihan lompat tali dengan Jumpix!")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Bagikan Video Latihan"))
@@ -270,13 +270,13 @@ object VideoWatermarkExporter {
     }
 
     private fun saveVideoToGallery(context: Context, videoFile: File): Boolean {
-        val displayName = "JumpRopeAI_${System.currentTimeMillis()}.mp4"
+        val displayName = "Jumpix_${System.currentTimeMillis()}.mp4"
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val values = ContentValues().apply {
                     put(MediaStore.Video.Media.DISPLAY_NAME, displayName)
                     put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
-                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/JumpRopeAI")
+                    put(MediaStore.Video.Media.RELATIVE_PATH, "${Environment.DIRECTORY_MOVIES}/Jumpix")
                     put(MediaStore.Video.Media.IS_PENDING, 1)
                 }
                 val resolver = context.contentResolver
@@ -292,7 +292,7 @@ object VideoWatermarkExporter {
                 @Suppress("DEPRECATION")
                 val dir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES),
-                    "JumpRopeAI"
+                    "Jumpix"
                 )
                 dir.mkdirs()
                 val dest = File(dir, displayName)

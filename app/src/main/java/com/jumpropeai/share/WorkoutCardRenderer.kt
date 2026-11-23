@@ -114,7 +114,7 @@ object WorkoutCardRenderer {
             .uppercase(Locale.getDefault())
         val rightTag = if (styleLabel != null) "$dateStr • ${styleLabel.uppercase(Locale.getDefault())}" else dateStr
 
-        canvas.drawText("JUMPROPE AI", 64f, 94f, textPaint(32f, Color.parseColor("#C6FF00"), Typeface.BOLD))
+        canvas.drawText("JUMPIX", 64f, 94f, textPaint(32f, Color.parseColor("#C6FF00"), Typeface.BOLD))
         canvas.drawText(
             rightTag,
             WIDTH - 64f,
@@ -187,7 +187,7 @@ object WorkoutCardRenderer {
             textPaint(36f, Color.parseColor("#FF8833"), Typeface.BOLD_ITALIC)
         )
         canvas.drawText(
-            "JUMPROPE AI • FUSION",
+            "JUMPIX • FUSION",
             104f,
             330f,
             textPaint(22f, Color.argb(195, 255, 255, 255), Typeface.BOLD, letterSpace = 0.12f)
@@ -275,7 +275,7 @@ object WorkoutCardRenderer {
             textPaint(28f, Color.argb(240, 235, 245, 255), Typeface.BOLD, Paint.Align.CENTER, mono = true)
         )
         canvas.drawText(
-            "JUMPROPE AI",
+            "JUMPIX",
             WIDTH / 2f,
             HEIGHT - 78f,
             textPaint(22f, Color.argb(190, 0, 229, 255), Typeface.BOLD, Paint.Align.CENTER, mono = true, letterSpace = 0.18f)
@@ -319,7 +319,7 @@ object WorkoutCardRenderer {
         )
 
         val rx = panel.left + 382f
-        canvas.drawText("JUMPROPE AI", rx, panel.top + 68f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
+        canvas.drawText("JUMPIX", rx, panel.top + 68f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
 
         val rows = listOf(
             Triple("DURASI", formatDuration(session.durationMs), Color.WHITE),
@@ -361,7 +361,7 @@ object WorkoutCardRenderer {
         )
 
         val tx = badge.right + 32f
-        canvas.drawText("JUMPROPE AI", tx, pill.top + 62f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
+        canvas.drawText("JUMPIX", tx, pill.top + 62f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
         canvas.drawText(
             "${formatDuration(session.durationMs)}  •  ${session.averageRpm} RPM",
             tx,
@@ -383,7 +383,7 @@ object WorkoutCardRenderer {
                 val values = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/JumpRopeAI")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Jumpix")
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }
                 val resolver = context.contentResolver
@@ -399,7 +399,7 @@ object WorkoutCardRenderer {
                 @Suppress("DEPRECATION")
                 val dir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                    "JumpRopeAI"
+                    "Jumpix"
                 )
                 dir.mkdirs()
                 val file = File(dir, fileName)
@@ -428,7 +428,7 @@ object WorkoutCardRenderer {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Latihan lompat tali dengan JumpRope AI!")
+                putExtra(Intent.EXTRA_TEXT, "Latihan lompat tali dengan Jumpix!")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Bagikan Kartu Latihan"))

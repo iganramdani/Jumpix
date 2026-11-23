@@ -1,0 +1,36 @@
+Jumpix — On-Device AI Jump Rope Counter
+Copyright (C) 2026 Igan Ramdani (https://github.com/iganramdani/Jumpix)
+
+========================================================================
+COPYRIGHT, OPEN-SOURCE & ANTI-PLAGIARISM NOTICE
+========================================================================
+
+1. OPEN-SOURCE STRONG COPYLEFT (GNU GPL v3.0)
+   This software is free and open-source software licensed under the
+   GNU General Public License v3.0 (GPL-3.0). See the LICENSE file for
+   the full legal terms.
+
+   Under GPL-3.0, ANY person or organization who copies, modifies,
+   redistributes, or publishes a derivative version of Jumpix MUST:
+   a) Retain this Copyright Notice and credit the original author:
+      "Original work: Jumpix by Igan Ramdani (https://github.com/iganramdani/Jumpix)".
+   b) Prominently document all modifications made to the original files
+      with dates.
+   c) Release the COMPLETE corresponding source code of their modified
+      application under the SAME GNU GPL v3.0 license.
+   d) NEVER repackage, re-upload, or monetize Jumpix (or any part of
+      its AI Engine v11, STFT DSP, or UI) as a closed-source /
+      proprietary application on Google Play Store or any other store.
+
+2. BRAND & TRADEMARK PROTECTION (NO IMPERSONATION)
+   While the source code is open-source under GPL-3.0, the "Jumpix"
+   brand name, official visual identity, and official release binaries
+   belong to Igan Ramdani. Forks and derivative builds MUST use a
+   distinct app name and package ID so users are not misled into
+   believing an unofficial fork is the official Jumpix release.
+
+3. ANTI-PLAGIARISM ENFORCEMENT
+   Removing copyright headers, claiming authorship of original code,
+   or distributing modified APKs without providing the GPL-3.0 source
+   code constitutes a direct violation of copyright law and terminates
+   your rights under the license.

@@ -1194,7 +1194,7 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "JumpRope AI membutuhkan kamera dan mikrofon untuk mendeteksi lompatan secara real-time. Semua pemrosesan dilakukan 100% di perangkatmu.",
+                    text = "Jumpix membutuhkan kamera dan mikrofon untuk mendeteksi lompatan secara real-time. Semua pemrosesan dilakukan 100% di perangkatmu.",
                     color = TextSecondary,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,

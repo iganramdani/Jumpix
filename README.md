@@ -1,14 +1,14 @@
 <div align="center">
 
-# 🪢 JumpRope AI
+# ⚡ Jumpix
 
 ### 🎯 **"99% Akurasi & ⚡ 99% Ringan"**
 
-**Penghitung Lompat Tali AI Native Android — 100% On-Device, Tanpa Internet, Tanpa Lag di HP Low-End!**
+**Penghitung Lompat Tali AI Open-Source untuk Android — 100% On-Device, Tanpa Internet, Tanpa Lag di HP Low-End!**
 
-[![Release](https://img.shields.io/badge/Release-v2.8.0-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/JumpRopeAI/releases/tag/v2.8.0)
-[![Akurasi](https://img.shields.io/badge/Target_Pedoman-99%25_Akurasi-2EE59D?style=for-the-badge)](https://github.com/iganramdani/JumpRopeAI#-benchmark-4-smartphone-46-video-ground-truth)
-[![Ringan](https://img.shields.io/badge/Performa-99%25_Ringan-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](https://github.com/iganramdani/JumpRopeAI#-pedoman-inti-99-akurasi--99-ringan)
+[![Release](https://img.shields.io/badge/Release-v2.8.0-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v2.8.0)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
+[![Akurasi](https://img.shields.io/badge/Pedoman-99%25_Akurasi_&_99%25_Ringan-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-pedoman-inti-99-akurasi--99-ringan)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
 [![On-Device](https://img.shields.io/badge/Privacy-100%25_On--Device-151D2E?style=for-the-badge&logo=shield&logoColor=2EE59D)](#)
 
@@ -18,7 +18,8 @@
 [📱 Galeri UI](#-galeri-ui-modern-two-tone) •
 [📊 Benchmark 4 HP](#-benchmark-4-smartphone-46-video-ground-truth) •
 [🧠 Arsitektur AI](#-arsitektur-engine-ai-v11) •
-[📦 Download APK](#-download-release-apk)
+[📦 Download APK](#-download-release-apk) •
+[⚖️ Lisensi & Hak Cipta](#️-lisensi-open-source-hak-cipta--anti-plagiat)
 
 </div>
 
@@ -26,11 +27,11 @@
 
 ## ✨ Pedoman Inti: "99% Akurasi & 99% Ringan"
 
-Setiap baris kode, desain UI, hingga algoritma DSP di **JumpRope AI** dibangun mengikuti satu kompas utama:
+Setiap baris kode, desain UI, hingga algoritma DSP di **Jumpix** dibangun mengikuti satu kompas utama:
 
 | 🎯 99% Akurasi (Presisi Kelas Kompetisi) | ⚡ 99% Ringan (Ngebut di Semua Smartphone) |
 | :--- | :--- |
-| 🧠 **Multi-Channel Kinematics + 100 Hz STFT Audio Hybrid (v11)** — menggabungkan pose tubuh 5-landmark + analisis spektrum suara tali 100 Hz secara *real-time*. | 🪶 **100% On-Device Tanpa Cloud** — tidak butuh server, tidak butuh kuota internet, latensi nyaris nol. |
+| 🧠 **Multi-Channel Kinematics + 100 Hz STFT Audio Hybrid (v11)** — menggabungkan pose tubuh 5-landmark + analisis spektrum suara tali 100 Hz secara *real-time*. | 🪶 **100% On-Device Tanpa Cloud** — tidak butuh server, tidak butuh kuota internet, privasi terjaga & latensi nyaris nol. |
 | 🏃 **Competition Speed-Sprint Channel** — mampu menghitung sprint membungkuk **270–350+ RPM** meski kamera HP hanya **10–15 FPS** (*anti Nyquist-aliasing*). | 🔋 **Mode Hemat AMOLED & Audio Eco** — layar bisa diredupkan hitam pekat dan kamera otomatis mati di tab Video/Riwayat untuk hemat baterai maksimal. |
 | 🛡️ **Anti-False-Positive Ketat** — menolak jalan kaki (*walking guard*), *side swing* kaki menempel, berdiri perlahan, hingga pantulan lutut setelah *Double-Under*. | 🚀 **Zero-GC Fast Preview** — konversi `NV21 → RGB_565` langsung pakai *reusable buffer* (~1,5 ms/frame), mulus tanpa patah-patah di Video Studio. |
 
@@ -44,17 +45,17 @@ Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Dynamic Ring HUD"/><br/>
+      <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpix Dynamic Ring HUD"/><br/>
       <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
       <sub>Cincin progres melingkar dinamis, tombol bulat <i>Ice Mint</i>, HUD bebas semrawut</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Video Studio"/><br/>
+      <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpix Video Studio"/><br/>
       <b>🎬 Tab 2: Video Studio</b><br/>
       <sub>Analisis rekaman galeri + preview <i>skeleton</i> halus + ekspor watermark Media3</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Riwayat & Statistik"/><br/>
+      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpix Riwayat & Statistik"/><br/>
       <b>📈 Tab 3: Riwayat & Grafik 7 Hari</b><br/>
       <sub>Ringkasan performa mingguan <i>Sen–Min</i> & bagikan kartu latihan</sub>
     </td>
@@ -88,7 +89,7 @@ flowchart LR
     ML --> JD["⚡ JumpDetector v11\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Anti-Double-Fire Footwork\n• Competition Speed-Sprint ZC"]
     STFT --> FE["🧠 FusionEngine v11\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Vision-Gated 100Hz Sprint Audio\n• Nyquist-Aware Low-FPS PLL"]
     JD --> FE
-    FE --> UI["🟢 Dynamic Ring HUD\n& MetricsTracker"]
+    FE --> UI["🟢 Jumpix Dynamic Ring HUD\n& MetricsTracker"]
 ```
 
 ---
@@ -112,7 +113,7 @@ flowchart LR
 
 - Pilih rekaman lompat tali langsung dari galeri untuk dihitung otomatis oleh Engine AI v11.
 - Preview *real-time* super halus menggunakan konversi integer `NV21 → RGB_565` secara konkuren.
-- Ekspor video dengan **kartu watermark statistik transparan** berukuran presisi 1:1 di segala resolusi (720p/1080p/4K) berkat `VideoFittedBitmapOverlay`.
+- Ekspor video dengan **kartu watermark statistik transparan `JUMPIX`** berukuran presisi 1:1 di segala resolusi (720p/1080p/4K) berkat `VideoFittedBitmapOverlay`.
 
 </details>
 
@@ -132,9 +133,9 @@ flowchart LR
 <br/>
 
 ```bash
-# Clone repositori
-git clone https://github.com/iganramdani/JumpRopeAI.git
-cd JumpRopeAI
+# Clone repositori resmi Jumpix
+git clone https://github.com/iganramdani/Jumpix.git
+cd Jumpix
 
 # Jalankan seluruh unit test (termasuk AI, Fusion, Metrics, & Workout Modes)
 ./gradlew testDebugUnitTest
@@ -153,8 +154,21 @@ cd JumpRopeAI
 
 <div align="center">
 
-[![Download v2.8.0 Release APK](https://img.shields.io/badge/⬇️_Download_JumpRopeAI_v2.8.0_Release_APK_(95_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/JumpRopeAI/releases/download/v2.8.0/JumpRopeAI-v2.8.0-release.apk)
+[![Download Jumpix v2.8.0 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v2.8.0_Release_APK_(95_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v2.8.0)
 
-<sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device</sub>
+<sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device • Gratis & Open-Source</sub>
 
 </div>
+
+---
+
+## ⚖️ Lisensi Open-Source, Hak Cipta & Anti-Plagiat
+
+**Jumpix** dirilis secara **Open-Source** di bawah lisensi ketat **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** agar semua orang dapat ikut merasakan manfaat, belajar, dan berkontribusi — **sambil melindungi hak cipta asli dari plagiarisme tertutup**:
+
+> **Copyright © 2026 Igan Ramdani ([`@iganramdani`](https://github.com/iganramdani)). All rights reserved under GNU GPL v3.0.**
+
+- ✅ **Boleh:** Menggunakan gratis, mempelajari kode, memodifikasi, dan berkontribusi lewat Pull Request.
+- 📜 **Wajib Atribusi:** Setiap salinan atau *fork* **wajib mempertahankan pemberitahuan hak cipta asli** ([`NOTICE`](NOTICE)) dan mencantumkan perubahan yang dibuat.
+- 🔒 **Anti-Plagiat (*Strong Copyleft*):** Dilarang keras mengambil kode **Jumpix** (termasuk Engine AI v11, DSP STFT, atau UI) untuk dijadikan aplikasi *closed-source* / berbayar tertutup. Setiap karya turunan **wajib ikut dibuka kode sumbernya di bawah lisensi GPL-3.0 yang sama**.
+- 🛡️ **Perlindungan Merek:** Nama **Jumpix** dan identitas resminya dimiliki oleh pencipta asli; *fork* tidak resmi dilarang menyamar sebagai aplikasi resmi **Jumpix**.

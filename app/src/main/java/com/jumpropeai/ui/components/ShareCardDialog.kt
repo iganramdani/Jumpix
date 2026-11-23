@@ -150,7 +150,7 @@ fun ShareCardDialog(
                     exportedVideoFile = outFile
                     Toast.makeText(
                         context,
-                        if (savedToGallery) "Video watermark tersimpan di Galeri (Movies/JumpRopeAI)!" else "Video siap dibagikan!",
+                        if (savedToGallery) "Video watermark tersimpan di Galeri (Movies/Jumpix)!" else "Video siap dibagikan!",
                         Toast.LENGTH_LONG
                     ).show()
                 },
@@ -396,11 +396,11 @@ fun ShareCardDialog(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val ok = WorkoutCardRenderer.saveToGallery(context, renderedBitmap, "JumpRopeAI")
+                            val ok = WorkoutCardRenderer.saveToGallery(context, renderedBitmap, "Jumpix")
                             savedSuccess = ok
                             Toast.makeText(
                                 context,
-                                if (ok) "Tersimpan di Galeri (Pictures/JumpRopeAI)" else "Gagal menyimpan gambar",
+                                if (ok) "Tersimpan di Galeri (Pictures/Jumpix)" else "Gagal menyimpan gambar",
                                 Toast.LENGTH_SHORT
                             ).show()
                         },
@@ -428,7 +428,7 @@ fun ShareCardDialog(
 
                     Button(
                         onClick = {
-                            WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "JumpRopeAI")
+                            WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "Jumpix")
                         },
                         enabled = !isExportingVideo,
                         shape = RoundedCornerShape(16.dp),
