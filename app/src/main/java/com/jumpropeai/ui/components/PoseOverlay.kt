@@ -9,8 +9,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import com.jumpropeai.ai.LandmarkPoint
 import com.jumpropeai.ai.PoseFrame
-import com.jumpropeai.ui.theme.ElectricCyan
-import com.jumpropeai.ui.theme.NeonLime
+import com.jumpropeai.ui.theme.IceMint
+import com.jumpropeai.ui.theme.TextPrimary
 import kotlin.math.max
 
 /**
@@ -52,8 +52,8 @@ fun PoseOverlay(
             )
         }
 
-        val boneColor = if (isAirborne) NeonLime else ElectricCyan
-        val glowColor = boneColor.copy(alpha = 0.28f)
+        val boneColor = if (isAirborne) IceMint else TextPrimary.copy(alpha = 0.75f)
+        val glowColor = (if (isAirborne) IceMint else TextPrimary).copy(alpha = 0.24f)
 
         // Draw skeleton bones
         for ((startType, endType) in PoseFrame.SKELETON_CONNECTIONS) {
