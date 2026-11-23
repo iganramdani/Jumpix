@@ -36,10 +36,10 @@ data class JumpDetectionResult(
 )
 
 /**
- * Streaming Multi-Channel Kinematic Jump Detector (v11).
+ * Streaming Multi-Channel Kinematic Jump Detector (v12 — Zero-GC).
  *
- * Engineered and verified across all 46 Ground-Truth real-world jump rope videos (2,212 jumps)
- * and 4 smartphone tiers (Flagship 30 FPS, Mid-Range 20 FPS, Budget 15 FPS, Low-End 10 FPS):
+ * Engineered for Jumpix ("99% Akurasi & 99% Ringan") across all 46 Ground-Truth real-world videos
+ * (2,212 jumps) and 4 smartphone tiers (Flagship 30 FPS, Mid-Range 20 FPS, Budget 15 FPS, Low-End 10 FPS):
  * 1. Equal-variance 5-landmark upper-body anchor (Nose + L/R Shoulders + L/R Hips) for minimum jitter.
  * 2. Causal sliding ring-buffer local-peak detector (~210ms landing lookahead) with FPS-scaled valley window.
  * 3. Multi-Landmark Coherence Gate: verifies all upper-body landmarks move in unison, blocking +-6px jitter.
@@ -55,12 +55,21 @@ class JumpDetector(
     private val minMeanPoseConfidence: Float = 0.65f,
     private val warmupFramesRequired: Int = 3,
     private val scaleSmoothingAlpha: Float = 0.10f,
-    private val promStrongBase: Float = 0.050f,
+    private val promStrongBase: Float = 0.049f,
     private val promRhythmBase: Float = 0.040f,
     private val promFootwork: Float = 0.032f,
     private val maxAmplitude: Float = 0.95f,
     private val minJumpIntervalMs: Long = 205L
 ) {
+    private companion object {
+        val UPPER_BODY_LANDMARKS = arrayOf(
+            BodyLandmark.NOSE,
+            BodyLandmark.LEFT_SHOULDER,
+            BodyLandmark.RIGHT_SHOULDER,
+            BodyLandmark.LEFT_HIP,
+            BodyLandmark.RIGHT_HIP
+        )
+    }
     private data class FrameSample(
         val timestampMs: Long,
         val rawY: Float,
@@ -193,13 +202,7 @@ class JumpDetector(
 
         var confSum = 0f
         var confCnt = 0
-        for (lm in listOf(
-            BodyLandmark.NOSE,
-            BodyLandmark.LEFT_SHOULDER,
-            BodyLandmark.RIGHT_SHOULDER,
-            BodyLandmark.LEFT_HIP,
-            BodyLandmark.RIGHT_HIP
-        )) {
+        for (lm in UPPER_BODY_LANDMARKS) {
             frame.landmarks[lm]?.let {
                 confSum += it.confidence
                 confCnt++

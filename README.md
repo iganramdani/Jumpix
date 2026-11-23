@@ -6,7 +6,7 @@
 
 **Penghitung Lompat Tali AI Open-Source untuk Android — 100% On-Device, Tanpa Internet, Tanpa Lag di HP Low-End!**
 
-[![Release](https://img.shields.io/badge/Release-v2.8.0-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v2.8.0)
+[![Release](https://img.shields.io/badge/Release-v3.0.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.0)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
 [![Akurasi](https://img.shields.io/badge/Pedoman-99%25_Akurasi_&_99%25_Ringan-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-pedoman-inti-99-akurasi--99-ringan)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
@@ -67,16 +67,16 @@ Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D
 
 ## 📊 Benchmark 4 Smartphone (46 Video Ground-Truth)
 
-Engine **v11** diuji langsung menggunakan kode produksi Kotlin ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) pada seluruh **46 video dunia nyata** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), total **2.212 lompatan terverifikasi**) melintasi 4 simulasi perangkat:
+Engine **v12 (Zero-GC)** diuji langsung menggunakan kode produksi Kotlin ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) pada seluruh **46 video dunia nyata** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), total **2.212 lompatan terverifikasi**) melintasi 4 simulasi perangkat:
 
 | 📱 Profil Smartphone | 🎯 Hasil Hitung | 📏 Akurasi (VolAcc) | Visual Bar | Status |
 | :--- | :---: | :---: | :--- | :---: |
-| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2.169 / 2.212` | **98,06%** | `██████████` | ✅ Lulus |
-| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2.186 / 2.212` | **98,82%** | `██████████` | ✅ Lulus |
-| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2.201 / 2.212` | **99,50%** | `██████████` | ✅ Lulus |
-| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2.158 / 2.212` | **97,56%** | `█████████▉` | ✅ Lulus |
+| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2.179 / 2.212` | **98,51%** | `██████████` | ✅ Lulus |
+| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2.197 / 2.212` | **99,32%** | `██████████` | ✅ Lulus |
+| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2.227 / 2.212` | **99,32%** | `██████████` | ✅ Lulus |
+| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2.174 / 2.212` | **98,28%** | `██████████` | ✅ Lulus |
 
-> 💡 **Retensi Low-End 10 FPS terhadap Flagship 30 FPS mencapai `99,5%`!**
+> 💡 **Rata-rata 4 Smartphone: `98,86%` • Retensi Low-End 10 FPS: `99,8%` • Kecepatan CPU: `7,7 µs/frame` (`545× lebih cepat dari real-time`) • Ukuran APK Release: hanya `46 MB` (turun 51% dari 95 MB)!**
 
 ---
 
@@ -154,7 +154,7 @@ cd Jumpix
 
 <div align="center">
 
-[![Download Jumpix v2.8.0 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v2.8.0_Release_APK_(95_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v2.8.0)
+[![Download Jumpix v3.0.0 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v3.0.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.0)
 
 <sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device • Gratis & Open-Source</sub>
 

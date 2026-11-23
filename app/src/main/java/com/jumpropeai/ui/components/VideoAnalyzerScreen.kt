@@ -27,7 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Speed
@@ -326,7 +326,7 @@ fun VideoAnalyzerScreen(
                         StudioMetricCard(
                             value = "${progress?.currentJumps ?: 0}",
                             label = "Lompatan",
-                            icon = Icons.Rounded.DirectionsRun,
+                            icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                             modifier = Modifier.weight(1f)
                         )
                         StudioMetricCard(
@@ -348,7 +348,7 @@ fun VideoAnalyzerScreen(
                     StudioMetricCard(
                         value = "${result.jumpCount}",
                         label = "Total Lompatan",
-                        icon = Icons.Rounded.DirectionsRun,
+                        icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                         modifier = Modifier.weight(1f)
                     )
                     StudioMetricCard(

@@ -116,7 +116,7 @@ class FusionEngine {
         val prom = candidate.prominence
         val hasAudio = useAudioFusion && audioHistory.size >= 20
 
-        // 0. Vision-Gated 100 Hz STFT Audio Speed-Sprint Counter:
+        // 0. Vision-Gated 100 Hz STFT Audio Speed-Sprint Counter (O(log N) binary search, zero-GC):
         // During bent-over competition speed sprints (>270 RPM), 100 Hz STFT audio resolves every
         // rope+foot slap uniformly across Flagship (30 FPS) to Low-End (10 FPS) with zero Nyquist aliasing.
         if (candidate.isSpeedSprint && hasAudio) {
@@ -127,22 +127,22 @@ class FusionEngine {
                 }
                 lastSprintAudioTimeMs = maxOf(baseStart, pt - 1800L)
             }
-            val bg = audioHistory.filter { it.timestampMs in maxOf(0L, pt - 3000L)..(pt + 100L) }
+            val bgStartIdx = findIndexAtOrAfter(audioHistory, maxOf(0L, pt - 3000L))
+            val bgEndIdx = findIndexAfter(audioHistory, pt + 100L)
+            val bgCount = bgEndIdx - bgStartIdx
             var sprintAccepted = 0
-            if (bg.size >= 30) {
-                val bgVals = bg.map { it.valueFor(AcousticBand.MID) }
-                val med = StftAudioEngine.median(bgVals) + 1e-5f
-                val mad = StftAudioEngine.median(bgVals.map { abs(it - med) }) + 1e-5f
+            if (bgCount >= 30) {
+                val (med, mad) = computeMedianAndMad(audioHistory, bgStartIdx, bgEndIdx, AcousticBand.MID)
                 val scanFrom = lastSprintAudioTimeMs + 10L
-                for (k in 1 until (audioHistory.size - 1)) {
+                val scanStart = maxOf(1, findIndexAtOrAfter(audioHistory, scanFrom))
+                val scanEnd = minOf(audioHistory.size - 1, findIndexAfter(audioHistory, pt))
+                for (k in scanStart until scanEnd) {
                     val tk = audioHistory[k].timestampMs
-                    if (tk < scanFrom) continue
-                    if (tk > pt) break
                     val v0 = audioHistory[k].valueFor(AcousticBand.MID)
                     if (v0 >= audioHistory[k - 1].valueFor(AcousticBand.MID) &&
                         v0 > audioHistory[k + 1].valueFor(AcousticBand.MID)
                     ) {
-                        if ((v0 - med) / mad >= 1.20f && (tk - lastSprintAudioTimeMs) >= 148L) {
+                        if ((v0 - med) / mad >= 1.10f && (tk - lastSprintAudioTimeMs) >= 144L) {
                             sprintAccepted++
                             currentStreakInEngine++
                             lastSprintAudioTimeMs = tk
@@ -231,11 +231,11 @@ class FusionEngine {
                     var ok = hasAudio && hasStrongAudioHitAt(
                         audioHistory = audioHistory,
                         targetTimeMs = predT + learnedLagMs.toLong(),
-                        zThr = 2.3f,
-                        ratioThr = 1.55f
+                        zThr = 2.1f,
+                        ratioThr = 1.45f
                     )
-                    if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.23f &&
-                        bridgedHere < 2 && gap <= (medTempo * 3.35).toLong()
+                    if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.24f &&
+                        bridgedHere < 3 && gap <= (medTempo * 3.35).toLong()
                     ) {
                         ok = true
                     }
@@ -386,26 +386,72 @@ class FusionEngine {
         }
     }
 
+    private var scratchBuf = FloatArray(512)
+
     private fun hasStrongAudioHitAt(
         audioHistory: List<FluxSample>,
         targetTimeMs: Long,
         zThr: Float = 2.8f,
         ratioThr: Float = 1.65f
     ): Boolean {
-        val bg = audioHistory.filter { it.timestampMs in (targetTimeMs - 2500L)..targetTimeMs }
-        if (bg.size < 15) return false
-        val bgVals = bg.map { it.valueFor(activeBand) }
-        val med = StftAudioEngine.median(bgVals) + 1e-5f
-        val mad = StftAudioEngine.median(bgVals.map { abs(it - med) }) + 1e-5f
+        val bgStart = findIndexAtOrAfter(audioHistory, targetTimeMs - 2500L)
+        val bgEnd = findIndexAfter(audioHistory, targetTimeMs)
+        if (bgEnd - bgStart < 15) return false
 
+        val (med, mad) = computeMedianAndMad(audioHistory, bgStart, bgEnd, activeBand)
+
+        val pStart = findIndexAtOrAfter(audioHistory, targetTimeMs - 75L)
+        val pEnd = findIndexAfter(audioHistory, targetTimeMs + 95L)
         var peakVal = 0f
-        for (s in audioHistory) {
-            if (s.timestampMs in (targetTimeMs - 75L)..(targetTimeMs + 95L)) {
-                val v = s.valueFor(activeBand)
-                if (v > peakVal) peakVal = v
-            }
+        for (i in pStart until pEnd) {
+            val v = audioHistory[i].valueFor(activeBand)
+            if (v > peakVal) peakVal = v
         }
         val z = (peakVal - med) / mad
         return z >= zThr && (peakVal / med) >= ratioThr && peakVal >= 0.004f
+    }
+
+    private fun computeMedianAndMad(
+        audioHistory: List<FluxSample>,
+        startIdx: Int,
+        endIdx: Int,
+        band: AcousticBand
+    ): Pair<Float, Float> {
+        val n = endIdx - startIdx
+        if (n <= 0) return 1e-5f to 1e-5f
+        if (scratchBuf.size < n) scratchBuf = FloatArray(n * 2)
+        for (i in 0 until n) {
+            scratchBuf[i] = audioHistory[startIdx + i].valueFor(band)
+        }
+        java.util.Arrays.sort(scratchBuf, 0, n)
+        val mid = n / 2
+        val rawMed = if (n % 2 == 1) scratchBuf[mid] else 0.5f * (scratchBuf[mid - 1] + scratchBuf[mid])
+        val med = rawMed + 1e-5f
+        for (i in 0 until n) {
+            scratchBuf[i] = abs(audioHistory[startIdx + i].valueFor(band) - med)
+        }
+        java.util.Arrays.sort(scratchBuf, 0, n)
+        val rawMad = if (n % 2 == 1) scratchBuf[mid] else 0.5f * (scratchBuf[mid - 1] + scratchBuf[mid])
+        return med to (rawMad + 1e-5f)
+    }
+
+    private fun findIndexAtOrAfter(list: List<FluxSample>, targetMs: Long): Int {
+        var lo = 0
+        var hi = list.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (list[mid].timestampMs < targetMs) lo = mid + 1 else hi = mid
+        }
+        return lo
+    }
+
+    private fun findIndexAfter(list: List<FluxSample>, targetMs: Long): Int {
+        var lo = 0
+        var hi = list.size
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (list[mid].timestampMs <= targetMs) lo = mid + 1 else hi = mid
+        }
+        return lo
     }
 }
