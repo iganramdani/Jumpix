@@ -108,6 +108,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.DetectorStatus
+import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.audio.AudioFeedbackManager
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.ui.components.CameraPreview
@@ -130,6 +131,7 @@ import com.jumpropeai.ui.theme.TextSecondary
 import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.workout.HiitPhase
 import com.jumpropeai.workout.WorkoutModeType
+import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
@@ -253,6 +255,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 MainTab.LATIHAN -> {
                     DynamicRingLiveHud(
                         uiState = uiState,
+                        latestPoseFlow = viewModel.latestPose,
                         isCameraAllowedOnTab = true,
                         onPoseFrame = viewModel::onPoseFrame,
                         onToggleSession = viewModel::toggleSession,
@@ -348,7 +351,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         )
     }
 
-    // Clean Settings Bottom Sheet (all secondary HUD toggles + Countdown + App Update)
+    // Clean Settings Bottom Sheet (all secondary HUD toggles + Countdown + Diagnostics + App Update)
     if (showSettingsSheet) {
         WorkoutSettingsSheet(
             uiState = uiState,
@@ -361,6 +364,10 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 showSettingsSheet = false
             },
             onToggleAutoHideControls = viewModel::toggleAutoHideControls,
+            onToggleDiagnostics = viewModel::toggleDiagnostics,
+            onExportDiagnosticLog = {
+                viewModel.exportAndShareDiagnosticLog(context)
+            },
             onCheckForUpdates = {
                 if (uiState.availableUpdate != null) {
                     showSettingsSheet = false
@@ -416,8 +423,9 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
 @Composable
 private fun DynamicRingLiveHud(
     uiState: JumpRopeUiState,
+    latestPoseFlow: StateFlow<PoseFrame?>,
     isCameraAllowedOnTab: Boolean,
-    onPoseFrame: (com.jumpropeai.ai.PoseFrame) -> Unit,
+    onPoseFrame: (PoseFrame) -> Unit,
     onToggleSession: () -> Unit,
     onCancelCountdown: () -> Unit,
     onCycleCountdown: () -> Unit,
@@ -485,10 +493,10 @@ private fun DynamicRingLiveHud(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. Optional Two-Tone Skeleton Overlay
+        // 2. Optional Two-Tone Skeleton Overlay (isolated recomposition scope for max FPS!)
         if (uiState.showSkeletonOverlay && !isPureBlackMode) {
-            PoseOverlay(
-                poseFrame = uiState.latestPose,
+            IsolatedPoseOverlay(
+                latestPoseFlow = latestPoseFlow,
                 isAirborne = metrics.isAirborne,
                 modifier = Modifier.fillMaxSize()
             )
@@ -610,6 +618,27 @@ private fun DynamicRingLiveHud(
                 }
             }
 
+            // Optional Live AI Performance Monitor Pill (FPS • CPU µs • RAM • Logged Rows)
+            if (uiState.isDiagnosticsEnabled && !uiState.isCountingDown) {
+                Spacer(Modifier.height(8.dp))
+                val p = uiState.perfStats
+                val aiMsStr = String.format(Locale.US, "%.2fms", p.aiProcessUs / 1000.0)
+                Surface(
+                    shape = CircleShape,
+                    color = DeepMidnight.copy(alpha = 0.72f),
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.35f))
+                ) {
+                    Text(
+                        text = "${p.liveFps} FPS  •  AI $aiMsStr  •  ${p.usedHeapMb}MB  •  LOG ${p.loggedRows}",
+                        color = IceMint,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
             Spacer(Modifier.weight(0.55f))
 
             // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump/Move Counter
@@ -677,7 +706,7 @@ private fun DynamicRingLiveHud(
 
             Spacer(Modifier.weight(1f))
 
-            // LOWER SYMMETRICAL STAT STRIP (RPM • Time • Calories)
+            // LOWER SYMMETRICAL STAT STRIP (more translucent when Skeleton Overlay is ON so feet stay clear!)
             val timerMs = when (config.mode) {
                 WorkoutModeType.TARGET_TIME, WorkoutModeType.HIIT -> progress.remainingMs ?: metrics.elapsedMs
                 else -> metrics.elapsedMs
@@ -685,8 +714,8 @@ private fun DynamicRingLiveHud(
 
             Surface(
                 shape = RoundedCornerShape(24.dp),
-                color = MidnightGlass,
-                border = BorderStroke(1.dp, MidnightBorder),
+                color = if (uiState.showSkeletonOverlay) DeepMidnight.copy(alpha = 0.52f) else MidnightGlass,
+                border = BorderStroke(1.dp, MidnightBorder.copy(alpha = if (uiState.showSkeletonOverlay) 0.6f else 1f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1063,6 +1092,20 @@ private fun TwoToneBottomNavBar(
     }
 }
 
+@Composable
+private fun IsolatedPoseOverlay(
+    latestPoseFlow: StateFlow<PoseFrame?>,
+    isAirborne: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val latestPose by latestPoseFlow.collectAsStateWithLifecycle()
+    PoseOverlay(
+        poseFrame = latestPose,
+        isAirborne = isAirborne,
+        modifier = modifier
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WorkoutSettingsSheet(
@@ -1073,6 +1116,8 @@ private fun WorkoutSettingsSheet(
     onToggleAudio: () -> Unit,
     onToggleEcoMode: () -> Unit,
     onToggleAutoHideControls: () -> Unit,
+    onToggleDiagnostics: () -> Unit,
+    onExportDiagnosticLog: () -> Boolean,
     onCheckForUpdates: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1255,6 +1300,72 @@ private fun WorkoutSettingsSheet(
                 checked = uiState.autoHideControlsWhileActive,
                 onCheckedChange = { onToggleAutoHideControls() }
             )
+
+            SettingsSwitchCard(
+                icon = Icons.Rounded.GraphicEq,
+                title = "AI Performance & Full CSV Log",
+                subtitle = "Show live FPS/CPU/RAM badge & record session telemetry",
+                checked = uiState.isDiagnosticsEnabled,
+                onCheckedChange = { onToggleDiagnostics() }
+            )
+
+            if (uiState.isDiagnosticsEnabled || uiState.perfStats.loggedRows > 0) {
+                var logExportNote by remember { mutableStateOf<String?>(null) }
+                Surface(
+                    onClick = {
+                        val ok = onExportDiagnosticLog()
+                        logExportNote = if (ok) {
+                            "Log exported (${uiState.perfStats.loggedRows} frames)"
+                        } else {
+                            "Start a workout first to record log data"
+                        }
+                    },
+                    shape = RoundedCornerShape(18.dp),
+                    color = MidnightSurface,
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Download,
+                            contentDescription = null,
+                            tint = IceMint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Export Diagnostic Log (CSV)",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = logExportNote ?: "${uiState.perfStats.loggedRows} frames recorded • Tap to share",
+                                color = IceMint,
+                                fontSize = 12.sp
+                            )
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = IceMintSoft
+                        ) {
+                            Text(
+                                text = "Share",
+                                color = IceMint,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
 
             // In-App GitHub Release Update Checker Row
             val hasUpdate = uiState.availableUpdate != null

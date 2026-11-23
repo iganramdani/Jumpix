@@ -110,6 +110,23 @@ class KineticTrickCoach {
     private var formSamples = 0
     private var lastFormTip = "Start moving for live AI Form Coach"
 
+    // Zero-GC cached immutable snapshots (rebuilt ONLY when a move or form sample changes!)
+    private var cachedFormSnapshot = FormCoachSnapshot()
+    private var cachedMoveCounts: Map<KineticMove, Int> = emptyMap()
+
+    // Zero-GC last-frame kinematic telemetry (read by optional SessionDiagnosticLogger)
+    var lastShRatio: Float = 0f; private set
+    var lastAnkSep: Float = 0f; private set
+    var lastAnkDy: Float = 0f; private set
+    var lastKnAsym: Float = 0f; private set
+    var lastVLxTimesVRx: Float = 0f; private set
+    var lastHipVx: Float = 0f; private set
+    var lastHipStd: Float = 0f; private set
+    var lastLPitch: Float = 0f; private set
+    var lastRPitch: Float = 0f; private set
+    var lastVYawL: Float = 0f; private set
+    var lastVYawR: Float = 0f; private set
+
     // Current move & fixed enum counters
     private var currentMove: KineticMove = KineticMove.REGULAR
     private val moveCounter = IntArray(KineticMove.entries.size)
@@ -142,21 +159,33 @@ class KineticTrickCoach {
         softnessAccum = 0f
         formSamples = 0
         lastFormTip = "Start moving for live AI Form Coach"
+        cachedFormSnapshot = FormCoachSnapshot()
+        cachedMoveCounts = emptyMap()
+        lastShRatio = 0f; lastAnkSep = 0f; lastAnkDy = 0f; lastKnAsym = 0f
+        lastVLxTimesVRx = 0f; lastHipVx = 0f; lastHipStd = 0f
+        lastLPitch = 0f; lastRPitch = 0f; lastVYawL = 0f; lastVYawR = 0f
         currentMove = KineticMove.REGULAR
         moveCounter.fill(0)
     }
 
-    fun snapshotMoveCounts(): Map<KineticMove, Int> {
+    fun snapshotMoveCounts(): Map<KineticMove, Int> = cachedMoveCounts
+
+    private fun rebuildMoveCountsCache() {
         val map = LinkedHashMap<KineticMove, Int>()
         for (move in KineticMove.entries) {
             val c = moveCounter[move.ordinal]
             if (c > 0) map[move] = c
         }
-        return map
+        cachedMoveCounts = map
     }
 
-    fun currentFormSnapshot(): FormCoachSnapshot {
-        if (formSamples == 0) return FormCoachSnapshot()
+    fun currentFormSnapshot(): FormCoachSnapshot = cachedFormSnapshot
+
+    private fun rebuildFormSnapshotCache() {
+        if (formSamples == 0) {
+            cachedFormSnapshot = FormCoachSnapshot()
+            return
+        }
         val posture = (postureAccum / formSamples).roundToInt().coerceIn(0, 100)
         val hands = (handAccum / formSamples).roundToInt().coerceIn(0, 100)
         val softness = (softnessAccum / formSamples).roundToInt().coerceIn(0, 100)
@@ -165,7 +194,7 @@ class KineticTrickCoach {
             .roundToInt()
             .coerceIn(0, 100)
 
-        return FormCoachSnapshot(
+        cachedFormSnapshot = FormCoachSnapshot(
             overallScore = overall,
             postureScore = posture,
             handSymmetryScore = hands,
@@ -333,20 +362,39 @@ class KineticTrickCoach {
                 (rFootPitch < 0.04f && lFootPitch > 0.12f)
             )
 
-        // 5. Authentic Melbourne Shuffle Dance Footwork (STRICTLY in Shuffle & Tricks mode only!)
+        // 5. Authentic Melbourne Shuffle Dance Footwork (classified in ALL modes; counts non-jump steps in Shuffle mode!)
         val ankleSep = abs(lAx - rAx) / torsoH
         val ankleSepVel = (ankleSep - prevAnkleSep) / dtSec
         val hasAnkles = lAnkle != null && rAnkle != null
+        val hipVertStd = computeRecentHipVertStd(torsoH)
+        val knAsymVal = if (lKnee != null && rKnee != null) abs(lKnee.y - rKnee.y) / torsoH else 0f
+        val ankDyVal = if (hasAnkles) abs(lAy - rAy) / torsoH else 0f
+        val vProd = vLx * vRx
+
+        // Store Zero-GC telemetry for optional diagnostic CSV logger
+        lastShRatio = shoulderSpan / torsoH
+        lastAnkSep = ankleSep
+        lastAnkDy = ankDyVal
+        lastKnAsym = knAsymVal
+        lastVLxTimesVRx = vProd
+        lastHipVx = hipVx
+        lastHipStd = hipVertStd
+        lastLPitch = lFootPitch
+        lastRPitch = rFootPitch
+        lastVYawL = vYawL
+        lastVYawR = vYawR
+
         var shuffleStepDetected = false
         var detectedShuffleMove: KineticMove? = null
 
-        if (isShuffleMode && hasAnkles && bufCount >= 6) {
-            val hipVertStd = computeRecentHipVertStd(torsoH)
-            val lowVerticalBounce = hipVertStd < 0.085f
+        if (hasAnkles && bufCount >= 6) {
+            val lowVerticalBounce = hipVertStd < 0.12f
+            // Real-footage calibrated Running Man (from realtimetest1.mp4): allows natural rhythmic bounce!
+            val runningManBounceOk = hipVertStd < 0.25f
 
-            // Running Man: opposing front/back ankle glide + alternating knee drive (boosted by heel-up back-glide)
-            val opposingGlide = (vLx * vRx < -0.60f) && ankleSep > 0.34f
-            val kneeDrive = if (lKnee != null && rKnee != null) abs(lKnee.y - rKnee.y) / torsoH > 0.16f else false
+            // Running Man: opposing front/back ankle glide + alternating knee drive (or heel-pitch contrast)
+            val opposingGlide = (vProd < -0.55f) && ankleSep > 0.30f
+            val kneeDrive = knAsymVal > 0.16f
             val heelGlideContrast = hasBothFeet && abs(lFootPitch - rFootPitch) > 0.09f
 
             // T-Step: lateral sideways travel + heel-to-toe yaw pivot on gliding foot OR tap bounce on free foot
@@ -379,7 +427,7 @@ class KineticTrickCoach {
                 (hasBothFeet && (abs(vYawL) + abs(vYawR) > 0.9f) || (abs(vLx) + abs(vRx) > 1.2f))
 
             val candidateMove = when {
-                lowVerticalBounce && opposingGlide && (kneeDrive || heelGlideContrast) -> KineticMove.SHUFFLE_RUNNING_MAN
+                runningManBounceOk && opposingGlide && (kneeDrive || heelGlideContrast) -> KineticMove.SHUFFLE_RUNNING_MAN
                 lowVerticalBounce && tStepMotion -> KineticMove.SHUFFLE_T_STEP
                 lowVerticalBounce && charlestonMotion -> KineticMove.SHUFFLE_CHARLESTON
                 else -> null
@@ -388,12 +436,16 @@ class KineticTrickCoach {
             if (candidateMove != null && (nowMs - lastShuffleStepMs) >= SHUFFLE_REFRACTORY_MS) {
                 val sincePrevBeat = nowMs - lastShuffleCandidateMs
                 if (sincePrevBeat in 200L..850L && pendingShuffleMove != null) {
-                    shuffleStepDetected = true
                     detectedShuffleMove = candidateMove
                     lastShuffleStepMs = nowMs
                     pendingShuffleMove = candidateMove
                     lastShuffleCandidateMs = nowMs
-                    recordMoveAndInterval(candidateMove, nowMs)
+                    if (isShuffleMode) {
+                        shuffleStepDetected = true
+                        recordMoveAndInterval(candidateMove, nowMs)
+                    } else {
+                        currentMove = candidateMove
+                    }
                 } else if (sincePrevBeat >= 200L) {
                     pendingShuffleMove = candidateMove
                     lastShuffleCandidateMs = nowMs
@@ -441,10 +493,13 @@ class KineticTrickCoach {
                     ((absAnkleDelta > 0.14f || abs(pitchDelta) > 0.11f) && boxerFlipConfirmCount >= 1)
                 )
 
+            val recentShuffleHold = (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
             val classifiedJump = when {
                 isDoubleUnder -> KineticMove.DOUBLE_UNDER
                 isCrissCross -> KineticMove.CRISS_CROSS
                 isHighKnees -> KineticMove.HIGH_KNEES
+                detectedShuffleMove != null -> detectedShuffleMove
+                recentShuffleHold -> pendingShuffleMove!!
                 isHeelToe -> KineticMove.HEEL_TOE
                 isBoxerStep -> KineticMove.BOXER_STEP
                 else -> KineticMove.REGULAR
@@ -470,6 +525,7 @@ class KineticTrickCoach {
             currentMove = KineticMove.SIDE_SWING
             sideSwingCooldownUntilMs = nowMs + 550L
             moveCounter[KineticMove.SIDE_SWING.ordinal]++
+            rebuildMoveCountsCache()
         } else if (shuffleStepDetected && detectedShuffleMove != null) {
             evaluateFormSample(
                 nose = nose,
@@ -493,8 +549,8 @@ class KineticTrickCoach {
             currentMove = currentMove,
             shuffleStepDetected = shuffleStepDetected,
             shuffleStepTimestampMs = if (shuffleStepDetected) nowMs else 0L,
-            formSnapshot = currentFormSnapshot(),
-            moveCounts = snapshotMoveCounts()
+            formSnapshot = cachedFormSnapshot,
+            moveCounts = cachedMoveCounts
         )
     }
 
@@ -519,6 +575,7 @@ class KineticTrickCoach {
     private fun recordMoveAndInterval(move: KineticMove, nowMs: Long) {
         currentMove = move
         moveCounter[move.ordinal]++
+        rebuildMoveCountsCache()
 
         if (lastEventTimeMs > 0L) {
             val dt = (nowMs - lastEventTimeMs).toFloat()
@@ -579,6 +636,7 @@ class KineticTrickCoach {
             computeRhythmConsistency() < 75 && intervalCount >= 5 -> "Keep a steady rhythm"
             else -> "Great form! Clean & efficient"
         }
+        rebuildFormSnapshotCache()
     }
 
     private fun computeRhythmConsistency(): Int {
