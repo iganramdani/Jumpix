@@ -147,14 +147,16 @@ fun VideoAnalyzerScreen(
 
         Spacer(Modifier.height(18.dp))
 
-        // 2. Framed 16:10 Video Preview Card
+        // 2. Adaptive Full-Frame Video Preview Card (never crops portrait or landscape videos!)
+        val isPortraitVideo = imageBitmap != null && imageBitmap.height > imageBitmap.width
+        val previewAspect = if (isPortraitVideo) 3f / 4f else 16f / 10f
         Surface(
             shape = RoundedCornerShape(22.dp),
             color = MidnightSurface,
             border = BorderStroke(1.dp, MidnightBorder),
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(16f / 11f)
+                .aspectRatio(previewAspect)
         ) {
             Box(
                 modifier = Modifier
@@ -171,15 +173,16 @@ fun VideoAnalyzerScreen(
                         Image(
                             bitmap = imageBitmap,
                             contentDescription = "Video Analysis Preview",
-                            contentScale = ContentScale.Crop,
+                            contentScale = ContentScale.Fit,
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Live AI Skeleton Overlay during analysis
+                        // Live AI Skeleton Overlay aligned 1:1 with ContentScale.Fit
                         if (isAnalyzing && progress?.latestPose != null) {
                             PoseOverlay(
                                 poseFrame = progress.latestPose,
                                 isAirborne = progress.isAirborne,
+                                fitCenter = true,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

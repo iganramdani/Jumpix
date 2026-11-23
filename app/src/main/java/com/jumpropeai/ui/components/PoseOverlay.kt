@@ -12,17 +12,19 @@ import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.ui.theme.IceMint
 import com.jumpropeai.ui.theme.TextPrimary
 import kotlin.math.max
+import kotlin.math.min
 
 /**
- * Draws the AI-detected body pose skeleton on top of the CameraX PreviewView.
- * Uses FILL_CENTER coordinate transformation and horizontal mirroring for the front camera.
+ * Draws the AI-detected body pose skeleton on top of the CameraX PreviewView or Video Studio preview.
+ * Uses FILL_CENTER (Crop) by default for live camera, or FIT_CENTER (Fit) when fitCenter = true.
  */
 @Composable
 fun PoseOverlay(
     poseFrame: PoseFrame?,
     isAirborne: Boolean,
     modifier: Modifier = Modifier,
-    minConfidence: Float = 0.5f
+    minConfidence: Float = 0.5f,
+    fitCenter: Boolean = false
 ) {
     Canvas(modifier = modifier.fillMaxSize()) {
         val frame = poseFrame ?: return@Canvas
@@ -30,11 +32,9 @@ fun PoseOverlay(
             return@Canvas
         }
 
-        // Match PreviewView.ScaleType.FILL_CENTER scaling
-        val scale = max(
-            size.width / frame.imageWidth.toFloat(),
-            size.height / frame.imageHeight.toFloat()
-        )
+        val scaleX = size.width / frame.imageWidth.toFloat()
+        val scaleY = size.height / frame.imageHeight.toFloat()
+        val scale = if (fitCenter) min(scaleX, scaleY) else max(scaleX, scaleY)
         val scaledWidth = frame.imageWidth * scale
         val scaledHeight = frame.imageHeight * scale
         val offsetX = (size.width - scaledWidth) / 2f
