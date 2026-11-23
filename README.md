@@ -1,12 +1,12 @@
 <div align="center">
 
-# ⚡ Jumpix
+# ⚡ Jumpvex
 
 ### 🎯 **"99% Accuracy & ⚡ 99% Lightweight"**
 
 **Open-Source On-Device AI Jump Rope Counter for Android — Zero Cloud, Zero Internet, Zero Lag on Low-End Phones!**
 
-[![Release](https://img.shields.io/badge/Release-v3.0.1_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.1)
+[![Release](https://img.shields.io/badge/Release-v3.1.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v3.1.0)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
 [![Philosophy](https://img.shields.io/badge/Philosophy-99%25_Accuracy_&_99%25_Lightweight-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-core-philosophy-99-accuracy--99-lightweight)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
@@ -27,7 +27,7 @@
 
 ## ✨ Core Philosophy: "99% Accuracy & 99% Lightweight"
 
-Every line of code, UI component, and DSP algorithm in **Jumpix** is engineered around one strict principle:
+Every line of code, UI component, and DSP algorithm in **Jumpvex** is engineered around one strict principle:
 
 | 🎯 99% Accuracy (Competition-Grade Precision) | ⚡ 99% Lightweight (Blazing Fast on Any Phone) |
 | :--- | :--- |
@@ -45,17 +45,17 @@ Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpix Dynamic Ring HUD"/><br/>
+      <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpvex Dynamic Ring HUD"/><br/>
       <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
       <sub>Animated circular Ice Mint progress ring, circular Play/Pause control, distraction-free camera view</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpix Video Studio"/><br/>
+      <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpvex Video Studio"/><br/>
       <b>🎬 Tab 2: Video Studio</b><br/>
       <sub>Gallery video AI jump counter + smooth real-time skeleton preview + Media3 watermark export</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpix History & Weekly Stats"/><br/>
+      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpvex History & Weekly Stats"/><br/>
       <b>📈 Tab 3: History & 7-Day Chart</b><br/>
       <sub>Weekly Mon–Sun performance chart, cumulative stats & one-tap shareable cards</sub>
     </td>
@@ -89,7 +89,7 @@ flowchart LR
     ML --> JD["⚡ JumpDetector v12 (Zero-GC)\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Anti-Double-Fire Footwork\n• Competition Speed-Sprint ZC"]
     STFT --> FE["🧠 FusionEngine v12 (O(log N))\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Vision-Gated 100Hz Sprint Audio\n• Nyquist-Aware Low-FPS PLL"]
     JD --> FE
-    FE --> UI["🟢 Jumpix Dynamic Ring HUD\n& MetricsTracker"]
+    FE --> UI["🟢 Jumpvex Dynamic Ring HUD\n& MetricsTracker"]
 ```
 
 ---
@@ -133,9 +133,9 @@ flowchart LR
 <br/>
 
 ```bash
-# Clone the official Jumpix repository
-git clone https://github.com/iganramdani/Jumpix.git
-cd Jumpix
+# Clone the official Jumpvex repository
+git clone https://github.com/iganramdani/Jumpvex.git
+cd Jumpvex
 
 # Run all unit tests (AI Engine, Fusion, Metrics, & Workout Modes)
 ./gradlew testDebugUnitTest
@@ -154,7 +154,7 @@ cd Jumpix
 
 <div align="center">
 
-[![Download Jumpix v3.0.1 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v3.0.1_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.1)
+[![Download Jumpvex v3.1.0 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpvex_v3.1.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v3.1.0)
 
 <sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device • Free & Open-Source</sub>
 
@@ -164,11 +164,11 @@ cd Jumpix
 
 ## ⚖️ Open-Source License, Copyright & Anti-Plagiarism
 
-**Jumpix** is released as **Free and Open-Source Software** under the strict **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** so everyone worldwide can benefit, learn, and contribute — **while firmly protecting original authorship against closed-source plagiarism**:
+**Jumpvex** is released as **Free and Open-Source Software** under the strict **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** so everyone worldwide can benefit, learn, and contribute — **while firmly protecting original authorship against closed-source plagiarism**:
 
 > **Copyright © 2026 Igan Ramdani ([`@iganramdani`](https://github.com/iganramdani)). All rights reserved under GNU GPL v3.0.**
 
 - ✅ **Allowed:** Free use, study, modification, and community Pull Requests.
 - 📜 **Attribution Required:** Any copy or fork **must preserve the original copyright notice** ([`NOTICE`](NOTICE)) and clearly document all modifications.
-- 🔒 **Anti-Plagiarism (*Strong Copyleft*):** Repackaging or monetizing **Jumpix** (including AI Engine v12, STFT DSP, or UI) as a closed-source / proprietary app is strictly prohibited. All derivative works **must remain open-source under the same GPL-3.0 license**.
-- 🛡️ **Brand Protection:** The **Jumpix** name and official visual identity belong to the original author; unofficial forks must use a distinct app name and package ID.
+- 🔒 **Anti-Plagiarism (*Strong Copyleft*):** Repackaging or monetizing **Jumpvex** (including AI Engine v12, STFT DSP, or UI) as a closed-source / proprietary app is strictly prohibited. All derivative works **must remain open-source under the same GPL-3.0 license**.
+- 🛡️ **Brand Protection:** The **Jumpvex** name and official visual identity belong to the original author; unofficial forks must use a distinct app name and package ID.

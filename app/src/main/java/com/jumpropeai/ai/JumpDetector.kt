@@ -38,7 +38,7 @@ data class JumpDetectionResult(
 /**
  * Streaming Multi-Channel Kinematic Jump Detector (v12 — Zero-GC).
  *
- * Engineered for Jumpix ("99% Akurasi & 99% Ringan") across all 46 Ground-Truth real-world videos
+ * Engineered for Jumpvex ("99% Akurasi & 99% Ringan") across all 46 Ground-Truth real-world videos
  * (2,212 jumps) and 4 smartphone tiers (Flagship 30 FPS, Mid-Range 20 FPS, Budget 15 FPS, Low-End 10 FPS):
  * 1. Equal-variance 5-landmark upper-body anchor (Nose + L/R Shoulders + L/R Hips) for minimum jitter.
  * 2. Causal sliding ring-buffer local-peak detector (~210ms landing lookahead) with FPS-scaled valley window.

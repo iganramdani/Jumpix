@@ -26,9 +26,9 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 enum class CardTheme(val label: String) {
-    DARK_POSTER("Poster Gelap"),
-    TRANSPARENT_STICKER("Stiker Transparan"),
-    PHOTO_BACKDROP("Latar Foto")
+    DARK_POSTER("Dark Poster"),
+    TRANSPARENT_STICKER("Transparent Sticker"),
+    PHOTO_BACKDROP("Photo Backdrop")
 }
 
 enum class WatermarkTemplate(val label: String) {
@@ -114,7 +114,7 @@ object WorkoutCardRenderer {
             .uppercase(Locale.getDefault())
         val rightTag = if (styleLabel != null) "$dateStr • ${styleLabel.uppercase(Locale.getDefault())}" else dateStr
 
-        canvas.drawText("JUMPIX", 64f, 94f, textPaint(32f, Color.parseColor("#C6FF00"), Typeface.BOLD))
+        canvas.drawText("JUMPVEX", 64f, 94f, textPaint(32f, Color.parseColor("#C6FF00"), Typeface.BOLD))
         canvas.drawText(
             rightTag,
             WIDTH - 64f,
@@ -123,7 +123,7 @@ object WorkoutCardRenderer {
         )
 
         canvas.drawText(
-            "TOTAL LOMPATAN",
+            "TOTAL JUMPS",
             64f,
             HEIGHT - 418f,
             textPaint(26f, Color.argb(200, 255, 255, 255), Typeface.BOLD, letterSpace = 0.14f)
@@ -156,7 +156,7 @@ object WorkoutCardRenderer {
         // 4 clean bottom columns
         val cols = listOf(
             formatDuration(session.durationMs) to "DURATION",
-            String.format(Locale.US, "%.1f", session.estimatedCalories) to "KKAL",
+            String.format(Locale.US, "%.1f", session.estimatedCalories) to "KCAL",
             "${session.peakRpm}" to "PEAK RPM",
             "${session.bestStreak}" to "STREAK"
         )
@@ -187,7 +187,7 @@ object WorkoutCardRenderer {
             textPaint(36f, Color.parseColor("#FF8833"), Typeface.BOLD_ITALIC)
         )
         canvas.drawText(
-            "JUMPIX • FUSION",
+            "JUMPVEX • FUSION",
             104f,
             330f,
             textPaint(22f, Color.argb(195, 255, 255, 255), Typeface.BOLD, letterSpace = 0.12f)
@@ -200,7 +200,7 @@ object WorkoutCardRenderer {
 
         val rows = listOf(
             "DURATION" to formatDuration(session.durationMs),
-            "CALORIES" to "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal",
+            "CALORIES" to "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kcal",
             "STREAK" to "${session.bestStreak}"
         )
         rows.forEachIndexed { i, (k, v) ->
@@ -269,13 +269,13 @@ object WorkoutCardRenderer {
             textPaint(164f, lime, Typeface.BOLD, Paint.Align.CENTER, mono = true)
         )
         canvas.drawText(
-            "${formatDuration(session.durationMs)}   |   ${String.format(Locale.US, "%.1f", session.estimatedCalories)} KKAL   |   STREAK ${session.bestStreak}",
+            "${formatDuration(session.durationMs)}   |   ${String.format(Locale.US, "%.1f", session.estimatedCalories)} KCAL   |   STREAK ${session.bestStreak}",
             WIDTH / 2f,
             HEIGHT - 126f,
             textPaint(28f, Color.argb(240, 235, 245, 255), Typeface.BOLD, Paint.Align.CENTER, mono = true)
         )
         canvas.drawText(
-            "JUMPIX",
+            "JUMPVEX",
             WIDTH / 2f,
             HEIGHT - 78f,
             textPaint(22f, Color.argb(190, 0, 229, 255), Typeface.BOLD, Paint.Align.CENTER, mono = true, letterSpace = 0.18f)
@@ -312,19 +312,19 @@ object WorkoutCardRenderer {
             textPaint(66f, Color.WHITE, Typeface.BOLD, Paint.Align.CENTER)
         )
         canvas.drawText(
-            "LOMPAT",
+            "JUMPS",
             cx,
             cy + 46f,
             textPaint(18f, Color.parseColor("#C6FF00"), Typeface.BOLD, Paint.Align.CENTER, letterSpace = 0.1f)
         )
 
         val rx = panel.left + 382f
-        canvas.drawText("JUMPIX", rx, panel.top + 68f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
+        canvas.drawText("JUMPVEX", rx, panel.top + 68f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
 
         val rows = listOf(
             Triple("DURATION", formatDuration(session.durationMs), Color.WHITE),
             Triple("PACE", "${session.averageRpm} RPM", Color.parseColor("#00E5FF")),
-            Triple("CALORIES", "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal", Color.parseColor("#FF7A1A")),
+            Triple("CALORIES", "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kcal", Color.parseColor("#FF7A1A")),
             Triple("STREAK", "${session.bestStreak} Best", Color.parseColor("#C6FF00"))
         )
         rows.forEachIndexed { idx, (k, v, col) ->
@@ -354,14 +354,14 @@ object WorkoutCardRenderer {
             textPaint(74f, Color.parseColor("#0A0D12"), Typeface.BOLD, Paint.Align.CENTER, shadow = false)
         )
         canvas.drawText(
-            "LOMPAT",
+            "JUMPS",
             badge.centerX(),
             badge.bottom - 22f,
             textPaint(20f, Color.argb(215, 10, 13, 18), Typeface.BOLD, Paint.Align.CENTER, shadow = false)
         )
 
         val tx = badge.right + 32f
-        canvas.drawText("JUMPIX", tx, pill.top + 62f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
+        canvas.drawText("JUMPVEX", tx, pill.top + 62f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
         canvas.drawText(
             "${formatDuration(session.durationMs)}  •  ${session.averageRpm} RPM",
             tx,
@@ -369,7 +369,7 @@ object WorkoutCardRenderer {
             textPaint(34f, Color.WHITE, Typeface.BOLD)
         )
         canvas.drawText(
-            "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal  •  Streak ${session.bestStreak}",
+            "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kcal  •  Streak ${session.bestStreak}",
             tx,
             pill.top + 162f,
             textPaint(26f, Color.parseColor("#00E5FF"), Typeface.BOLD)
@@ -383,7 +383,7 @@ object WorkoutCardRenderer {
                 val values = ContentValues().apply {
                     put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                     put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Jumpix")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Jumpvex")
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }
                 val resolver = context.contentResolver
@@ -399,7 +399,7 @@ object WorkoutCardRenderer {
                 @Suppress("DEPRECATION")
                 val dir = File(
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
-                    "Jumpix"
+                    "Jumpvex"
                 )
                 dir.mkdirs()
                 val file = File(dir, fileName)
@@ -428,7 +428,7 @@ object WorkoutCardRenderer {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Jump rope workout with Jumpix!")
+                putExtra(Intent.EXTRA_TEXT, "Jump rope workout with Jumpvex!")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Share Workout Card"))

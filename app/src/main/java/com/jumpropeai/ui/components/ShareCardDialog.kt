@@ -118,7 +118,7 @@ fun ShareCardDialog(
                 customPhoto = loaded
                 selectedTheme = CardTheme.PHOTO_BACKDROP
             } else {
-                Toast.makeText(context, "Gagal memuat foto", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Failed to load photo", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -150,7 +150,7 @@ fun ShareCardDialog(
                     exportedVideoFile = outFile
                     Toast.makeText(
                         context,
-                        if (savedToGallery) "Watermarked video saved to Gallery (Movies/Jumpix)!" else "Video ready to share!",
+                        if (savedToGallery) "Watermarked video saved to Gallery (Movies/Jumpvex)!" else "Video ready to share!",
                         Toast.LENGTH_LONG
                     ).show()
                 },
@@ -191,7 +191,7 @@ fun ShareCardDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Kartu Statistik",
+                        text = "Stats Card",
                         color = Color.White,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.ExtraBold
@@ -209,8 +209,8 @@ fun ShareCardDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = "Foto", tint = ElectricCyan, modifier = Modifier.size(15.dp))
-                                Text("Foto", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = "Photo", tint = ElectricCyan, modifier = Modifier.size(15.dp))
+                                Text("Photo", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -225,7 +225,7 @@ fun ShareCardDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Rounded.VideoCall, contentDescription = "Ke Video", tint = NeonLime, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Rounded.VideoCall, contentDescription = "To Video", tint = NeonLime, modifier = Modifier.size(16.dp))
                                 Text("Video", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
@@ -305,7 +305,7 @@ fun ShareCardDialog(
                     }
                     Image(
                         bitmap = renderedBitmap.asImageBitmap(),
-                        contentDescription = "Preview Kartu Statistik",
+                        contentDescription = "Preview Stats Card",
                         contentScale = ContentScale.Fit,
                         modifier = Modifier.fillMaxSize()
                     )
@@ -321,7 +321,7 @@ fun ShareCardDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Memasang watermark ke video...", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Applying watermark to video...", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             Text("$exportProgress%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(
@@ -350,7 +350,7 @@ fun ShareCardDialog(
                             Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MintGreen, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Video Tersimpan! Ketuk untuk Share",
+                                text = "Video Saved! Tap to Share",
                                 color = MintGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -396,11 +396,11 @@ fun ShareCardDialog(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            val ok = WorkoutCardRenderer.saveToGallery(context, renderedBitmap, "Jumpix")
+                            val ok = WorkoutCardRenderer.saveToGallery(context, renderedBitmap, "Jumpvex")
                             savedSuccess = ok
                             Toast.makeText(
                                 context,
-                                if (ok) "Saved to Gallery (Pictures/Jumpix)" else "Failed to save image",
+                                if (ok) "Saved to Gallery (Pictures/Jumpvex)" else "Failed to save image",
                                 Toast.LENGTH_SHORT
                             ).show()
                         },
@@ -419,7 +419,7 @@ fun ShareCardDialog(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (savedSuccess) "TERSIMPAN" else "SIMPAN",
+                            text = if (savedSuccess) "SAVED" else "SAVE",
                             color = if (savedSuccess) MintGreen else Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
@@ -428,7 +428,7 @@ fun ShareCardDialog(
 
                     Button(
                         onClick = {
-                            WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "Jumpix")
+                            WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "Jumpvex")
                         },
                         enabled = !isExportingVideo,
                         shape = RoundedCornerShape(16.dp),
@@ -442,7 +442,7 @@ fun ShareCardDialog(
                     ) {
                         Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("BAGIKAN", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                        Text("SHARE", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                     }
                 }
             }

@@ -1194,7 +1194,7 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Jumpix needs camera and microphone access to count your jumps in real time. All AI processing runs 100% on your device.",
+                    text = "Jumpvex needs camera and microphone access to count your jumps in real time. All AI processing runs 100% on your device.",
                     color = TextSecondary,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
