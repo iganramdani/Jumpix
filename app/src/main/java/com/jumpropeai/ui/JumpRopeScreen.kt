@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
@@ -33,17 +34,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccessibilityNew
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.Cameraswitch
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.History
@@ -54,19 +60,23 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -93,8 +103,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.DetectorStatus
 import com.jumpropeai.audio.AudioFeedbackManager
 import com.jumpropeai.data.WorkoutSession
@@ -115,6 +127,7 @@ import com.jumpropeai.ui.theme.MidnightGlass
 import com.jumpropeai.ui.theme.MidnightSurface
 import com.jumpropeai.ui.theme.TextPrimary
 import com.jumpropeai.ui.theme.TextSecondary
+import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.workout.HiitPhase
 import com.jumpropeai.workout.WorkoutModeType
 import java.util.Locale
@@ -221,7 +234,10 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         return
     }
 
-    val showBottomNav = !(selectedTab == MainTab.LATIHAN && uiState.isEcoMode)
+    val showBottomNav = !(
+        selectedTab == MainTab.LATIHAN &&
+            (uiState.isEcoMode || uiState.isCountingDown || (uiState.isSessionRunning && !uiState.isControlsVisible))
+        )
 
     Column(
         modifier = Modifier
@@ -240,6 +256,16 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         isCameraAllowedOnTab = true,
                         onPoseFrame = viewModel::onPoseFrame,
                         onToggleSession = viewModel::toggleSession,
+                        onCancelCountdown = viewModel::cancelPreStartCountdown,
+                        onCycleCountdown = {
+                            val next = when (uiState.startCountdownDurationSec) {
+                                3 -> 5
+                                5 -> 8
+                                8 -> 0
+                                else -> 3
+                            }
+                            viewModel.setStartCountdownDuration(next)
+                        },
                         onFinishSession = { viewModel.finishAndSaveSession(completedByTarget = false) },
                         onResetSession = viewModel::resetSession,
                         onToggleCamera = viewModel::toggleCamera,
@@ -299,8 +325,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 selectedTab = selectedTab,
                 onSelectTab = { nextTab ->
                     if (nextTab == selectedTab) return@TwoToneBottomNavBar
-                    if (selectedTab == MainTab.LATIHAN && uiState.isSessionRunning) {
-                        viewModel.toggleSession()
+                    if (selectedTab == MainTab.LATIHAN && (uiState.isSessionRunning || uiState.isCountingDown)) {
+                        viewModel.pauseSession()
                     }
                     if (nextTab == MainTab.VIDEO) {
                         viewModel.openVideoSheet()
@@ -322,18 +348,27 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         )
     }
 
-    // Clean Settings Bottom Sheet (all secondary HUD toggles)
+    // Clean Settings Bottom Sheet (all secondary HUD toggles + Countdown + App Update)
     if (showSettingsSheet) {
         WorkoutSettingsSheet(
             uiState = uiState,
             onCycleSensorMode = viewModel::cycleSensorMode,
+            onSelectCountdown = viewModel::setStartCountdownDuration,
             onToggleSkeleton = viewModel::toggleSkeletonOverlay,
             onToggleAudio = viewModel::toggleAudio,
             onToggleEcoMode = {
                 viewModel.toggleEcoMode()
                 showSettingsSheet = false
             },
-            onToggleControls = viewModel::toggleControlsVisibility,
+            onToggleAutoHideControls = viewModel::toggleAutoHideControls,
+            onCheckForUpdates = {
+                if (uiState.availableUpdate != null) {
+                    showSettingsSheet = false
+                    viewModel.openUpdateDialog()
+                } else {
+                    viewModel.checkForUpdates(manual = true)
+                }
+            },
             onDismiss = { showSettingsSheet = false }
         )
     }
@@ -356,6 +391,23 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             onDismiss = { shareCardTarget = null }
         )
     }
+
+    // In-App GitHub Release Update Dialog
+    val pendingUpdate = uiState.availableUpdate
+    if (uiState.showUpdateDialog && pendingUpdate != null) {
+        AppUpdateDialog(
+            release = pendingUpdate,
+            onDownloadApk = {
+                viewModel.dismissUpdateDialog()
+                context.openExternalUrl(pendingUpdate.apkDownloadUrl)
+            },
+            onOpenReleasePage = {
+                viewModel.dismissUpdateDialog()
+                context.openExternalUrl(pendingUpdate.releasePageUrl)
+            },
+            onDismiss = viewModel::dismissUpdateDialog
+        )
+    }
 }
 
 /**
@@ -367,6 +419,8 @@ private fun DynamicRingLiveHud(
     isCameraAllowedOnTab: Boolean,
     onPoseFrame: (com.jumpropeai.ai.PoseFrame) -> Unit,
     onToggleSession: () -> Unit,
+    onCancelCountdown: () -> Unit,
+    onCycleCountdown: () -> Unit,
     onFinishSession: () -> Unit,
     onResetSession: () -> Unit,
     onToggleCamera: () -> Unit,
@@ -378,7 +432,7 @@ private fun DynamicRingLiveHud(
     val metrics = uiState.metrics
     val config = uiState.workoutConfig
     val progress = uiState.workoutProgress
-    val showControls = !uiState.isSessionRunning || uiState.isControlsVisible
+    val showControls = (!uiState.isSessionRunning || uiState.isControlsVisible) && !uiState.isCountingDown
     val isPureBlackMode = uiState.isEcoMode || uiState.sensorMode == SensorMode.AUDIO_ONLY
 
     // Compute intuitive ring progress for ALL 4 modes
@@ -415,7 +469,7 @@ private fun DynamicRingLiveHud(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                if (uiState.isSessionRunning && !uiState.isEcoMode) {
+                if (uiState.isSessionRunning && !uiState.isEcoMode && !uiState.isCountingDown) {
                     onToggleControls()
                 }
             }
@@ -528,11 +582,23 @@ private fun DynamicRingLiveHud(
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CircularHudIconButton(
-                            icon = Icons.Rounded.Settings,
-                            contentDescription = "Settings",
-                            onClick = onOpenSettings
-                        )
+                        Box {
+                            CircularHudIconButton(
+                                icon = Icons.Rounded.Settings,
+                                contentDescription = "Settings",
+                                onClick = onOpenSettings
+                            )
+                            if (uiState.availableUpdate != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = (-2).dp, y = 2.dp)
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(IceMint)
+                                )
+                            }
+                        }
                         if (uiState.sensorMode != SensorMode.AUDIO_ONLY) {
                             CircularHudIconButton(
                                 icon = Icons.Rounded.Cameraswitch,
@@ -631,7 +697,7 @@ private fun DynamicRingLiveHud(
 
             Spacer(Modifier.height(18.dp))
 
-            // CIRCULAR PRIMARY PLAY/PAUSE BUTTON + SECONDARY STOP & RESET BUTTONS
+            // CIRCULAR PRIMARY PLAY/PAUSE BUTTON + SECONDARY COUNTDOWN / RESET & STOP BUTTONS
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
@@ -644,9 +710,9 @@ private fun DynamicRingLiveHud(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Left slot: Reset (visible when paused with active progress)
+                    // Left slot: Reset (when paused with progress) OR quick 3s/5s/8s Countdown pill (when idle)
                     Box(
-                        modifier = Modifier.width(64.dp),
+                        modifier = Modifier.width(72.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (!uiState.isSessionRunning && uiState.hasActiveProgress) {
@@ -656,10 +722,43 @@ private fun DynamicRingLiveHud(
                                 onClick = onResetSession,
                                 sizeDp = 48
                             )
+                        } else if (!uiState.isSessionRunning) {
+                            Surface(
+                                onClick = onCycleCountdown,
+                                shape = CircleShape,
+                                color = MidnightGlass,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (uiState.startCountdownDurationSec > 0) IceMint.copy(alpha = 0.5f) else MidnightBorder
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Timer,
+                                        contentDescription = "Start Countdown",
+                                        tint = if (uiState.startCountdownDurationSec > 0) IceMint else TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = if (uiState.startCountdownDurationSec > 0) {
+                                            "${uiState.startCountdownDurationSec}s"
+                                        } else {
+                                            "Off"
+                                        },
+                                        color = if (uiState.startCountdownDurationSec > 0) TextPrimary else TextSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
-                    Spacer(Modifier.width(18.dp))
+                    Spacer(Modifier.width(16.dp))
 
                     // Center: Prominent Circular Ice Mint Play / Pause Button
                     Surface(
@@ -683,11 +782,11 @@ private fun DynamicRingLiveHud(
                         }
                     }
 
-                    Spacer(Modifier.width(18.dp))
+                    Spacer(Modifier.width(16.dp))
 
                     // Right slot: Stop / Finish (visible when active progress exists)
                     Box(
-                        modifier = Modifier.width(64.dp),
+                        modifier = Modifier.width(72.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (uiState.hasActiveProgress) {
@@ -701,6 +800,27 @@ private fun DynamicRingLiveHud(
                     }
                 }
             }
+
+            // Subtle hint when controls & toolbar are hidden during active session
+            if (uiState.isSessionRunning && !uiState.isControlsVisible && !uiState.isCountingDown) {
+                Text(
+                    text = "Tap screen to show toolbar",
+                    color = TextSecondary.copy(alpha = 0.65f),
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(bottom = 8.dp)
+                )
+            }
+        }
+
+        // 7. Full-Screen Pre-Start Countdown Overlay (3s / 5s / 8s after pressing Play)
+        if (uiState.isCountingDown) {
+            PreStartCountdownOverlay(
+                remainingSeconds = uiState.preStartCountdownRemaining,
+                totalSeconds = uiState.startCountdownDurationSec.coerceAtLeast(1),
+                onCancel = onCancelCountdown
+            )
         }
     }
 }
@@ -905,10 +1025,12 @@ private fun TwoToneBottomNavBar(
 private fun WorkoutSettingsSheet(
     uiState: JumpRopeUiState,
     onCycleSensorMode: () -> Unit,
+    onSelectCountdown: (Int) -> Unit,
     onToggleSkeleton: () -> Unit,
     onToggleAudio: () -> Unit,
     onToggleEcoMode: () -> Unit,
-    onToggleControls: () -> Unit,
+    onToggleAutoHideControls: () -> Unit,
+    onCheckForUpdates: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -931,6 +1053,7 @@ private fun WorkoutSettingsSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .navigationBarsPadding()
                 .padding(bottom = 24.dp),
@@ -942,6 +1065,72 @@ private fun WorkoutSettingsSheet(
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
+
+            // Pre-Start Countdown Selector (Off / 3s / 5s / 8s)
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, MidnightBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.Timer,
+                            contentDescription = null,
+                            tint = IceMint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Start Countdown",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Delay after pressing Play to get in position",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(0 to "Off", 3 to "3s", 5 to "5s", 8 to "8s").forEach { (sec, label) ->
+                            val selected = uiState.startCountdownDurationSec == sec
+                            Surface(
+                                onClick = { onSelectCountdown(sec) },
+                                shape = CircleShape,
+                                color = if (selected) IceMint else MidnightElevated,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (selected) IceMint else MidnightBorder
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (selected) DeepMidnight else TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
 
             // Sensor Mode Row (click to cycle)
             Surface(
@@ -1003,7 +1192,7 @@ private fun WorkoutSettingsSheet(
             SettingsSwitchCard(
                 icon = Icons.AutoMirrored.Rounded.VolumeUp,
                 title = "Sound & Audio Cues",
-                subtitle = "Milestone beeps, HIIT transitions, and target alerts",
+                subtitle = "Countdown beeps, milestones, and HIIT transitions",
                 checked = uiState.isAudioEnabled,
                 onCheckedChange = { onToggleAudio() }
             )
@@ -1018,11 +1207,73 @@ private fun WorkoutSettingsSheet(
 
             SettingsSwitchCard(
                 icon = Icons.Rounded.VisibilityOff,
-                title = "Hide Controls While Active",
-                subtitle = "Tap anywhere on screen to bring controls back",
-                checked = !uiState.isControlsVisible,
-                onCheckedChange = { onToggleControls() }
+                title = "Hide Toolbar While Active",
+                subtitle = "Auto-hide top & bottom bars during workout (tap screen to toggle)",
+                checked = uiState.autoHideControlsWhileActive,
+                onCheckedChange = { onToggleAutoHideControls() }
             )
+
+            // In-App GitHub Release Update Checker Row
+            val hasUpdate = uiState.availableUpdate != null
+            Surface(
+                onClick = onCheckForUpdates,
+                shape = RoundedCornerShape(18.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, if (hasUpdate) IceMint.copy(alpha = 0.65f) else MidnightBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.SystemUpdate,
+                        contentDescription = null,
+                        tint = if (hasUpdate) IceMint else TextSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (hasUpdate) {
+                                "Update Ready • v${uiState.availableUpdate?.versionName}"
+                            } else {
+                                "App Updates (v${BuildConfig.VERSION_NAME})"
+                            },
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = uiState.updateStatusMessage ?: "Check GitHub Releases for latest APK",
+                            color = if (hasUpdate) IceMint else TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (uiState.isCheckingUpdate) {
+                        CircularProgressIndicator(
+                            color = IceMint,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (hasUpdate) IceMint else IceMintSoft
+                        ) {
+                            Text(
+                                text = if (hasUpdate) "Update" else "Check",
+                                color = if (hasUpdate) DeepMidnight else IceMint,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -1223,6 +1474,229 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
     }
 }
 
+@Composable
+private fun PreStartCountdownOverlay(
+    remainingSeconds: Int,
+    totalSeconds: Int,
+    onCancel: () -> Unit
+) {
+    val progress = (remainingSeconds.toFloat() / totalSeconds.coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+    val animatedSweep by animateFloatAsState(
+        targetValue = progress * 360f,
+        animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing),
+        label = "countdownSweep"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DeepMidnight.copy(alpha = 0.82f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { /* absorb clicks while counting down */ },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "GET READY",
+                color = IceMint,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 3.sp
+            )
+            Spacer(Modifier.height(22.dp))
+            Box(
+                modifier = Modifier.size(216.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokePx = 8.dp.toPx()
+                    val glowPx = 20.dp.toPx()
+                    val inset = glowPx / 2f
+                    val arcSize = Size(size.width - glowPx, size.height - glowPx)
+                    val topLeft = Offset(inset, inset)
+
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(IceMint.copy(alpha = 0.22f), Color.Transparent),
+                            center = center,
+                            radius = size.minDimension * 0.56f
+                        )
+                    )
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.14f),
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = IceMintGlow,
+                        startAngle = -90f,
+                        sweepAngle = animatedSweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = glowPx * 0.72f, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = IceMint,
+                        startAngle = -90f,
+                        sweepAngle = animatedSweep,
+                        useCenter = false,
+                        topLeft = topLeft,
+                        size = arcSize,
+                        style = Stroke(width = strokePx, cap = StrokeCap.Round)
+                    )
+                }
+
+                Text(
+                    text = "$remainingSeconds",
+                    color = TextPrimary,
+                    fontSize = 86.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(
+                text = "Step into camera view",
+                color = TextSecondary,
+                fontSize = 14.sp
+            )
+            Spacer(Modifier.height(28.dp))
+            OutlinedButton(
+                onClick = onCancel,
+                shape = CircleShape,
+                border = BorderStroke(1.dp, MidnightBorder)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = null,
+                    tint = TextPrimary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "Cancel",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppUpdateDialog(
+    release: AppReleaseInfo,
+    onDownloadApk: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = MidnightSurface,
+            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = IceMintSoft,
+                    modifier = Modifier.size(60.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.SystemUpdate,
+                            contentDescription = null,
+                            tint = IceMint,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Jumpvex v${release.versionName} Available",
+                    color = TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Installed: v${BuildConfig.VERSION_NAME}",
+                    color = IceMint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(14.dp))
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = DeepMidnight,
+                    border = BorderStroke(1.dp, MidnightBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = release.releaseNotes,
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    onClick = onDownloadApk,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = IceMint,
+                        contentColor = DeepMidnight
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Download APK",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TextButton(onClick = onOpenReleasePage) {
+                        Text("Release Notes", color = IceMint, fontSize = 13.sp)
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Later", color = TextSecondary, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun formatElapsedTimer(ms: Long): String {
     val totalSec = (ms / 1000L).coerceAtLeast(0L)
     val mins = totalSec / 60L
@@ -1236,10 +1710,19 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private fun Context.openExternalUrl(url: String) {
+    runCatching {
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+}
+
 private fun Context.resolveDisplayName(uri: Uri): String {
     return runCatching {
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
             if (c.moveToFirst()) c.getString(0) else null
         }
-    }.getOrNull() ?: "Rekaman Video"
+    }.getOrNull() ?: "Video Recording"
 }

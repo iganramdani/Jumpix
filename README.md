@@ -1,12 +1,14 @@
 <div align="center">
 
-# ⚡ Jumpvex
+<img src="docs/assets/jumpvex_logo.png" alt="Jumpvex Logo" width="128" height="128" />
+
+# Jumpvex
 
 ### 🎯 **"99% Accuracy & ⚡ 99% Lightweight"**
 
-**Open-Source On-Device AI Jump Rope Counter for Android — Zero Cloud, Zero Internet, Zero Lag on Low-End Phones!**
+**Open-Source On-Device AI Jump Rope Counter for Android — Zero Cloud, Zero Lag on Low-End Phones, Built-In 1-Tap GitHub Updates!**
 
-[![Release](https://img.shields.io/badge/Release-v3.1.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v3.1.0)
+[![Release](https://img.shields.io/badge/Release-v3.2.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
 [![Philosophy](https://img.shields.io/badge/Philosophy-99%25_Accuracy_&_99%25_Lightweight-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-core-philosophy-99-accuracy--99-lightweight)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)

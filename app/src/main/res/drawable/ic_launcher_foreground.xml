@@ -3,23 +3,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Jump rope arc -->
     <path
-        android:pathData="M28,68 C28,24 80,24 80,68"
-        android:strokeColor="#C6FF00"
-        android:strokeWidth="4.5"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000" />
-    <!-- Person head -->
+        android:fillColor="#F8FAFC"
+        android:pathData="M50.64,34.80 L55.30,45.22 L38.33,83.16 L26.02,55.63 L35.34,55.63 L38.33,62.32 Z" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,42m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
-    <!-- Person torso & limbs -->
-    <path
-        android:pathData="M54,49 L54,66 M41,56 L54,53 L67,56 M46,78 L54,66 L62,78"
-        android:strokeColor="#00E5FF"
-        android:strokeWidth="4.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:fillColor="#2EE59D"
+        android:pathData="M52.10,30.10 L61.42,30.10 L65.86,40.04 L72.66,24.84 L81.98,24.84 L65.86,60.88 Z" />
 </vector>

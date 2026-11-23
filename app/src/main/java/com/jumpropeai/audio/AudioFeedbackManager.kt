@@ -31,10 +31,9 @@ class AudioFeedbackManager(context: Context) {
     init {
         tts = TextToSpeech(context.applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                val idLocale = Locale("id", "ID")
-                val result = tts?.setLanguage(idLocale)
+                val result = tts?.setLanguage(Locale.US)
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setLanguage(Locale.US)
+                    tts?.setLanguage(Locale.getDefault())
                 }
                 tts?.setSpeechRate(1.08f)
                 isTtsReady = true
@@ -51,31 +50,31 @@ class AudioFeedbackManager(context: Context) {
 
             AudioCue.SessionStart -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 120)
-                speak("Mulai!")
+                speak("Go!")
             }
 
             is AudioCue.Milestone -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 120)
-                speak("${cue.count} lompatan!")
+                speak("${cue.count} jumps!")
             }
 
             is AudioCue.HiitWorkStart -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 180)
-                speak("Ronde ${cue.round}, lompat!")
+                speak("Round ${cue.round}, jump!")
             }
 
             AudioCue.HiitRestStart -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_NACK, 200)
-                speak("Istirahat")
+                speak("Rest")
             }
 
             AudioCue.CountdownTick -> {
-                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_PIP, 70)
+                toneGenerator?.startTone(ToneGenerator.TONE_CDMA_PIP, 75)
             }
 
             is AudioCue.WorkoutCompleted -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 260)
-                speak("Selesai! Total ${cue.totalJumps} lompatan. Kerja bagus!")
+                speak("Workout complete! ${cue.totalJumps} jumps. Great job!")
             }
         }
     }

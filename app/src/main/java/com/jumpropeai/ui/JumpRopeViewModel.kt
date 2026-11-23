@@ -1,11 +1,13 @@
 package com.jumpropeai.ui
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import android.os.SystemClock
 import androidx.camera.core.CameraSelector
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.AcousticFingerprint
 import com.jumpropeai.ai.FusionEngine
 import com.jumpropeai.ai.JumpDetector
@@ -18,6 +20,9 @@ import com.jumpropeai.data.WorkoutHistoryRepository
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.metrics.MetricsTracker
 import com.jumpropeai.metrics.WorkoutMetrics
+import com.jumpropeai.update.AppReleaseInfo
+import com.jumpropeai.update.AppUpdateChecker
+import com.jumpropeai.update.UpdateCheckResult
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
 import com.jumpropeai.video.VideoJumpAnalyzer
@@ -45,7 +50,7 @@ import kotlin.math.roundToInt
 enum class SensorMode(val label: String) {
     FUSION("Fusion AI"),
     AUDIO_ONLY("Audio Eco"),
-    CAMERA_ONLY("Kamera")
+    CAMERA_ONLY("Camera")
 }
 
 data class JumpRopeUiState(
@@ -56,7 +61,10 @@ data class JumpRopeUiState(
     val showSkeletonOverlay: Boolean = false,
     val isAudioEnabled: Boolean = true,
     val isEcoMode: Boolean = false,
+    val autoHideControlsWhileActive: Boolean = false,
     val isControlsVisible: Boolean = true,
+    val startCountdownDurationSec: Int = 3,
+    val preStartCountdownRemaining: Int = 0,
     val recommendEcoLowFps: Boolean = false,
     val latestPose: PoseFrame? = null,
     val metrics: WorkoutMetrics = WorkoutMetrics(),
@@ -70,22 +78,31 @@ data class JumpRopeUiState(
     val cumulativeStats: CumulativeStats = CumulativeStats(),
     val showHistorySheet: Boolean = false,
     val showModeSheet: Boolean = false,
-    // MP4 Video Analysis state
+    // Video Studio analysis state
     val showVideoSheet: Boolean = false,
     val isAnalyzingVideo: Boolean = false,
     val videoProgress: VideoAnalysisProgress? = null,
     val videoResult: VideoAnalysisResult? = null,
-    val videoError: String? = null
+    val videoError: String? = null,
+    // In-App Update state
+    val availableUpdate: AppReleaseInfo? = null,
+    val showUpdateDialog: Boolean = false,
+    val isCheckingUpdate: Boolean = false,
+    val updateStatusMessage: String? = null
 ) {
     val isCameraActive: Boolean
         get() = sensorMode != SensorMode.AUDIO_ONLY && !showVideoSheet
 
     val hasActiveProgress: Boolean
         get() = metrics.jumpCount > 0 || metrics.elapsedMs >= 1000L
+
+    val isCountingDown: Boolean
+        get() = preStartCountdownRemaining > 0
 }
 
 class JumpRopeViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val prefs = application.getSharedPreferences("jumpvex_prefs", Context.MODE_PRIVATE)
     private val jumpDetector = JumpDetector()
     private val fusionEngine = FusionEngine()
     private val stftAudioEngine = StftAudioEngine()
@@ -95,14 +112,21 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         File(application.filesDir, "workout_history.json")
     )
 
-    private val _uiState = MutableStateFlow(JumpRopeUiState())
+    private val _uiState = MutableStateFlow(
+        JumpRopeUiState(
+            startCountdownDurationSec = prefs.getInt(KEY_START_COUNTDOWN_SEC, 3),
+            autoHideControlsWhileActive = prefs.getBoolean(KEY_AUTO_HIDE_CONTROLS, false)
+        )
+    )
     val uiState: StateFlow<JumpRopeUiState> = _uiState.asStateFlow()
 
     private val _audioCues = MutableSharedFlow<AudioCue>(extraBufferCapacity = 16)
     val audioCues: SharedFlow<AudioCue> = _audioCues.asSharedFlow()
 
     private var tickerJob: Job? = null
+    private var preStartCountdownJob: Job? = null
     private var videoJob: Job? = null
+    private var updateCheckJob: Job? = null
     private var lastHiitPhase: HiitPhase? = null
     private var lastCountdownSecond: Int = -1
     private var activeSessionId: String? = null
@@ -117,6 +141,12 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 cumulativeStats = WorkoutHistoryRepository.computeStats(loaded)
             )
         }
+        checkForUpdates(manual = false)
+    }
+
+    companion object {
+        private const val KEY_START_COUNTDOWN_SEC = "start_countdown_sec"
+        private const val KEY_AUTO_HIDE_CONTROLS = "auto_hide_controls"
     }
 
     fun onAudioPermissionResult(granted: Boolean) {
@@ -280,11 +310,57 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun setStartCountdownDuration(seconds: Int) {
+        val sanitized = when (seconds) {
+            0, 3, 5, 8 -> seconds
+            else -> 3
+        }
+        prefs.edit().putInt(KEY_START_COUNTDOWN_SEC, sanitized).apply()
+        _uiState.update { it.copy(startCountdownDurationSec = sanitized) }
+    }
+
+    fun cancelPreStartCountdown() {
+        preStartCountdownJob?.cancel()
+        preStartCountdownJob = null
+        _uiState.update { it.copy(preStartCountdownRemaining = 0, isControlsVisible = true) }
+    }
+
     fun toggleSession() {
-        if (_uiState.value.isSessionRunning) pauseSession() else startSession()
+        val state = _uiState.value
+        when {
+            state.isCountingDown -> cancelPreStartCountdown()
+            state.isSessionRunning -> pauseSession()
+            else -> startSession()
+        }
     }
 
     fun startSession() {
+        val countdownSec = _uiState.value.startCountdownDurationSec
+        if (countdownSec <= 0) {
+            startSessionImmediately()
+            return
+        }
+
+        preStartCountdownJob?.cancel()
+        preStartCountdownJob = viewModelScope.launch {
+            for (sec in countdownSec downTo 1) {
+                _uiState.update {
+                    it.copy(
+                        preStartCountdownRemaining = sec,
+                        completedSessionSummary = null
+                    )
+                }
+                notifySpeakerPlayed(160L)
+                _audioCues.tryEmit(AudioCue.CountdownTick)
+                delay(1_000L)
+            }
+            _uiState.update { it.copy(preStartCountdownRemaining = 0) }
+            preStartCountdownJob = null
+            startSessionImmediately()
+        }
+    }
+
+    private fun startSessionImmediately() {
         val nowMs = SystemClock.elapsedRealtime()
         val isFreshStart = metricsTracker.getElapsedMs(nowMs) == 0L
         metricsTracker.start(nowMs)
@@ -301,10 +377,11 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        _uiState.update {
-            it.copy(
+        _uiState.update { state ->
+            state.copy(
                 isSessionRunning = true,
-                isControlsVisible = false,
+                preStartCountdownRemaining = 0,
+                isControlsVisible = !state.autoHideControlsWhileActive,
                 completedSessionSummary = null
             )
         }
@@ -350,6 +427,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun pauseSession() {
+        cancelPreStartCountdown()
         val nowMs = SystemClock.elapsedRealtime()
         metricsTracker.pause(nowMs)
         tickerJob?.cancel()
@@ -594,9 +672,71 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun toggleAutoHideControls() {
+        _uiState.update { state ->
+            val nextAutoHide = !state.autoHideControlsWhileActive
+            prefs.edit().putBoolean(KEY_AUTO_HIDE_CONTROLS, nextAutoHide).apply()
+            state.copy(
+                autoHideControlsWhileActive = nextAutoHide,
+                isControlsVisible = if (state.isSessionRunning) !nextAutoHide else true
+            )
+        }
+    }
+
     fun toggleControlsVisibility() {
         _uiState.update { state ->
             if (!state.isSessionRunning) state else state.copy(isControlsVisible = !state.isControlsVisible)
+        }
+    }
+
+    fun checkForUpdates(manual: Boolean = true) {
+        if (_uiState.value.isCheckingUpdate) return
+        updateCheckJob?.cancel()
+        updateCheckJob = viewModelScope.launch {
+            if (manual) {
+                _uiState.update {
+                    it.copy(isCheckingUpdate = true, updateStatusMessage = "Checking GitHub Releases...")
+                }
+            }
+            when (val result = AppUpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)) {
+                is UpdateCheckResult.UpdateAvailable -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            availableUpdate = result.release,
+                            showUpdateDialog = true,
+                            updateStatusMessage = "New update v${result.release.versionName} available!"
+                        )
+                    }
+                }
+                is UpdateCheckResult.UpToDate -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            availableUpdate = null,
+                            updateStatusMessage = if (manual) "You're on the latest version (v${result.currentVersion})" else null
+                        )
+                    }
+                }
+                is UpdateCheckResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            isCheckingUpdate = false,
+                            updateStatusMessage = if (manual) "Couldn't check updates (offline or network error)" else null
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(showUpdateDialog = false) }
+    }
+
+    fun openUpdateDialog() {
+        if (_uiState.value.availableUpdate != null) {
+            _uiState.update { it.copy(showUpdateDialog = true) }
         }
     }
 
@@ -702,7 +842,9 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     override fun onCleared() {
         super.onCleared()
         tickerJob?.cancel()
+        preStartCountdownJob?.cancel()
         videoJob?.cancel()
+        updateCheckJob?.cancel()
         stftAudioEngine.stopLiveCapture()
     }
 }
