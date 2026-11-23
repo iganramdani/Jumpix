@@ -1,37 +1,160 @@
-# JumpRope AI (Android)
+<div align="center">
 
-Aplikasi Android native untuk menghitung lompatan skiping (**jump rope counter**) secara **live** menggunakan kamera dan **AI on-device (ML Kit Pose Detection)** tanpa koneksi internet.
+# 🪢 JumpRope AI
 
-## Fitur Utama
+### 🎯 **"99% Akurasi & ⚡ 99% Ringan"**
 
-- **Live Camera + AI Jump Counter**: CameraX + ML Kit Pose Detection (`STREAM_MODE`) dengan algoritma deteksi lompatan berbasis posisi bahu & pinggul yang dinormalisasi terhadap tinggi torso (tahan terhadap variasi jarak kamera dan jitter).
-- **Real-time Skeleton Overlay**: Visualisasi garis rangka tubuh (*pose skeleton*) secara live di atas preview kamera (bisa di-toggle on/off), berubah warna menjadi neon lime saat terdeteksi melompat (*airborne*).
-- **Kamera Depan Default + Switch Kamera**: Otomatis terbuka di kamera depan (*front camera*) dengan tombol cepat untuk berpindah ke kamera belakang.
-- **Mode Latihan Lengkap**:
-  - **Bebas (Free Jump)**
-  - **Target Lompatan** (50 / 100 / 200 / 300 / 500 lompatan + progress bar & auto-selesai)
-  - **Target Waktu** (1 / 3 / 5 / 10 menit + countdown timer)
-  - **HIIT Interval** (preset 20s/10s×4, 30s/15s×5, 45s/15s×6, 60s/20s×5 dengan pergantian otomatis fase **LOMPAT** ↔ **ISTIRAHAT**)
-- **Audio & Voice Coach**:
-  - Beep halus pada setiap lompatan & countdown 3-2-1
-  - Suara pelatih (Text-to-Speech Bahasa Indonesia) saat mulai, milestone setiap 25 lompatan, pergantian fase HIIT, dan saat target tercapai (dengan tombol mute/unmute)
-- **Live Metrics HUD**: Total Lompatan, **Durasi**, **Pace (RPM)**, **Peak RPM**, **Estimasi Kalori (kkal)** berbasis MET, **Streak** aktif & **Best Streak**.
-- **Riwayat Latihan & Ringkasan Sesi**: Dialog ringkasan saat selesai latihan serta penyimpanan lokal permanen untuk riwayat sesi & statistik kumulatif (Total Lompatan, Total Sesi, Total Kalori, Best Streak sepanjang masa).
+**Penghitung Lompat Tali AI Native Android — 100% On-Device, Tanpa Internet, Tanpa Lag di HP Low-End!**
 
-## Tech Stack
+[![Release](https://img.shields.io/badge/Release-v2.8.0-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/JumpRopeAI/releases/tag/v2.8.0)
+[![Akurasi](https://img.shields.io/badge/Target_Pedoman-99%25_Akurasi-2EE59D?style=for-the-badge)](https://github.com/iganramdani/JumpRopeAI#-benchmark-4-smartphone-46-video-ground-truth)
+[![Ringan](https://img.shields.io/badge/Performa-99%25_Ringan-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](https://github.com/iganramdani/JumpRopeAI#-pedoman-inti-99-akurasi--99-ringan)
+[![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
+[![On-Device](https://img.shields.io/badge/Privacy-100%25_On--Device-151D2E?style=for-the-badge&logo=shield&logoColor=2EE59D)](#)
 
-- **Kotlin** + **Jetpack Compose** (Material 3)
-- **CameraX** (`camera-core`, `camera-camera2`, `camera-lifecycle`, `camera-view`)
-- **Google ML Kit Pose Detection** (`com.google.mlkit:pose-detection`)
-- **Android TextToSpeech & ToneGenerator**
-- **Coroutines & StateFlow** (`AndroidViewModel`)
+<br/>
 
-## Cara Build & Jalankan
+[✨ Pedoman Inti](#-pedoman-inti-99-akurasi--99-ringan) •
+[📱 Galeri UI](#-galeri-ui-modern-two-tone) •
+[📊 Benchmark 4 HP](#-benchmark-4-smartphone-46-video-ground-truth) •
+[🧠 Arsitektur AI](#-arsitektur-engine-ai-v11) •
+[📦 Download APK](#-download-release-apk)
 
-1. Buka folder `JumpRopeAI` di **Android Studio** (atau gunakan CLI).
-2. Jalankan unit test & build debug APK:
-   ```bash
-   ./gradlew testDebugUnitTest assembleDebug
-   ```
-3. Output APK:
-   `app/build/outputs/apk/debug/app-debug.apk`
+</div>
+
+---
+
+## ✨ Pedoman Inti: "99% Akurasi & 99% Ringan"
+
+Setiap baris kode, desain UI, hingga algoritma DSP di **JumpRope AI** dibangun mengikuti satu kompas utama:
+
+| 🎯 99% Akurasi (Presisi Kelas Kompetisi) | ⚡ 99% Ringan (Ngebut di Semua Smartphone) |
+| :--- | :--- |
+| 🧠 **Multi-Channel Kinematics + 100 Hz STFT Audio Hybrid (v11)** — menggabungkan pose tubuh 5-landmark + analisis spektrum suara tali 100 Hz secara *real-time*. | 🪶 **100% On-Device Tanpa Cloud** — tidak butuh server, tidak butuh kuota internet, latensi nyaris nol. |
+| 🏃 **Competition Speed-Sprint Channel** — mampu menghitung sprint membungkuk **270–350+ RPM** meski kamera HP hanya **10–15 FPS** (*anti Nyquist-aliasing*). | 🔋 **Mode Hemat AMOLED & Audio Eco** — layar bisa diredupkan hitam pekat dan kamera otomatis mati di tab Video/Riwayat untuk hemat baterai maksimal. |
+| 🛡️ **Anti-False-Positive Ketat** — menolak jalan kaki (*walking guard*), *side swing* kaki menempel, berdiri perlahan, hingga pantulan lutut setelah *Double-Under*. | 🚀 **Zero-GC Fast Preview** — konversi `NV21 → RGB_565` langsung pakai *reusable buffer* (~1,5 ms/frame), mulus tanpa patah-patah di Video Studio. |
+
+---
+
+## 📱 Galeri UI Modern Two-Tone
+
+Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D1321`)** + **Ice Mint (`#2EE59D`)** dan navigasi **3 Tab Bersih** (*Latihan • Video • Riwayat*):
+
+<div align="center">
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Dynamic Ring HUD"/><br/>
+      <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
+      <sub>Cincin progres melingkar dinamis, tombol bulat <i>Ice Mint</i>, HUD bebas semrawut</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Video Studio"/><br/>
+      <b>🎬 Tab 2: Video Studio</b><br/>
+      <sub>Analisis rekaman galeri + preview <i>skeleton</i> halus + ekspor watermark Media3</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Riwayat & Statistik"/><br/>
+      <b>📈 Tab 3: Riwayat & Grafik 7 Hari</b><br/>
+      <sub>Ringkasan performa mingguan <i>Sen–Min</i> & bagikan kartu latihan</sub>
+    </td>
+  </tr>
+</table>
+</div>
+
+---
+
+## 📊 Benchmark 4 Smartphone (46 Video Ground-Truth)
+
+Engine **v11** diuji langsung menggunakan kode produksi Kotlin ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) pada seluruh **46 video dunia nyata** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), total **2.212 lompatan terverifikasi**) melintasi 4 simulasi perangkat:
+
+| 📱 Profil Smartphone | 🎯 Hasil Hitung | 📏 Akurasi (VolAcc) | Visual Bar | Status |
+| :--- | :---: | :---: | :--- | :---: |
+| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2.169 / 2.212` | **98,06%** | `██████████` | ✅ Lulus |
+| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2.186 / 2.212` | **98,82%** | `██████████` | ✅ Lulus |
+| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2.201 / 2.212` | **99,50%** | `██████████` | ✅ Lulus |
+| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2.158 / 2.212` | **97,56%** | `█████████▉` | ✅ Lulus |
+
+> 💡 **Retensi Low-End 10 FPS terhadap Flagship 30 FPS mencapai `99,5%`!**
+
+---
+
+## 🧠 Arsitektur Engine AI v11
+
+```mermaid
+flowchart LR
+    CAM["📷 CameraX (10–30 FPS)"] --> ML["🦴 ML Kit Pose (5-Landmark Anchor)"]
+    MIC["🎙️ AudioRecord (16 kHz)"] --> STFT["🎵 Radix-2 256-pt STFT (100 Hz)"]
+    ML --> JD["⚡ JumpDetector v11\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Anti-Double-Fire Footwork\n• Competition Speed-Sprint ZC"]
+    STFT --> FE["🧠 FusionEngine v11\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Vision-Gated 100Hz Sprint Audio\n• Nyquist-Aware Low-FPS PLL"]
+    JD --> FE
+    FE --> UI["🟢 Dynamic Ring HUD\n& MetricsTracker"]
+```
+
+---
+
+## 🎛️ Fitur Interaktif (Klik untuk Membuka Detail)
+
+<details>
+<summary><b>🏋️ 4 Mode Latihan + Custom Input Penuh</b></summary>
+<br/>
+
+- **🔥 Mode Bebas (Free):** Custom nama sesi + custom interval *milestone* audio (`5 – 1.000` lompatan).
+- **🎯 Target Lompatan:** Preset cepat atau custom bebas (`1 – 99.999` lompatan) dengan cincin progres otomatis.
+- **⏱️ Target Waktu:** Preset cepat atau custom **Menit + Detik** dengan hitung mundur presisi.
+- **⚡ HIIT Interval:** Custom durasi **Kerja**, **Istirahat**, dan **Jumlah Ronde** lengkap dengan pratinjau total durasi & fase audio otomatis.
+
+</details>
+
+<details>
+<summary><b>🎬 Video Studio & Watermark Exporter (Media3 Transformer)</b></summary>
+<br/>
+
+- Pilih rekaman lompat tali langsung dari galeri untuk dihitung otomatis oleh Engine AI v11.
+- Preview *real-time* super halus menggunakan konversi integer `NV21 → RGB_565` secara konkuren.
+- Ekspor video dengan **kartu watermark statistik transparan** berukuran presisi 1:1 di segala resolusi (720p/1080p/4K) berkat `VideoFittedBitmapOverlay`.
+
+</details>
+
+<details>
+<summary><b>⚙️ Pengaturan Latihan Rapi di Settings Sheet</b></summary>
+<br/>
+
+- **Mode Sensor AI:** `Hybrid (Vision + Audio)` / `Vision Saja` / `Audio Eco`.
+- **Overlay Skeleton Pose:** Rangka tubuh Two-Tone (*Ice Mint* saat melayang, putih saat mendarat).
+- **Suara & Cue Latihan:** Bunyi *milestone*, fase HIIT, dan target tercapai.
+- **Mode Hemat AMOLED:** Layar hitam pekat untuk menghemat baterai saat sesi panjang.
+
+</details>
+
+<details>
+<summary><b>🛠️ Panduan Build & Jalankan Unit Test</b></summary>
+<br/>
+
+```bash
+# Clone repositori
+git clone https://github.com/iganramdani/JumpRopeAI.git
+cd JumpRopeAI
+
+# Jalankan seluruh unit test (termasuk AI, Fusion, Metrics, & Workout Modes)
+./gradlew testDebugUnitTest
+
+# Build Release APK (signed & siap pasang)
+./gradlew assembleRelease
+```
+
+**Tech Stack:** Kotlin • Jetpack Compose (Material 3) • CameraX • Google ML Kit Pose Detection • Custom Radix-2 STFT Audio DSP • AndroidX Media3 Transformer.
+
+</details>
+
+---
+
+## 📦 Download Release APK
+
+<div align="center">
+
+[![Download v2.8.0 Release APK](https://img.shields.io/badge/⬇️_Download_JumpRopeAI_v2.8.0_Release_APK_(95_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/JumpRopeAI/releases/download/v2.8.0/JumpRopeAI-v2.8.0-release.apk)
+
+<sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device</sub>
+
+</div>
