@@ -388,33 +388,37 @@ class KineticTrickCoach {
         var detectedShuffleMove: KineticMove? = null
 
         if (hasAnkles && bufCount >= 6) {
-            val lowVerticalBounce = hipVertStd < 0.12f
-            // Real-footage calibrated Running Man (from realtimetest1.mp4): allows natural rhythmic bounce!
-            val runningManBounceOk = hipVertStd < 0.25f
+            // Decay Charleston counter cleanly when no twist happens for > 750ms (fixes sticky Charleston bug!)
+            if (nowMs - lastCharlestonTwistMs > 750L) {
+                charlestonTwistCount = 0
+            }
 
-            // Running Man: opposing front/back ankle glide + alternating knee drive (or heel-pitch contrast)
-            val opposingGlide = (vProd < -0.55f) && ankleSep > 0.30f
-            val kneeDrive = knAsymVal > 0.16f
-            val heelGlideContrast = hasBothFeet && abs(lFootPitch - rFootPitch) > 0.09f
+            // Sustained lateral hip displacement over ~350-450ms (eliminates 1-frame hipVx jitter during stationary skipping!)
+            val sustainedHipShiftX = computeRecentHipShiftX(torsoH)
+            val runningManBounceOk = hipVertStd < 0.22f
 
-            // T-Step: lateral sideways travel + heel-to-toe yaw pivot on gliding foot OR tap bounce on free foot
-            val lateralTravel = abs(hipVx) > 0.45f
-            val footYawPivot = hasBothFeet && (abs(vYawL) > 0.90f || abs(vYawR) > 0.90f)
+            // Running Man: strong opposing front/back ankle glide (above p90 noise) + wide stride + alternating knee drive
+            val opposingGlide = (vProd < -1.80f) && ankleSep > 0.36f
+            val kneeDrive = knAsymVal > 0.18f
+            val heelGlideContrast = hasBothFeet && abs(lFootPitch - rFootPitch) > 0.12f
+
+            // T-Step: true sustained sideways travel (>= 0.26 * torsoH over ~400ms) + clear heel-toe yaw pivot
+            val lateralTravel = sustainedHipShiftX >= 0.26f && abs(hipVx) > 0.55f
+            val footYawPivot = hasBothFeet && (abs(vYawL) > 1.45f || abs(vYawR) > 1.45f)
             val tStepMotion = lateralTravel && (
                 footYawPivot ||
-                    (abs(vLx) > 1.0f && abs(vRy) > 0.70f && abs(vRx) < 0.55f) ||
-                    (abs(vRx) > 1.0f && abs(vLy) > 0.70f && abs(vLx) < 0.55f)
+                    (abs(vLx) > 1.35f && abs(vRy) > 0.85f && abs(vRx) < 0.55f) ||
+                    (abs(vRx) > 1.35f && abs(vLy) > 0.85f && abs(vLx) < 0.55f)
                 )
 
-            // Charleston: stationary hips + toes-in / toes-out synchronous foot twist (heel-to-toe!) or X oscillation
+            // Charleston: stationary hips + strong synchronous toes-in/toes-out foot twist (>= 3 twists in 1.2s)
             val toeInOut = if (hasBothFeet) {
                 ((abs(lToe!!.x - rToe!!.x) - abs(lHeel!!.x - rHeel!!.x)) / torsoH)
             } else {
                 0f
             }
-            val toesFlipped = hasBothFeet && (prevToeInOut * toeInOut < -0.0025f) && abs(toeInOut - prevToeInOut) > 0.08f
-            val sepFlipped = (prevAnkleSepVel * ankleSepVel < -0.9f) && (ankleSep > 0.34f || prevAnkleSep < 0.16f)
-            if (toesFlipped || sepFlipped) {
+            val toesFlipped = hasBothFeet && (prevToeInOut * toeInOut < -0.004f) && abs(toeInOut - prevToeInOut) > 0.14f
+            if (toesFlipped) {
                 if (nowMs - lastCharlestonTwistMs <= 750L) {
                     charlestonTwistCount++
                 } else {
@@ -423,19 +427,22 @@ class KineticTrickCoach {
                 lastCharlestonTwistMs = nowMs
             }
             prevToeInOut = toeInOut
-            val charlestonMotion = abs(hipVx) < 0.45f && charlestonTwistCount >= 2 &&
-                (hasBothFeet && (abs(vYawL) + abs(vYawR) > 0.9f) || (abs(vLx) + abs(vRx) > 1.2f))
+            val charlestonMotion = sustainedHipShiftX < 0.18f &&
+                charlestonTwistCount >= 3 &&
+                hasBothFeet &&
+                (abs(vYawL) + abs(vYawR) > 2.2f)
 
             val candidateMove = when {
                 runningManBounceOk && opposingGlide && (kneeDrive || heelGlideContrast) -> KineticMove.SHUFFLE_RUNNING_MAN
-                lowVerticalBounce && tStepMotion -> KineticMove.SHUFFLE_T_STEP
-                lowVerticalBounce && charlestonMotion -> KineticMove.SHUFFLE_CHARLESTON
+                tStepMotion -> KineticMove.SHUFFLE_T_STEP
+                charlestonMotion -> KineticMove.SHUFFLE_CHARLESTON
                 else -> null
             }
 
             if (candidateMove != null && (nowMs - lastShuffleStepMs) >= SHUFFLE_REFRACTORY_MS) {
                 val sincePrevBeat = nowMs - lastShuffleCandidateMs
-                if (sincePrevBeat in 200L..850L && pendingShuffleMove != null) {
+                // Require SAME Shuffle move confirmed across 2 consecutive beats (eliminates 0.3s flickering!)
+                if (sincePrevBeat in 200L..850L && pendingShuffleMove == candidateMove) {
                     detectedShuffleMove = candidateMove
                     lastShuffleStepMs = nowMs
                     pendingShuffleMove = candidateMove
@@ -570,6 +577,21 @@ class KineticTrickCoach {
             v += d * d
         }
         return sqrt(v / n)
+    }
+
+    private fun computeRecentHipShiftX(torsoH: Float): Float {
+        if (bufCount < 4) return 0f
+        val newestIdx = (bufHead - 1 + BUF_SIZE) % BUF_SIZE
+        val newestMs = timesMs[newestIdx]
+        val newestX = hipXBuf[newestIdx]
+        var refX = newestX
+        val limit = min(bufCount, 14)
+        for (k in 1 until limit) {
+            val idx = (bufHead - 1 - k + BUF_SIZE) % BUF_SIZE
+            refX = hipXBuf[idx]
+            if (newestMs - timesMs[idx] >= 350L) break
+        }
+        return abs(newestX - refX) / torsoH
     }
 
     private fun recordMoveAndInterval(move: KineticMove, nowMs: Long) {
