@@ -2,44 +2,44 @@
 
 # ⚡ Jumpix
 
-### 🎯 **"99% Akurasi & ⚡ 99% Ringan"**
+### 🎯 **"99% Accuracy & ⚡ 99% Lightweight"**
 
-**Penghitung Lompat Tali AI Open-Source untuk Android — 100% On-Device, Tanpa Internet, Tanpa Lag di HP Low-End!**
+**Open-Source On-Device AI Jump Rope Counter for Android — Zero Cloud, Zero Internet, Zero Lag on Low-End Phones!**
 
-[![Release](https://img.shields.io/badge/Release-v3.0.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.0)
+[![Release](https://img.shields.io/badge/Release-v3.0.1_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.1)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
-[![Akurasi](https://img.shields.io/badge/Pedoman-99%25_Akurasi_&_99%25_Ringan-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-pedoman-inti-99-akurasi--99-ringan)
+[![Philosophy](https://img.shields.io/badge/Philosophy-99%25_Accuracy_&_99%25_Lightweight-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-core-philosophy-99-accuracy--99-lightweight)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
 [![On-Device](https://img.shields.io/badge/Privacy-100%25_On--Device-151D2E?style=for-the-badge&logo=shield&logoColor=2EE59D)](#)
 
 <br/>
 
-[✨ Pedoman Inti](#-pedoman-inti-99-akurasi--99-ringan) •
-[📱 Galeri UI](#-galeri-ui-modern-two-tone) •
-[📊 Benchmark 4 HP](#-benchmark-4-smartphone-46-video-ground-truth) •
-[🧠 Arsitektur AI](#-arsitektur-engine-ai-v11) •
+[✨ Core Philosophy](#-core-philosophy-99-accuracy--99-lightweight) •
+[📱 Modern UI Gallery](#-modern-two-tone-ui-gallery) •
+[📊 4-Phone Benchmark](#-4-smartphone-benchmark-46-ground-truth-videos) •
+[🧠 AI Engine v12](#-ai-engine-v12-architecture) •
 [📦 Download APK](#-download-release-apk) •
-[⚖️ Lisensi & Hak Cipta](#️-lisensi-open-source-hak-cipta--anti-plagiat)
+[⚖️ License & Copyright](#️-open-source-license-copyright--anti-plagiarism)
 
 </div>
 
 ---
 
-## ✨ Pedoman Inti: "99% Akurasi & 99% Ringan"
+## ✨ Core Philosophy: "99% Accuracy & 99% Lightweight"
 
-Setiap baris kode, desain UI, hingga algoritma DSP di **Jumpix** dibangun mengikuti satu kompas utama:
+Every line of code, UI component, and DSP algorithm in **Jumpix** is engineered around one strict principle:
 
-| 🎯 99% Akurasi (Presisi Kelas Kompetisi) | ⚡ 99% Ringan (Ngebut di Semua Smartphone) |
+| 🎯 99% Accuracy (Competition-Grade Precision) | ⚡ 99% Lightweight (Blazing Fast on Any Phone) |
 | :--- | :--- |
-| 🧠 **Multi-Channel Kinematics + 100 Hz STFT Audio Hybrid (v11)** — menggabungkan pose tubuh 5-landmark + analisis spektrum suara tali 100 Hz secara *real-time*. | 🪶 **100% On-Device Tanpa Cloud** — tidak butuh server, tidak butuh kuota internet, privasi terjaga & latensi nyaris nol. |
-| 🏃 **Competition Speed-Sprint Channel** — mampu menghitung sprint membungkuk **270–350+ RPM** meski kamera HP hanya **10–15 FPS** (*anti Nyquist-aliasing*). | 🔋 **Mode Hemat AMOLED & Audio Eco** — layar bisa diredupkan hitam pekat dan kamera otomatis mati di tab Video/Riwayat untuk hemat baterai maksimal. |
-| 🛡️ **Anti-False-Positive Ketat** — menolak jalan kaki (*walking guard*), *side swing* kaki menempel, berdiri perlahan, hingga pantulan lutut setelah *Double-Under*. | 🚀 **Zero-GC Fast Preview** — konversi `NV21 → RGB_565` langsung pakai *reusable buffer* (~1,5 ms/frame), mulus tanpa patah-patah di Video Studio. |
+| 🧠 **Multi-Channel Kinematics + 100 Hz STFT Audio Hybrid (v12)** — fuses 5-landmark upper-body pose tracking with real-time 100 Hz acoustic rope-slap spectrum analysis. | 🪶 **100% On-Device, Zero Cloud** — no servers, no internet required, full privacy, and near-zero latency. |
+| 🏃 **Competition Speed-Sprint Channel** — accurately counts bent-over **270–350+ RPM** speed sprints even on **10–15 FPS** cameras (*eliminating Nyquist aliasing*). | ⚡ **Zero-GC `O(log N)` Engine (`7.7 µs/frame`)** — processes **20 minutes of video in 2.21 seconds (`545× faster than real-time`)** with zero hot-path heap allocations. |
+| 🛡️ **Strict False-Positive Guards** — rejects walking, flat-footed side swings, slow standing up, and post-Double-Under knee rebounds. | 📦 **51% Smaller APK (`46 MB`) + AMOLED Eco Mode** — R8 minification, resource shrinking, ARM-only native libs, and pure-black AMOLED battery saver. |
 
 ---
 
-## 📱 Galeri UI Modern Two-Tone
+## 📱 Modern Two-Tone UI Gallery
 
-Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D1321`)** + **Ice Mint (`#2EE59D`)** dan navigasi **3 Tab Bersih** (*Latihan • Video • Riwayat*):
+Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)** + **Ice Mint (`#2EE59D`)** — and a clutter-free **3-Tab Navigation** (*Workout • Video • History*):
 
 <div align="center">
 <table>
@@ -47,17 +47,17 @@ Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D
     <td align="center" width="33%">
       <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpix Dynamic Ring HUD"/><br/>
       <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
-      <sub>Cincin progres melingkar dinamis, tombol bulat <i>Ice Mint</i>, HUD bebas semrawut</sub>
+      <sub>Animated circular Ice Mint progress ring, circular Play/Pause control, distraction-free camera view</sub>
     </td>
     <td align="center" width="33%">
       <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpix Video Studio"/><br/>
       <b>🎬 Tab 2: Video Studio</b><br/>
-      <sub>Analisis rekaman galeri + preview <i>skeleton</i> halus + ekspor watermark Media3</sub>
+      <sub>Gallery video AI jump counter + smooth real-time skeleton preview + Media3 watermark export</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpix Riwayat & Statistik"/><br/>
-      <b>📈 Tab 3: Riwayat & Grafik 7 Hari</b><br/>
-      <sub>Ringkasan performa mingguan <i>Sen–Min</i> & bagikan kartu latihan</sub>
+      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpix History & Weekly Stats"/><br/>
+      <b>📈 Tab 3: History & 7-Day Chart</b><br/>
+      <sub>Weekly Mon–Sun performance chart, cumulative stats & one-tap shareable cards</sub>
     </td>
   </tr>
 </table>
@@ -65,82 +65,82 @@ Dirancang ulang total dengan filosofi minimalis futuristik **Deep Midnight (`#0D
 
 ---
 
-## 📊 Benchmark 4 Smartphone (46 Video Ground-Truth)
+## 📊 4-Smartphone Benchmark (46 Ground-Truth Videos)
 
-Engine **v12 (Zero-GC)** diuji langsung menggunakan kode produksi Kotlin ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) pada seluruh **46 video dunia nyata** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), total **2.212 lompatan terverifikasi**) melintasi 4 simulasi perangkat:
+**Engine v12 (Zero-GC)** is continuously verified using the actual production Kotlin codebase ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) across **46 real-world jump rope videos** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), **2,212 manually verified jumps**) simulated across 4 smartphone hardware tiers:
 
-| 📱 Profil Smartphone | 🎯 Hasil Hitung | 📏 Akurasi (VolAcc) | Visual Bar | Status |
+| 📱 Smartphone Tier | 🎯 Detected / Ground Truth | 📏 Volume Accuracy | Visual Bar | Status |
 | :--- | :---: | :---: | :--- | :---: |
-| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2.179 / 2.212` | **98,51%** | `██████████` | ✅ Lulus |
-| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2.197 / 2.212` | **99,32%** | `██████████` | ✅ Lulus |
-| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2.227 / 2.212` | **99,32%** | `██████████` | ✅ Lulus |
-| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2.174 / 2.212` | **98,28%** | `██████████` | ✅ Lulus |
+| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2,179 / 2,212` | **98.51%** | `██████████` | ✅ Pass |
+| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2,197 / 2,212` | **99.32%** | `██████████` | ✅ Pass |
+| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2,227 / 2,212` | **99.32%** | `██████████` | ✅ Pass |
+| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2,174 / 2,212` | **98.28%** | `██████████` | ✅ Pass |
 
-> 💡 **Rata-rata 4 Smartphone: `98,86%` • Retensi Low-End 10 FPS: `99,8%` • Kecepatan CPU: `7,7 µs/frame` (`545× lebih cepat dari real-time`) • Ukuran APK Release: hanya `46 MB` (turun 51% dari 95 MB)!**
+> 💡 **4-Phone Average Accuracy: `98.86%` • Low-End 10 FPS Retention: `99.8%` • CPU Speed: `7.7 µs/frame` (`545× faster than real-time`) • Release APK Size: `46 MB` (51% lighter than 95 MB)!**
 
 ---
 
-## 🧠 Arsitektur Engine AI v11
+## 🧠 AI Engine v12 Architecture
 
 ```mermaid
 flowchart LR
     CAM["📷 CameraX (10–30 FPS)"] --> ML["🦴 ML Kit Pose (5-Landmark Anchor)"]
     MIC["🎙️ AudioRecord (16 kHz)"] --> STFT["🎵 Radix-2 256-pt STFT (100 Hz)"]
-    ML --> JD["⚡ JumpDetector v11\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Anti-Double-Fire Footwork\n• Competition Speed-Sprint ZC"]
-    STFT --> FE["🧠 FusionEngine v11\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Vision-Gated 100Hz Sprint Audio\n• Nyquist-Aware Low-FPS PLL"]
+    ML --> JD["⚡ JumpDetector v12 (Zero-GC)\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Anti-Double-Fire Footwork\n• Competition Speed-Sprint ZC"]
+    STFT --> FE["🧠 FusionEngine v12 (O(log N))\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Vision-Gated 100Hz Sprint Audio\n• Nyquist-Aware Low-FPS PLL"]
     JD --> FE
     FE --> UI["🟢 Jumpix Dynamic Ring HUD\n& MetricsTracker"]
 ```
 
 ---
 
-## 🎛️ Fitur Interaktif (Klik untuk Membuka Detail)
+## 🎛️ Features (Click to Expand)
 
 <details>
-<summary><b>🏋️ 4 Mode Latihan + Custom Input Penuh</b></summary>
+<summary><b>🏋️ 4 Workout Modes with Full Custom Inputs</b></summary>
 <br/>
 
-- **🔥 Mode Bebas (Free):** Custom nama sesi + custom interval *milestone* audio (`5 – 1.000` lompatan).
-- **🎯 Target Lompatan:** Preset cepat atau custom bebas (`1 – 99.999` lompatan) dengan cincin progres otomatis.
-- **⏱️ Target Waktu:** Preset cepat atau custom **Menit + Detik** dengan hitung mundur presisi.
-- **⚡ HIIT Interval:** Custom durasi **Kerja**, **Istirahat**, dan **Jumlah Ronde** lengkap dengan pratinjau total durasi & fase audio otomatis.
+- **🔥 Free Mode:** Custom session name + custom audio milestone interval (`5 – 1,000` jumps).
+- **🎯 Target Jumps:** Quick presets or any custom count (`1 – 99,999` jumps) synced to the dynamic ring gauge.
+- **⏱️ Target Time:** Quick presets or custom **Minutes + Seconds** countdown timer.
+- **⚡ HIIT Interval:** Custom **Work**, **Rest**, and **Rounds** with live total duration preview and automatic phase audio cues.
 
 </details>
 
 <details>
-<summary><b>🎬 Video Studio & Watermark Exporter (Media3 Transformer)</b></summary>
+<summary><b>🎬 Video Studio & Media3 Watermark Exporter</b></summary>
 <br/>
 
-- Pilih rekaman lompat tali langsung dari galeri untuk dihitung otomatis oleh Engine AI v11.
-- Preview *real-time* super halus menggunakan konversi integer `NV21 → RGB_565` secara konkuren.
-- Ekspor video dengan **kartu watermark statistik transparan `JUMPIX`** berukuran presisi 1:1 di segala resolusi (720p/1080p/4K) berkat `VideoFittedBitmapOverlay`.
+- Pick any recorded jump rope video from your gallery for automatic AI jump counting.
+- Ultra-smooth real-time preview via concurrent zero-GC integer `NV21 → RGB_565` rendering (~1.5 ms/frame).
+- Export watermarked videos with pixel-accurate 1:1 scaling across 720p / 1080p / 4K using `VideoFittedBitmapOverlay`.
 
 </details>
 
 <details>
-<summary><b>⚙️ Pengaturan Latihan Rapi di Settings Sheet</b></summary>
+<summary><b>⚙️ Clean Workout Settings Sheet</b></summary>
 <br/>
 
-- **Mode Sensor AI:** `Hybrid (Vision + Audio)` / `Vision Saja` / `Audio Eco`.
-- **Overlay Skeleton Pose:** Rangka tubuh Two-Tone (*Ice Mint* saat melayang, putih saat mendarat).
-- **Suara & Cue Latihan:** Bunyi *milestone*, fase HIIT, dan target tercapai.
-- **Mode Hemat AMOLED:** Layar hitam pekat untuk menghemat baterai saat sesi panjang.
+- **AI Sensor Mode:** Switch seamlessly between `Hybrid (Vision + Audio)`, `Vision Only`, and `Audio Eco`.
+- **Pose Skeleton Overlay:** Two-tone skeleton overlay (*Ice Mint* while airborne, crisp white on landing).
+- **Sound & Audio Cues:** Milestone beeps, HIIT work/rest transitions, and target completion chimes.
+- **AMOLED Eco Mode:** Pure-black dimmed screen for ultra-low battery consumption during long sessions.
 
 </details>
 
 <details>
-<summary><b>🛠️ Panduan Build & Jalankan Unit Test</b></summary>
+<summary><b>🛠️ Build & Run Unit Tests</b></summary>
 <br/>
 
 ```bash
-# Clone repositori resmi Jumpix
+# Clone the official Jumpix repository
 git clone https://github.com/iganramdani/Jumpix.git
 cd Jumpix
 
-# Jalankan seluruh unit test (termasuk AI, Fusion, Metrics, & Workout Modes)
+# Run all unit tests (AI Engine, Fusion, Metrics, & Workout Modes)
 ./gradlew testDebugUnitTest
 
-# Build Release APK (signed & siap pasang)
+# Build R8-minified, ARM-optimized Release APK (~46 MB)
 ./gradlew assembleRelease
 ```
 
@@ -154,21 +154,21 @@ cd Jumpix
 
 <div align="center">
 
-[![Download Jumpix v3.0.0 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v3.0.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.0)
+[![Download Jumpix v3.0.1 Release APK](https://img.shields.io/badge/⬇️_Download_Jumpix_v3.0.1_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpix/releases/tag/v3.0.1)
 
-<sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device • Gratis & Open-Source</sub>
+<sub>Android 7.0+ (API 24+) • Signed Release Build • 100% On-Device • Free & Open-Source</sub>
 
 </div>
 
 ---
 
-## ⚖️ Lisensi Open-Source, Hak Cipta & Anti-Plagiat
+## ⚖️ Open-Source License, Copyright & Anti-Plagiarism
 
-**Jumpix** dirilis secara **Open-Source** di bawah lisensi ketat **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** agar semua orang dapat ikut merasakan manfaat, belajar, dan berkontribusi — **sambil melindungi hak cipta asli dari plagiarisme tertutup**:
+**Jumpix** is released as **Free and Open-Source Software** under the strict **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** so everyone worldwide can benefit, learn, and contribute — **while firmly protecting original authorship against closed-source plagiarism**:
 
 > **Copyright © 2026 Igan Ramdani ([`@iganramdani`](https://github.com/iganramdani)). All rights reserved under GNU GPL v3.0.**
 
-- ✅ **Boleh:** Menggunakan gratis, mempelajari kode, memodifikasi, dan berkontribusi lewat Pull Request.
-- 📜 **Wajib Atribusi:** Setiap salinan atau *fork* **wajib mempertahankan pemberitahuan hak cipta asli** ([`NOTICE`](NOTICE)) dan mencantumkan perubahan yang dibuat.
-- 🔒 **Anti-Plagiat (*Strong Copyleft*):** Dilarang keras mengambil kode **Jumpix** (termasuk Engine AI v11, DSP STFT, atau UI) untuk dijadikan aplikasi *closed-source* / berbayar tertutup. Setiap karya turunan **wajib ikut dibuka kode sumbernya di bawah lisensi GPL-3.0 yang sama**.
-- 🛡️ **Perlindungan Merek:** Nama **Jumpix** dan identitas resminya dimiliki oleh pencipta asli; *fork* tidak resmi dilarang menyamar sebagai aplikasi resmi **Jumpix**.
+- ✅ **Allowed:** Free use, study, modification, and community Pull Requests.
+- 📜 **Attribution Required:** Any copy or fork **must preserve the original copyright notice** ([`NOTICE`](NOTICE)) and clearly document all modifications.
+- 🔒 **Anti-Plagiarism (*Strong Copyleft*):** Repackaging or monetizing **Jumpix** (including AI Engine v12, STFT DSP, or UI) as a closed-source / proprietary app is strictly prohibited. All derivative works **must remain open-source under the same GPL-3.0 license**.
+- 🛡️ **Brand Protection:** The **Jumpix** name and official visual identity belong to the original author; unofficial forks must use a distinct app name and package ID.

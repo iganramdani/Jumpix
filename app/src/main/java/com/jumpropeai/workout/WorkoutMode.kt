@@ -1,9 +1,9 @@
 package com.jumpropeai.workout
 
 enum class WorkoutModeType(val label: String) {
-    FREE("Bebas"),
-    TARGET_JUMPS("Target Lompat"),
-    TARGET_TIME("Target Waktu"),
+    FREE("Free"),
+    TARGET_JUMPS("Target Jumps"),
+    TARGET_TIME("Target Time"),
     HIIT("HIIT")
 }
 
@@ -25,16 +25,16 @@ data class WorkoutConfig(
     fun shortLabel(): String = when (mode) {
         WorkoutModeType.FREE -> {
             val name = customLabel.trim()
-            if (name.isNotEmpty()) name else "Mode Bebas"
+            if (name.isNotEmpty()) name else "Free Mode"
         }
-        WorkoutModeType.TARGET_JUMPS -> "Target $targetJumps Lompat"
+        WorkoutModeType.TARGET_JUMPS -> "Target $targetJumps Jumps"
         WorkoutModeType.TARGET_TIME -> {
             val mins = targetTimeSeconds / 60
             val secs = targetTimeSeconds % 60
             when {
-                mins > 0 && secs > 0 -> "Target ${mins}m ${secs}d"
-                mins > 0 -> "Target $mins Menit"
-                else -> "Target ${secs} Detik"
+                mins > 0 && secs > 0 -> "Target ${mins}m ${secs}s"
+                mins > 0 -> "Target $mins Min"
+                else -> "Target ${secs}s"
             }
         }
         WorkoutModeType.HIIT -> "HIIT ${hiitWorkSeconds}s/${hiitRestSeconds}s × $hiitRounds"

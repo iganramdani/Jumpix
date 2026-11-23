@@ -138,7 +138,7 @@ fun VideoAnalyzerScreen(
                 )
             ) {
                 Text(
-                    text = if (isAnalyzing) "Menganalisis..." else "Pilih Video",
+                    text = if (isAnalyzing) "Analyzing..." else "Pick Video",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -170,7 +170,7 @@ fun VideoAnalyzerScreen(
                     ) {
                         Image(
                             bitmap = imageBitmap,
-                            contentDescription = "Preview Analisis Video",
+                            contentDescription = "Video Analysis Preview",
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
@@ -194,7 +194,7 @@ fun VideoAnalyzerScreen(
                                 .scale(badgeScale)
                         ) {
                             Text(
-                                text = "$liveJumpCount Lompatan",
+                                text = "$liveJumpCount Jumps",
                                 color = DeepMidnight,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
@@ -246,7 +246,7 @@ fun VideoAnalyzerScreen(
                         }
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            text = "Analisis Rekaman Lompat Tali",
+                            text = "Analyze Jump Rope Video",
                             color = TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -254,7 +254,7 @@ fun VideoAnalyzerScreen(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Pilih video dari galeri untuk menghitung lompatan otomatis dengan AI & menambahkan watermark.",
+                            text = "Pick a workout video from your gallery to automatically count jumps with AI and export a watermarked video.",
                             color = TextSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -301,7 +301,7 @@ fun VideoAnalyzerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = progress?.stage ?: "Memproses video...",
+                            text = progress?.stage ?: "Processing video...",
                             color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -325,13 +325,13 @@ fun VideoAnalyzerScreen(
                     ) {
                         StudioMetricCard(
                             value = "${progress?.currentJumps ?: 0}",
-                            label = "Lompatan",
+                            label = "Jumps",
                             icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                             modifier = Modifier.weight(1f)
                         )
                         StudioMetricCard(
                             value = "${progress?.currentRpm ?: 0}",
-                            label = "RPM Live",
+                            label = "Live RPM",
                             icon = Icons.Rounded.Speed,
                             modifier = Modifier.weight(1f)
                         )
@@ -347,13 +347,13 @@ fun VideoAnalyzerScreen(
                 ) {
                     StudioMetricCard(
                         value = "${result.jumpCount}",
-                        label = "Total Lompatan",
+                        label = "Total Jumps",
                         icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                         modifier = Modifier.weight(1f)
                     )
                     StudioMetricCard(
                         value = "${result.averageRpm}",
-                        label = "Rata-rata RPM",
+                        label = "Average RPM",
                         icon = Icons.Rounded.Speed,
                         modifier = Modifier.weight(1f)
                     )
@@ -364,13 +364,13 @@ fun VideoAnalyzerScreen(
                 ) {
                     StudioMetricCard(
                         value = "${result.bestStreak}",
-                        label = "Streak Terbaik",
+                        label = "Best Streak",
                         icon = Icons.Rounded.Bolt,
                         modifier = Modifier.weight(1f)
                     )
                     StudioMetricCard(
                         value = String.format(Locale.US, "%.0f kcal", result.estimatedCalories),
-                        label = "Kalori",
+                        label = "Calories",
                         icon = Icons.Rounded.LocalFireDepartment,
                         modifier = Modifier.weight(1f)
                     )
@@ -398,7 +398,7 @@ fun VideoAnalyzerScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Ekspor & Bagikan",
+                    text = "Export & Share",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -427,7 +427,7 @@ fun VideoAnalyzerScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Tersimpan di Riwayat",
+                    text = "Saved to History",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -452,7 +452,7 @@ fun VideoAnalyzerScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Pilih Video dari Galeri",
+                    text = "Pick Video from Gallery",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )

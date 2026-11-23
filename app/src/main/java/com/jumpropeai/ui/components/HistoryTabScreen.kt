@@ -71,7 +71,7 @@ fun HistoryTabScreen(
     onDeleteSession: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val numberFmt = remember { NumberFormat.getIntegerInstance(Locale("id", "ID")) }
+    val numberFmt = remember { NumberFormat.getIntegerInstance(Locale.US) }
     val weeklyBars = remember(sessions) { computeLast7DaysBars(sessions) }
     val maxDayJumps = remember(weeklyBars) { (weeklyBars.maxOfOrNull { it.jumps } ?: 0).coerceAtLeast(1) }
 
@@ -87,7 +87,7 @@ fun HistoryTabScreen(
         item {
             Column {
                 Text(
-                    text = "Riwayat",
+                    text = "History",
                     color = TextPrimary,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
@@ -95,7 +95,7 @@ fun HistoryTabScreen(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Ringkasan performa 7 hari terakhir",
+                    text = "Last 7 days performance summary",
                     color = TextSecondary,
                     fontSize = 14.sp
                 )
@@ -128,7 +128,7 @@ fun HistoryTabScreen(
                                 style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
                             )
                             Text(
-                                text = "Total Lompatan",
+                                text = "Total Jumps",
                                 color = TextSecondary,
                                 fontSize = 13.sp
                             )
@@ -138,7 +138,7 @@ fun HistoryTabScreen(
                             color = IceMint
                         ) {
                             Text(
-                                text = "${stats.totalSessions} Sesi",
+                                text = "${stats.totalSessions} Sessions",
                                 color = DeepMidnight,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
@@ -155,17 +155,17 @@ fun HistoryTabScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         MiniSummaryChip(
-                            label = "Rekor Streak",
+                            label = "Best Streak",
                             value = numberFmt.format(stats.allTimeBestStreak),
                             modifier = Modifier.weight(1f)
                         )
                         MiniSummaryChip(
-                            label = "Total Waktu",
-                            value = "${(stats.totalDurationMs / 60_000L).coerceAtLeast(0L)} mnt",
+                            label = "Total Time",
+                            value = "${(stats.totalDurationMs / 60_000L).coerceAtLeast(0L)} min",
                             modifier = Modifier.weight(1f)
                         )
                         MiniSummaryChip(
-                            label = "Kalori",
+                            label = "Calories",
                             value = "${stats.totalCalories.toInt()} kcal",
                             modifier = Modifier.weight(1f)
                         )
@@ -223,7 +223,7 @@ fun HistoryTabScreen(
         item {
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "Sesi Terbaru",
+                text = "Recent Sessions",
                 color = TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
@@ -252,14 +252,14 @@ fun HistoryTabScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            text = "Belum ada sesi tersimpan",
+                            text = "No workouts saved yet",
                             color = TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Mulai latihan di tab Latihan atau analisis rekaman di tab Video.",
+                            text = "Start a live workout or analyze a recorded video to see your history here.",
                             color = TextSecondary,
                             fontSize = 13.sp
                         )
@@ -320,7 +320,7 @@ private fun HistorySessionCard(
     onDelete: () -> Unit
 ) {
     val dateStr = remember(session.timestampMillis) {
-        SimpleDateFormat("EEE, dd MMM • HH:mm", Locale("id", "ID")).format(Date(session.timestampMillis))
+        SimpleDateFormat("EEE, MMM dd • HH:mm", Locale.US).format(Date(session.timestampMillis))
     }
     val durSec = (session.durationMs / 1000L).coerceAtLeast(0L)
     val durStr = String.format(Locale.US, "%02d:%02d", durSec / 60L, durSec % 60L)
@@ -354,7 +354,7 @@ private fun HistorySessionCard(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "${numberFmt.format(session.jumpCount)} Lompatan",
+                    text = "${numberFmt.format(session.jumpCount)} Jumps",
                     color = TextPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
@@ -373,7 +373,7 @@ private fun HistorySessionCard(
             IconButton(onClick = onShare) {
                 Icon(
                     imageVector = Icons.Rounded.Share,
-                    contentDescription = "Bagikan",
+                    contentDescription = "Share",
                     tint = IceMint,
                     modifier = Modifier.size(20.dp)
                 )
@@ -381,7 +381,7 @@ private fun HistorySessionCard(
             IconButton(onClick = onDelete) {
                 Icon(
                     imageVector = Icons.Rounded.DeleteOutline,
-                    contentDescription = "Hapus",
+                    contentDescription = "Delete",
                     tint = TextSecondary.copy(alpha = 0.7f),
                     modifier = Modifier.size(20.dp)
                 )
@@ -391,7 +391,7 @@ private fun HistorySessionCard(
 }
 
 private fun computeLast7DaysBars(sessions: List<WorkoutSession>): List<DayBarData> {
-    val dayLabels = arrayOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
+    val dayLabels = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
     val cal = Calendar.getInstance()
     cal.set(Calendar.HOUR_OF_DAY, 0)
     cal.set(Calendar.MINUTE, 0)

@@ -23,7 +23,7 @@ data class AcousticFingerprint(
     fun shortBadge(): String = if (isCalibrated) {
         "${band.label} • ${lagMs}ms"
     } else {
-        "Kalibrasi suara..."
+        "Calibrating audio..."
     }
 }
 

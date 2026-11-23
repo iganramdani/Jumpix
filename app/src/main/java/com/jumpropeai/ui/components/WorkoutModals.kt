@@ -101,7 +101,7 @@ fun WorkoutModeSheet(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
-                text = "Pilih Mode Latihan",
+                text = "Select Workout Mode",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color.White
@@ -148,14 +148,14 @@ fun WorkoutModeSheet(
                             freeLabelText = clean
                             draft = draft.copy(customLabel = clean)
                         },
-                        label = "Nama Sesi Custom (opsional)",
-                        placeholder = "Contoh: Pemanasan Pagi / Double Under",
+                        label = "Nama Sessions Custom (opsional)",
+                        placeholder = "e.g., Morning Warm-Up / Double Under",
                         accentColor = NeonLime,
                         isNumeric = false,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = "Pengingat Suara (Tiap X Lompatan)",
+                        text = "Pengingat Suara (Tiap X Jumps)",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = NeonLime
@@ -198,7 +198,7 @@ fun WorkoutModeSheet(
 
                 WorkoutModeType.TARGET_JUMPS -> {
                     Text(
-                        text = "Target Jumlah Lompatan",
+                        text = "Target Jumlah Jumps",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = ElectricCyan
@@ -231,7 +231,7 @@ fun WorkoutModeSheet(
                                 draft = draft.copy(targetJumps = it.coerceIn(1, 99999))
                             }
                         },
-                        label = "Custom Target Lompatan (1–99.999)",
+                        label = "Custom Target Jumps (1–99.999)",
                         placeholder = "Contoh: 150",
                         accentColor = ElectricCyan,
                         isNumeric = true,
@@ -241,13 +241,13 @@ fun WorkoutModeSheet(
 
                 WorkoutModeType.TARGET_TIME -> {
                     Text(
-                        text = "Durasi Target",
+                        text = "Duration Target",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = ElectricCyan
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(60 to "1 Menit", 180 to "3 Menit", 300 to "5 Menit", 600 to "10 Menit").forEach { (sec, label) ->
+                        listOf(60 to "1 Minutes", 180 to "3 Minutes", 300 to "5 Minutes", 600 to "10 Minutes").forEach { (sec, label) ->
                             val selected = draft.targetTimeSeconds == sec
                             FilterChip(
                                 selected = selected,
@@ -280,7 +280,7 @@ fun WorkoutModeSheet(
                                 val total = (m * 60 + s).coerceAtLeast(10)
                                 draft = draft.copy(targetTimeSeconds = total)
                             },
-                            label = "Menit (0–180)",
+                            label = "Minutes (0–180)",
                             placeholder = "3",
                             accentColor = ElectricCyan,
                             isNumeric = true,
@@ -296,7 +296,7 @@ fun WorkoutModeSheet(
                                 val total = (m * 60 + s).coerceAtLeast(10)
                                 draft = draft.copy(targetTimeSeconds = total)
                             },
-                            label = "Detik (0–59)",
+                            label = "Seconds (0–59)",
                             placeholder = "0",
                             accentColor = ElectricCyan,
                             isNumeric = true,
@@ -397,7 +397,7 @@ fun WorkoutModeSheet(
                                     draft = draft.copy(hiitRounds = it.coerceIn(1, 50))
                                 }
                             },
-                            label = "Ronde",
+                            label = "Rounds",
                             placeholder = "5",
                             accentColor = FlameOrange,
                             isNumeric = true,
@@ -520,7 +520,7 @@ fun SessionSummaryDialog(
                 }
 
                 Text(
-                    text = "Latihan Selesai!",
+                    text = "Workout Complete!",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
                     color = Color.White
@@ -536,9 +536,9 @@ fun SessionSummaryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    SummaryStat("Lompatan", "${session.jumpCount}", NeonLime)
-                    SummaryStat("Durasi", formatMillis(session.durationMs), Color.White)
-                    SummaryStat("Kalori", String.format(Locale.US, "%.1f", session.estimatedCalories), FlameOrange)
+                    SummaryStat("Jumps", "${session.jumpCount}", NeonLime)
+                    SummaryStat("Duration", formatMillis(session.durationMs), Color.White)
+                    SummaryStat("Calories", String.format(Locale.US, "%.1f", session.estimatedCalories), FlameOrange)
                 }
 
                 HorizontalDivider(color = GlassBorder)
@@ -664,8 +664,8 @@ fun WorkoutHistorySheet(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     SummaryStat("Total Lompat", "${stats.totalJumps}", NeonLime)
-                    SummaryStat("Sesi", "${stats.totalSessions}", Color.White)
-                    SummaryStat("Kalori", String.format(Locale.US, "%.0f", stats.totalCalories), FlameOrange)
+                    SummaryStat("Sessions", "${stats.totalSessions}", Color.White)
+                    SummaryStat("Calories", String.format(Locale.US, "%.0f", stats.totalCalories), FlameOrange)
                     SummaryStat("Best Streak", "${stats.allTimeBestStreak}", ElectricCyan)
                 }
             }
@@ -678,7 +678,7 @@ fun WorkoutHistorySheet(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Belum ada riwayat latihan.\nSelesaikan sesi pertamamu untuk melihat statistik di sini!",
+                        text = "Belum ada riwayat latihan.\nDonekan sesi pertamamu untuk melihat statistik di sini!",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center

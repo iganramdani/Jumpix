@@ -501,7 +501,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 isAnalyzingVideo = true,
                 videoResult = null,
                 videoError = null,
-                videoProgress = VideoAnalysisProgress("Memulai analisis...", 0.02f, 0)
+                videoProgress = VideoAnalysisProgress("Starting analysis...", 0.02f, 0)
             )
         }
 
@@ -542,7 +542,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         isAnalyzingVideo = false,
-                        videoError = "Gagal membaca video: ${e.localizedMessage ?: "format tidak didukung"}"
+                        videoError = "Failed to read video: ${e.localizedMessage ?: "unsupported format"}"
                     )
                 }
             }

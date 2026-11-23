@@ -155,7 +155,7 @@ object WorkoutCardRenderer {
 
         // 4 clean bottom columns
         val cols = listOf(
-            formatDuration(session.durationMs) to "DURASI",
+            formatDuration(session.durationMs) to "DURATION",
             String.format(Locale.US, "%.1f", session.estimatedCalories) to "KKAL",
             "${session.peakRpm}" to "PEAK RPM",
             "${session.bestStreak}" to "STREAK"
@@ -199,8 +199,8 @@ object WorkoutCardRenderer {
         canvas.drawRoundRect(box, 30f, 30f, strokePaint(3f, Color.argb(190, 255, 110, 30)))
 
         val rows = listOf(
-            "DURASI" to formatDuration(session.durationMs),
-            "KALORI" to "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal",
+            "DURATION" to formatDuration(session.durationMs),
+            "CALORIES" to "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal",
             "STREAK" to "${session.bestStreak}"
         )
         rows.forEachIndexed { i, (k, v) ->
@@ -322,9 +322,9 @@ object WorkoutCardRenderer {
         canvas.drawText("JUMPIX", rx, panel.top + 68f, textPaint(24f, Color.parseColor("#C6FF00"), Typeface.BOLD, letterSpace = 0.1f))
 
         val rows = listOf(
-            Triple("DURASI", formatDuration(session.durationMs), Color.WHITE),
+            Triple("DURATION", formatDuration(session.durationMs), Color.WHITE),
             Triple("PACE", "${session.averageRpm} RPM", Color.parseColor("#00E5FF")),
-            Triple("KALORI", "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal", Color.parseColor("#FF7A1A")),
+            Triple("CALORIES", "${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal", Color.parseColor("#FF7A1A")),
             Triple("STREAK", "${session.bestStreak} Best", Color.parseColor("#C6FF00"))
         )
         rows.forEachIndexed { idx, (k, v, col) ->
@@ -428,10 +428,10 @@ object WorkoutCardRenderer {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Latihan lompat tali dengan Jumpix!")
+                putExtra(Intent.EXTRA_TEXT, "Jump rope workout with Jumpix!")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Bagikan Kartu Latihan"))
+            context.startActivity(Intent.createChooser(intent, "Share Workout Card"))
         } catch (_: Exception) {
             // Ignore share errors gracefully
         }

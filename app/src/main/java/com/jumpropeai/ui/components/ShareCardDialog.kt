@@ -150,7 +150,7 @@ fun ShareCardDialog(
                     exportedVideoFile = outFile
                     Toast.makeText(
                         context,
-                        if (savedToGallery) "Video watermark tersimpan di Galeri (Movies/Jumpix)!" else "Video siap dibagikan!",
+                        if (savedToGallery) "Watermarked video saved to Gallery (Movies/Jumpix)!" else "Video ready to share!",
                         Toast.LENGTH_LONG
                     ).show()
                 },
@@ -350,7 +350,7 @@ fun ShareCardDialog(
                             Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MintGreen, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Video Tersimpan! Ketuk untuk Bagikan",
+                                text = "Video Tersimpan! Ketuk untuk Share",
                                 color = MintGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -372,7 +372,7 @@ fun ShareCardDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Ukuran Watermark", color = Color.White.copy(alpha = 0.72f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text("Watermark Size", color = Color.White.copy(alpha = 0.72f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
                         Text("${(watermarkScale * 100).toInt()}%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
@@ -400,7 +400,7 @@ fun ShareCardDialog(
                             savedSuccess = ok
                             Toast.makeText(
                                 context,
-                                if (ok) "Tersimpan di Galeri (Pictures/Jumpix)" else "Gagal menyimpan gambar",
+                                if (ok) "Saved to Gallery (Pictures/Jumpix)" else "Failed to save image",
                                 Toast.LENGTH_SHORT
                             ).show()
                         },

@@ -123,9 +123,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
-    LATIHAN("Latihan", Icons.Rounded.FitnessCenter),
+    LATIHAN("Workout", Icons.Rounded.FitnessCenter),
     VIDEO("Video", Icons.Rounded.Movie),
-    RIWAYAT("Riwayat", Icons.Rounded.History)
+    RIWAYAT("History", Icons.Rounded.History)
 }
 
 @Composable
@@ -520,7 +520,7 @@ private fun DynamicRingLiveHud(
                             Spacer(Modifier.width(4.dp))
                             Icon(
                                 imageVector = Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = "Pilih Mode",
+                                contentDescription = "Select Mode",
                                 tint = TextSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -530,13 +530,13 @@ private fun DynamicRingLiveHud(
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         CircularHudIconButton(
                             icon = Icons.Rounded.Settings,
-                            contentDescription = "Pengaturan",
+                            contentDescription = "Settings",
                             onClick = onOpenSettings
                         )
                         if (uiState.sensorMode != SensorMode.AUDIO_ONLY) {
                             CircularHudIconButton(
                                 icon = Icons.Rounded.Cameraswitch,
-                                contentDescription = "Ganti Kamera",
+                                contentDescription = "Switch Camera",
                                 onClick = onToggleCamera
                             )
                         }
@@ -549,13 +549,13 @@ private fun DynamicRingLiveHud(
             // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump Counter
             val ringSubLabel = when {
                 config.mode == WorkoutModeType.HIIT && uiState.isSessionRunning -> {
-                    val phaseTxt = if (progress.hiitPhase == HiitPhase.WORK) "KERJA" else "ISTIRAHAT"
+                    val phaseTxt = if (progress.hiitPhase == HiitPhase.WORK) "WORK" else "REST"
                     "$phaseTxt • R${progress.currentRound}/${progress.totalRounds}"
                 }
                 metrics.detectorStatus == DetectorStatus.NO_PERSON && uiState.sensorMode != SensorMode.AUDIO_ONLY ->
-                    "POSISIKAN TUBUH"
-                metrics.detectorStatus == DetectorStatus.CALIBRATING -> "KALIBRASI..."
-                else -> "LOMPATAN"
+                    "STEP INTO FRAME"
+                metrics.detectorStatus == DetectorStatus.CALIBRATING -> "CALIBRATING..."
+                else -> "JUMPS"
             }
 
             DynamicProgressRingCounter(
@@ -568,7 +568,7 @@ private fun DynamicRingLiveHud(
 
             Spacer(Modifier.weight(1f))
 
-            // LOWER SYMMETRICAL STAT STRIP (RPM • Waktu • Kalori)
+            // LOWER SYMMETRICAL STAT STRIP (RPM • Time • Calories)
             val timerMs = when (config.mode) {
                 WorkoutModeType.TARGET_TIME, WorkoutModeType.HIIT -> progress.remainingMs ?: metrics.elapsedMs
                 else -> metrics.elapsedMs
@@ -676,7 +676,7 @@ private fun DynamicRingLiveHud(
                                 } else {
                                     Icons.Rounded.PlayArrow
                                 },
-                                contentDescription = if (uiState.isSessionRunning) "Jeda" else "Mulai",
+                                contentDescription = if (uiState.isSessionRunning) "Pause" else "Start",
                                 tint = DeepMidnight,
                                 modifier = Modifier.size(36.dp)
                             )
@@ -693,7 +693,7 @@ private fun DynamicRingLiveHud(
                         if (uiState.hasActiveProgress) {
                             CircularHudIconButton(
                                 icon = Icons.Rounded.Stop,
-                                contentDescription = "Selesai",
+                                contentDescription = "Finish",
                                 onClick = onFinishSession,
                                 sizeDp = 48
                             )
@@ -937,7 +937,7 @@ private fun WorkoutSettingsSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Pengaturan Latihan",
+                text = "Workout Settings",
                 color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
@@ -966,13 +966,13 @@ private fun WorkoutSettingsSheet(
                     Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Mode Sensor AI",
+                            text = "AI Sensor Mode",
                             color = TextPrimary,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "Ketuk untuk mengganti • ${uiState.fingerprint.shortBadge()}",
+                            text = "Tap to switch • ${uiState.fingerprint.shortBadge()}",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )
@@ -994,32 +994,32 @@ private fun WorkoutSettingsSheet(
 
             SettingsSwitchCard(
                 icon = Icons.Rounded.AccessibilityNew,
-                title = "Overlay Skeleton Pose",
-                subtitle = "Tampilkan garis rangka tubuh AI di kamera",
+                title = "Pose Skeleton Overlay",
+                subtitle = "Display AI body skeleton lines on camera",
                 checked = uiState.showSkeletonOverlay,
                 onCheckedChange = { onToggleSkeleton() }
             )
 
             SettingsSwitchCard(
                 icon = Icons.AutoMirrored.Rounded.VolumeUp,
-                title = "Suara & Cue Latihan",
-                subtitle = "Bunyi milestone, hitungan HIIT, dan target tercapai",
+                title = "Sound & Audio Cues",
+                subtitle = "Milestone beeps, HIIT transitions, and target alerts",
                 checked = uiState.isAudioEnabled,
                 onCheckedChange = { onToggleAudio() }
             )
 
             SettingsSwitchCard(
                 icon = Icons.Rounded.Bedtime,
-                title = "Mode Hemat Layar AMOLED",
-                subtitle = "Redupkan layar menjadi hitam pekat saat latihan",
+                title = "AMOLED Eco Mode",
+                subtitle = "Dim screen to pure black to save battery",
                 checked = uiState.isEcoMode,
                 onCheckedChange = { onToggleEcoMode() }
             )
 
             SettingsSwitchCard(
                 icon = Icons.Rounded.VisibilityOff,
-                title = "Sembunyikan Kontrol saat Aktif",
-                subtitle = "Ketuk layar kapan saja untuk menampilkan kembali",
+                title = "Hide Controls While Active",
+                subtitle = "Tap anywhere on screen to bring controls back",
                 checked = !uiState.isControlsVisible,
                 onCheckedChange = { onToggleControls() }
             )
@@ -1103,7 +1103,7 @@ private fun EcoModeOverlay(
             modifier = Modifier.padding(32.dp)
         ) {
             Text(
-                text = "MODE HEMAT AMOLED",
+                text = "AMOLED ECO MODE",
                 color = IceMint.copy(alpha = 0.65f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -1143,7 +1143,7 @@ private fun EcoModeOverlay(
             }
             Spacer(Modifier.height(24.dp))
             Text(
-                text = "Ketuk di mana saja untuk kembali",
+                text = "Tap anywhere to exit",
                 color = TextSecondary.copy(alpha = 0.6f),
                 fontSize = 12.sp
             )
@@ -1186,7 +1186,7 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
                 }
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text = "Izin Kamera & Mikrofon",
+                    text = "Camera & Microphone Access",
                     color = TextPrimary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
@@ -1194,7 +1194,7 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Jumpix membutuhkan kamera dan mikrofon untuk mendeteksi lompatan secara real-time. Semua pemrosesan dilakukan 100% di perangkatmu.",
+                    text = "Jumpix needs camera and microphone access to count your jumps in real time. All AI processing runs 100% on your device.",
                     color = TextSecondary,
                     fontSize = 14.sp,
                     textAlign = TextAlign.Center,
@@ -1213,7 +1213,7 @@ private fun CameraPermissionView(onRequestPermission: () -> Unit) {
                         .height(52.dp)
                 ) {
                     Text(
-                        text = "Izinkan Akses",
+                        text = "Grant Access",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )

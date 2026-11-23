@@ -84,7 +84,7 @@ class VideoJumpAnalyzer(private val context: Context) {
         fileName: String,
         onProgress: (VideoAnalysisProgress) -> Unit
     ): VideoAnalysisResult = withContext(Dispatchers.Default) {
-        onProgress(VideoAnalysisProgress("Membaca spektrum audio...", 0.04f, 0))
+        onProgress(VideoAnalysisProgress("Scanning audio spectrum...", 0.04f, 0))
 
         // 1. Fast primitive-array MP4 audio decode -> 100 Hz multi-band STFT flux
         val audioFlux = decodeMp4AudioToFlux(uri)
@@ -93,7 +93,7 @@ class VideoJumpAnalyzer(private val context: Context) {
         ensureActive()
         onProgress(
             VideoAnalysisProgress(
-                stage = if (hadAudio) "Audio siap • Memulai decoder cepat..." else "Video bisu • Memulai decoder cepat...",
+                stage = if (hadAudio) "Audio ready • Starting fast decoder..." else "Silent video • Starting fast decoder...",
                 fraction = 0.10f,
                 currentJumps = 0
             )
@@ -271,7 +271,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                                 val frac = 0.10f + 0.90f * (currentMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f)
                                 onProgress(
                                     VideoAnalysisProgress(
-                                        stage = "Menganalisis (${(frac * 100).toInt()}%)",
+                                        stage = "Analyzing (${(frac * 100).toInt()}%)",
                                         fraction = frac,
                                         currentJumps = metricsTracker.jumpCount,
                                         currentTimeMs = currentMs,
