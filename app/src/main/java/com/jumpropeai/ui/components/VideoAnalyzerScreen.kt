@@ -85,6 +85,9 @@ fun VideoAnalyzerScreen(
     onShareResult: (VideoAnalysisResult) -> Unit,
     onSaveResultToHistory: (VideoAnalysisResult) -> Unit,
     onClose: () -> Unit,
+    queueIndex: Int = 0,
+    queueTotal: Int = 0,
+    batchResults: List<VideoAnalysisResult> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     val activeBitmap = when {
@@ -121,13 +124,27 @@ fun VideoAnalyzerScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Video Studio",
-                color = TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp
-            )
+            Column {
+                Text(
+                    text = "Video Studio",
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp
+                )
+                if (queueTotal > 1) {
+                    Text(
+                        text = if (isAnalyzing) {
+                            "Batch Queue • Video $queueIndex of $queueTotal"
+                        } else {
+                            "Batch Complete • ${batchResults.size}/$queueTotal Videos"
+                        },
+                        color = IceMint,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             OutlinedButton(
                 onClick = onPickVideo,
@@ -140,7 +157,11 @@ fun VideoAnalyzerScreen(
                 )
             ) {
                 Text(
-                    text = if (isAnalyzing) "Analyzing..." else "Pick Video",
+                    text = if (isAnalyzing) {
+                        if (queueTotal > 1) "$queueIndex/$queueTotal..." else "Analyzing..."
+                    } else {
+                        "Pick Video(s)"
+                    },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -455,6 +476,92 @@ fun VideoAnalyzerScreen(
                 }
             }
 
+            // Auto-saved Unlimited Debug Log status badge (Documents/Jumpvex/DebugLogs/)
+            if (!result.savedDebugLogPath.isNullOrBlank()) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MidnightSurface,
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CheckCircleOutline,
+                            contentDescription = null,
+                            tint = IceMint,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Debug Log Auto-Saved (CSV)",
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = result.savedDebugLogPath,
+                                color = IceMint,
+                                fontSize = 11.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Multi-Video Batch Summary Card when 2+ videos were analyzed
+            if (batchResults.size > 1) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MidnightSurface,
+                    border = BorderStroke(1.dp, MidnightBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Batch Summary (${batchResults.size} Videos)",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        batchResults.forEachIndexed { index, item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${index + 1}. ${item.fileName}",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "${item.jumpCount} jumps • ${item.averageRpm} RPM",
+                                    color = IceMint,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(16.dp))
 
             // Primary CTA: Export & Share
@@ -530,7 +637,7 @@ fun VideoAnalyzerScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Pick Video from Gallery",
+                    text = "Pick Video(s) from Gallery",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )

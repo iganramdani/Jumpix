@@ -203,12 +203,12 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
     }
 
     val videoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val name = context.resolveDisplayName(uri)
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            val entries = uris.map { uri -> uri to context.resolveDisplayName(uri) }
             selectedTab = MainTab.VIDEO
-            viewModel.analyzeMp4Video(uri, name)
+            viewModel.analyzeMultipleVideos(entries)
         }
     }
 
@@ -285,6 +285,9 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         progress = uiState.videoProgress,
                         result = uiState.videoResult,
                         errorMessage = uiState.videoError,
+                        queueIndex = uiState.videoQueueIndex,
+                        queueTotal = uiState.videoQueueTotal,
+                        batchResults = uiState.batchCompletedResults,
                         onPickVideo = { videoPickerLauncher.launch(arrayOf("video/*")) },
                         onShareResult = { res ->
                             val session = WorkoutSession(
@@ -1346,9 +1349,13 @@ private fun WorkoutSettingsSheet(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = logExportNote ?: "${uiState.perfStats.loggedRows} frames recorded • Tap to share",
+                                text = logExportNote
+                                    ?: uiState.perfStats.lastSavedLogPath?.let { "Auto-saved: $it" }
+                                    ?: "${uiState.perfStats.loggedRows} frames recorded • Auto-saves to Documents/Jumpvex/DebugLogs",
                                 color = IceMint,
-                                fontSize = 12.sp
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Surface(

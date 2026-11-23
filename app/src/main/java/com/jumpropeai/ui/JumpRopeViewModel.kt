@@ -90,12 +90,15 @@ data class JumpRopeUiState(
     val cumulativeStats: CumulativeStats = CumulativeStats(),
     val showHistorySheet: Boolean = false,
     val showModeSheet: Boolean = false,
-    // Video Studio analysis state
+    // Video Studio analysis state (supports unlimited multi-video batch queue)
     val showVideoSheet: Boolean = false,
     val isAnalyzingVideo: Boolean = false,
     val videoProgress: VideoAnalysisProgress? = null,
     val videoResult: VideoAnalysisResult? = null,
     val videoError: String? = null,
+    val videoQueueIndex: Int = 0,
+    val videoQueueTotal: Int = 0,
+    val batchCompletedResults: List<VideoAnalysisResult> = emptyList(),
     // In-App Update state
     val availableUpdate: AppReleaseInfo? = null,
     val showUpdateDialog: Boolean = false,
@@ -341,7 +344,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                     liveFps = lastMeasuredFps,
                     aiProcessUs = aiUs,
                     usedHeapMb = heapMb,
-                    loggedRows = diagnosticLogger.loggedRowCount()
+                    loggedRows = diagnosticLogger.loggedRowCount(),
+                    lastSavedLogPath = currentState.perfStats.lastSavedLogPath
                 )
             }
         }
@@ -516,7 +520,12 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val config = _uiState.value.workoutConfig
         if (isFreshStart) {
             if (_uiState.value.isDiagnosticsEnabled) {
-                diagnosticLogger.startSession(config.shortLabel(), _uiState.value.sensorMode.label)
+                diagnosticLogger.startSession(
+                    context = getApplication(),
+                    modeLabel = config.shortLabel(),
+                    sensorLabel = _uiState.value.sensorMode.label,
+                    filePrefix = "Live"
+                )
             }
             lastHiitPhase = HiitPhase.WORK
             notifySpeakerPlayed(700L)
@@ -576,6 +585,11 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun autoSaveDiagnosticLogIfNeeded(): String? {
+        if (!_uiState.value.isDiagnosticsEnabled || diagnosticLogger.loggedRowCount() <= 0) return null
+        return diagnosticLogger.autoSaveToDebugFolder(getApplication())
+    }
+
     fun pauseSession() {
         cancelPreStartCountdown()
         val nowMs = SystemClock.elapsedRealtime()
@@ -584,11 +598,20 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
         autoSaveIfNeeded(nowMs)
+        val savedLog = autoSaveDiagnosticLogIfNeeded()
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
                 isControlsVisible = true,
                 recommendEcoLowFps = false,
+                perfStats = if (savedLog != null) {
+                    state.perfStats.copy(
+                        loggedRows = diagnosticLogger.loggedRowCount(),
+                        lastSavedLogPath = savedLog
+                    )
+                } else {
+                    state.perfStats
+                },
                 metrics = state.metrics.copy(
                     elapsedMs = metricsTracker.getElapsedMs(nowMs),
                     currentRpm = 0,
@@ -605,6 +628,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
 
+        val savedLog = autoSaveDiagnosticLogIfNeeded()
         val durationMs = metricsTracker.getElapsedMs(nowMs)
         val totalJumps = metricsTracker.jumpCount
         if (totalJumps == 0 && durationMs < 1000L) {
@@ -664,6 +688,14 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 formCoach = FormCoachSnapshot(),
                 beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
+                perfStats = if (savedLog != null) {
+                    state.perfStats.copy(
+                        loggedRows = diagnosticLogger.loggedRowCount(),
+                        lastSavedLogPath = savedLog
+                    )
+                } else {
+                    state.perfStats
+                },
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress(),
                 completedSessionSummary = session,
@@ -678,6 +710,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         if (metricsTracker.jumpCount >= 5) {
             autoSaveIfNeeded()
         }
+        val savedLog = autoSaveDiagnosticLogIfNeeded()
         cancelPreStartCountdown()
         tickerJob?.cancel()
         tickerJob = null
@@ -704,6 +737,14 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 formCoach = FormCoachSnapshot(),
                 beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
+                perfStats = if (savedLog != null) {
+                    state.perfStats.copy(
+                        loggedRows = diagnosticLogger.loggedRowCount(),
+                        lastSavedLogPath = savedLog
+                    )
+                } else {
+                    state.perfStats
+                },
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress()
             )
@@ -729,63 +770,99 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             it.copy(
                 showVideoSheet = false,
                 isAnalyzingVideo = false,
-                videoProgress = null
+                videoProgress = null,
+                videoQueueIndex = 0,
+                videoQueueTotal = 0
             )
         }
     }
 
     fun analyzeMp4Video(uri: Uri, fileName: String) {
+        analyzeMultipleVideos(listOf(uri to fileName))
+    }
+
+    fun analyzeMultipleVideos(videos: List<Pair<Uri, String>>) {
+        if (videos.isEmpty()) return
         videoJob?.cancel()
+        val totalCount = videos.size
         _uiState.update {
             it.copy(
                 showVideoSheet = true,
                 isAnalyzingVideo = true,
                 videoResult = null,
                 videoError = null,
+                videoQueueIndex = 1,
+                videoQueueTotal = totalCount,
+                batchCompletedResults = emptyList(),
                 videoProgress = VideoAnalysisProgress("Starting analysis...", 0.02f, 0)
             )
         }
 
         videoJob = viewModelScope.launch {
-            try {
-                val result = videoAnalyzer.analyzeVideo(uri, fileName) { prog ->
-                    _uiState.update { it.copy(videoProgress = prog) }
-                }
-                // Auto-save analyzed video session to history immediately so user never forgets!
-                var updatedHistory = _uiState.value.historySessions
-                if (result.jumpCount > 0) {
-                    val autoSession = WorkoutSession(
-                        id = UUID.randomUUID().toString(),
-                        timestampMillis = System.currentTimeMillis(),
-                        modeLabel = "Video • ${result.style.label}",
-                        modeType = WorkoutModeType.FREE,
-                        jumpCount = result.jumpCount,
-                        durationMs = result.durationMs,
-                        averageRpm = result.averageRpm,
-                        peakRpm = result.peakRpm,
-                        estimatedCalories = result.estimatedCalories,
-                        bestStreak = result.bestStreak
-                    )
-                    updatedHistory = historyRepository.upsertSession(autoSession)
-                }
+            val completed = mutableListOf<VideoAnalysisResult>()
+            var lastError: String? = null
+
+            for ((idx, entry) in videos.withIndex()) {
+                val (uri, fileName) = entry
+                val currentNum = idx + 1
                 _uiState.update {
                     it.copy(
-                        isAnalyzingVideo = false,
-                        videoResult = result,
-                        videoProgress = null,
-                        historySessions = updatedHistory,
-                        cumulativeStats = WorkoutHistoryRepository.computeStats(updatedHistory)
+                        videoQueueIndex = currentNum,
+                        videoQueueTotal = totalCount,
+                        videoError = null,
+                        videoProgress = VideoAnalysisProgress(
+                            stage = if (totalCount > 1) "[$currentNum/$totalCount] Preparing $fileName..." else "Starting analysis...",
+                            fraction = 0.02f,
+                            currentJumps = 0
+                        )
                     )
                 }
-            } catch (_: CancellationException) {
-                // Cancelled cleanly when sheet dismissed
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        isAnalyzingVideo = false,
-                        videoError = "Failed to read video: ${e.localizedMessage ?: "unsupported format"}"
-                    )
+
+                try {
+                    val result = videoAnalyzer.analyzeVideo(uri, fileName) { prog ->
+                        _uiState.update { it.copy(videoProgress = prog) }
+                    }
+                    completed.add(result)
+
+                    // Auto-save analyzed video session to history immediately so user never forgets!
+                    var updatedHistory = _uiState.value.historySessions
+                    if (result.jumpCount > 0) {
+                        val autoSession = WorkoutSession(
+                            id = UUID.randomUUID().toString(),
+                            timestampMillis = System.currentTimeMillis(),
+                            modeLabel = "Video • ${result.style.label}",
+                            modeType = WorkoutModeType.FREE,
+                            jumpCount = result.jumpCount,
+                            durationMs = result.durationMs,
+                            averageRpm = result.averageRpm,
+                            peakRpm = result.peakRpm,
+                            estimatedCalories = result.estimatedCalories,
+                            bestStreak = result.bestStreak
+                        )
+                        updatedHistory = historyRepository.upsertSession(autoSession)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            videoResult = result,
+                            batchCompletedResults = completed.toList(),
+                            historySessions = updatedHistory,
+                            cumulativeStats = WorkoutHistoryRepository.computeStats(updatedHistory)
+                        )
+                    }
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (e: Exception) {
+                    lastError = "Failed on $fileName: ${e.localizedMessage ?: "unsupported format"}"
                 }
+            }
+
+            _uiState.update {
+                it.copy(
+                    isAnalyzingVideo = false,
+                    videoProgress = null,
+                    videoError = if (completed.isEmpty()) lastError else lastError,
+                    batchCompletedResults = completed.toList()
+                )
             }
         }
     }
@@ -843,7 +920,12 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             val next = !state.isDiagnosticsEnabled
             prefs.edit().putBoolean(KEY_DIAGNOSTICS_ENABLED, next).apply()
             if (next) {
-                diagnosticLogger.startSession(state.workoutConfig.shortLabel(), state.sensorMode.label)
+                diagnosticLogger.startSession(
+                    context = getApplication(),
+                    modeLabel = state.workoutConfig.shortLabel(),
+                    sensorLabel = state.sensorMode.label,
+                    filePrefix = "Live"
+                )
             }
             state.copy(
                 isDiagnosticsEnabled = next,
