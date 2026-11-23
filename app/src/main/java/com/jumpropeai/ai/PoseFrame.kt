@@ -13,7 +13,11 @@ enum class BodyLandmark {
     LEFT_KNEE,
     RIGHT_KNEE,
     LEFT_ANKLE,
-    RIGHT_ANKLE
+    RIGHT_ANKLE,
+    LEFT_HEEL,
+    RIGHT_HEEL,
+    LEFT_FOOT_INDEX,
+    RIGHT_FOOT_INDEX
 }
 
 data class LandmarkPoint(
@@ -41,8 +45,14 @@ data class PoseFrame(
             BodyLandmark.LEFT_HIP to BodyLandmark.RIGHT_HIP,
             BodyLandmark.LEFT_HIP to BodyLandmark.LEFT_KNEE,
             BodyLandmark.LEFT_KNEE to BodyLandmark.LEFT_ANKLE,
+            BodyLandmark.LEFT_ANKLE to BodyLandmark.LEFT_HEEL,
+            BodyLandmark.LEFT_ANKLE to BodyLandmark.LEFT_FOOT_INDEX,
+            BodyLandmark.LEFT_HEEL to BodyLandmark.LEFT_FOOT_INDEX,
             BodyLandmark.RIGHT_HIP to BodyLandmark.RIGHT_KNEE,
-            BodyLandmark.RIGHT_KNEE to BodyLandmark.RIGHT_ANKLE
+            BodyLandmark.RIGHT_KNEE to BodyLandmark.RIGHT_ANKLE,
+            BodyLandmark.RIGHT_ANKLE to BodyLandmark.RIGHT_HEEL,
+            BodyLandmark.RIGHT_ANKLE to BodyLandmark.RIGHT_FOOT_INDEX,
+            BodyLandmark.RIGHT_HEEL to BodyLandmark.RIGHT_FOOT_INDEX
         )
     }
 }

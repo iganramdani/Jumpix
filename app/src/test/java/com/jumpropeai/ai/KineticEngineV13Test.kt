@@ -229,4 +229,64 @@ class KineticEngineV13Test {
         println("KineticTrickCoach speed: %.2f us/frame".format(usPerFrame))
         assertTrue("Expected < 25 us/frame, got $usPerFrame", usPerFrame < 25.0)
     }
+
+    @Test
+    fun detectsHeelToeTapAndFootTriangleShuffleTStepAndCharleston() {
+        val coach = KineticTrickCoach()
+
+        // 1. Heel-Toe Jump Rope Tap: left heel down with toes lifted up (pitch = 0.0), right foot normal (pitch = 0.17)
+        val base = makePose(tsMs = 500L)
+        val heelToeLm = base.landmarks.toMutableMap().apply {
+            put(BodyLandmark.LEFT_HEEL, LandmarkPoint(0.44f, 0.90f, 0.9f))
+            put(BodyLandmark.LEFT_FOOT_INDEX, LandmarkPoint(0.41f, 0.90f, 0.9f))
+            put(BodyLandmark.RIGHT_HEEL, LandmarkPoint(0.56f, 0.88f, 0.9f))
+            put(BodyLandmark.RIGHT_FOOT_INDEX, LandmarkPoint(0.59f, 0.915f, 0.9f))
+        }
+        val ht = coach.processFrame(
+            frame = base.copy(landmarks = heelToeLm),
+            isAirborne = true,
+            jumpAccepted = true,
+            jumpAmplitude = 0.08f,
+            audioHistory = emptyList(),
+            isShuffleMode = false
+        )
+        assertEquals(KineticMove.HEEL_TOE, ht.currentMove)
+
+        // 2. Authentic T-Step: lateral sideways hip travel + heel-to-toe yaw pivot on gliding foot
+        coach.reset()
+        var sawTStep = false
+        for (i in 0 until 40) {
+            val t = i * 33L
+            val driftX = i * 0.005f
+            val pivotYaw = sin(i * 0.6).toFloat() * 0.045f
+            val fr = makePose(tsMs = t)
+            val lm = fr.landmarks.mapValues { (_, p) -> p.copy(x = p.x + driftX) }.toMutableMap().apply {
+                put(BodyLandmark.LEFT_HEEL, LandmarkPoint(0.44f + driftX, 0.90f, 0.9f))
+                put(BodyLandmark.LEFT_FOOT_INDEX, LandmarkPoint(0.44f + driftX + pivotYaw, 0.93f, 0.9f))
+                put(BodyLandmark.RIGHT_HEEL, LandmarkPoint(0.56f + driftX, 0.89f, 0.9f))
+                put(BodyLandmark.RIGHT_FOOT_INDEX, LandmarkPoint(0.58f + driftX, 0.92f, 0.9f))
+            }
+            val r = coach.processFrame(fr.copy(landmarks = lm), false, false, 0f, emptyList(), isShuffleMode = true)
+            if (r.currentMove == KineticMove.SHUFFLE_T_STEP) sawTStep = true
+        }
+        assertTrue("Expected T-Step detection via heel-to-toe yaw pivot", sawTStep)
+
+        // 3. Authentic Charleston: stationary hips + synchronous toes-in / toes-out foot twist
+        coach.reset()
+        var sawCharleston = false
+        for (i in 0 until 50) {
+            val t = i * 33L
+            val twist = sin(i * 0.55).toFloat() * 0.04f // flips toes inward (-) and outward (+)
+            val fr = makePose(tsMs = t)
+            val lm = fr.landmarks.toMutableMap().apply {
+                put(BodyLandmark.LEFT_HEEL, LandmarkPoint(0.45f, 0.90f, 0.9f))
+                put(BodyLandmark.LEFT_FOOT_INDEX, LandmarkPoint(0.45f - twist, 0.93f, 0.9f))
+                put(BodyLandmark.RIGHT_HEEL, LandmarkPoint(0.55f, 0.90f, 0.9f))
+                put(BodyLandmark.RIGHT_FOOT_INDEX, LandmarkPoint(0.55f + twist, 0.93f, 0.9f))
+            }
+            val r = coach.processFrame(fr.copy(landmarks = lm), false, false, 0f, emptyList(), isShuffleMode = true)
+            if (r.currentMove == KineticMove.SHUFFLE_CHARLESTON) sawCharleston = true
+        }
+        assertTrue("Expected Charleston detection via toes-in/out foot twist", sawCharleston)
+    }
 }

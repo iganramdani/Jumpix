@@ -122,7 +122,11 @@ class PoseAnalyzer(
             PoseLandmark.LEFT_KNEE to BodyLandmark.LEFT_KNEE,
             PoseLandmark.RIGHT_KNEE to BodyLandmark.RIGHT_KNEE,
             PoseLandmark.LEFT_ANKLE to BodyLandmark.LEFT_ANKLE,
-            PoseLandmark.RIGHT_ANKLE to BodyLandmark.RIGHT_ANKLE
+            PoseLandmark.RIGHT_ANKLE to BodyLandmark.RIGHT_ANKLE,
+            PoseLandmark.LEFT_HEEL to BodyLandmark.LEFT_HEEL,
+            PoseLandmark.RIGHT_HEEL to BodyLandmark.RIGHT_HEEL,
+            PoseLandmark.LEFT_FOOT_INDEX to BodyLandmark.LEFT_FOOT_INDEX,
+            PoseLandmark.RIGHT_FOOT_INDEX to BodyLandmark.RIGHT_FOOT_INDEX
         )
     }
 }
