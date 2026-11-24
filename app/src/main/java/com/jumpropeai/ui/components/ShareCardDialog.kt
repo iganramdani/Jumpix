@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Share
@@ -68,24 +69,28 @@ import com.jumpropeai.share.CardTheme
 import com.jumpropeai.share.VideoWatermarkExporter
 import com.jumpropeai.share.WatermarkTemplate
 import com.jumpropeai.share.WorkoutCardRenderer
-import com.jumpropeai.ui.theme.DarkSurface
-import com.jumpropeai.ui.theme.ElectricCyan
-import com.jumpropeai.ui.theme.GlassBorder
-import com.jumpropeai.ui.theme.GlassCard
-import com.jumpropeai.ui.theme.MintGreen
-import com.jumpropeai.ui.theme.NeonLime
-import com.jumpropeai.ui.theme.SoftRed
+import com.jumpropeai.ui.theme.DangerSoft
+import com.jumpropeai.ui.theme.DeepMidnight
+import com.jumpropeai.ui.theme.IceMint
+import com.jumpropeai.ui.theme.IceMintSoft
+import com.jumpropeai.ui.theme.MidnightBorder
+import com.jumpropeai.ui.theme.MidnightElevated
+import com.jumpropeai.ui.theme.MidnightSurface
+import com.jumpropeai.ui.theme.TextPrimary
+import com.jumpropeai.ui.theme.TextSecondary
+import com.jumpropeai.video.VideoTelemetryEvent
 import java.io.File
 
 /**
- * Strava-style Share / Save Card & Custom Video Watermark Dialog with 5 selectable templates,
- * custom gallery photo/video pickers, and live watermark scale slider.
+ * Jumpvex Share Card & Live Animated Telemetry Video Exporter Dialog (v4.0).
  */
 @Composable
 fun ShareCardDialog(
     session: WorkoutSession,
     backdropBitmap: Bitmap? = null,
     styleLabel: String? = null,
+    sourceVideoUri: Uri? = null,
+    telemetryEvents: List<VideoTelemetryEvent> = emptyList(),
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -103,11 +108,13 @@ fun ShareCardDialog(
     var watermarkScale by remember { mutableFloatStateOf(1.0f) }
     var savedSuccess by remember(selectedTheme, selectedTemplate, watermarkScale, customPhoto) { mutableStateOf(false) }
 
-    // Custom Video Watermark export state
     var isExportingVideo by remember { mutableStateOf(false) }
+    var exportStatusLabel by remember { mutableStateOf("Applying watermark to video...") }
     var exportProgress by remember { mutableIntStateOf(0) }
     var exportedVideoFile by remember { mutableStateOf<File?>(null) }
     var exportError by remember { mutableStateOf<String?>(null) }
+
+    val hasLiveTelemetryVideo = sourceVideoUri != null && telemetryEvents.isNotEmpty()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -128,6 +135,7 @@ fun ShareCardDialog(
     ) { uri: Uri? ->
         if (uri != null) {
             isExportingVideo = true
+            exportStatusLabel = "Rendering static watermark video..."
             exportProgress = 0
             exportedVideoFile = null
             exportError = null
@@ -150,7 +158,7 @@ fun ShareCardDialog(
                     exportedVideoFile = outFile
                     Toast.makeText(
                         context,
-                        if (savedToGallery) "Watermarked video saved to Gallery (Movies/Jumpvex)!" else "Video ready to share!",
+                        if (savedToGallery) "Watermarked video saved to Movies/Jumpvex!" else "Video ready to share!",
                         Toast.LENGTH_LONG
                     ).show()
                 },
@@ -176,8 +184,8 @@ fun ShareCardDialog(
     Dialog(onDismissRequest = { if (!isExportingVideo) onDismiss() }) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = DarkSurface,
-            border = BorderStroke(1.dp, GlassBorder),
+            color = DeepMidnight,
+            border = BorderStroke(1.dp, MidnightBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -191,8 +199,8 @@ fun ShareCardDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Stats Card",
-                        color = Color.White,
+                        text = "Export & Share",
+                        color = TextPrimary,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.ExtraBold
                     )
@@ -201,38 +209,38 @@ fun ShareCardDialog(
                         Surface(
                             onClick = { if (!isExportingVideo) photoPickerLauncher.launch(arrayOf("image/*")) },
                             shape = RoundedCornerShape(12.dp),
-                            color = GlassCard,
-                            border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.55f))
+                            color = MidnightSurface,
+                            border = BorderStroke(1.dp, MidnightBorder)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = "Photo", tint = ElectricCyan, modifier = Modifier.size(15.dp))
-                                Text("Photo", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Rounded.AddPhotoAlternate, contentDescription = "Photo", tint = IceMint, modifier = Modifier.size(15.dp))
+                                Text("Photo", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
                         Surface(
                             onClick = { if (!isExportingVideo) videoPickerLauncher.launch(arrayOf("video/*")) },
                             shape = RoundedCornerShape(12.dp),
-                            color = GlassCard,
-                            border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.55f))
+                            color = MidnightSurface,
+                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.55f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(Icons.Rounded.VideoCall, contentDescription = "To Video", tint = NeonLime, modifier = Modifier.size(16.dp))
-                                Text("Video", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.Rounded.VideoCall, contentDescription = "Any Video", tint = IceMint, modifier = Modifier.size(16.dp))
+                                Text("Video", color = IceMint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
 
-                // 5 Design Template Selector (horizontal scroll)
+                // 5 Design Template Selector
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -252,10 +260,10 @@ fun ShareCardDialog(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = NeonLime,
-                                selectedLabelColor = Color(0xFF0A0D10),
-                                containerColor = GlassCard,
-                                labelColor = Color.White
+                                selectedContainerColor = IceMint,
+                                selectedLabelColor = DeepMidnight,
+                                containerColor = MidnightSurface,
+                                labelColor = TextPrimary
                             )
                         )
                     }
@@ -284,10 +292,10 @@ fun ShareCardDialog(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = ElectricCyan,
-                                selectedLabelColor = Color(0xFF0A0D10),
-                                containerColor = GlassCard,
-                                labelColor = Color.White
+                                selectedContainerColor = IceMint,
+                                selectedLabelColor = DeepMidnight,
+                                containerColor = MidnightSurface,
+                                labelColor = TextPrimary
                             )
                         )
                     }
@@ -296,7 +304,7 @@ fun ShareCardDialog(
                 // Live Preview
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth(0.72f)
+                        .fillMaxWidth(0.66f)
                         .aspectRatio(1080f / 1350f)
                         .clip(RoundedCornerShape(18.dp))
                 ) {
@@ -311,6 +319,58 @@ fun ShareCardDialog(
                     )
                 }
 
+                // Dynamic Live-Counter Video Export CTA (when opened from analyzed Video Studio result!)
+                if (hasLiveTelemetryVideo && !isExportingVideo) {
+                    Button(
+                        onClick = {
+                            isExportingVideo = true
+                            exportStatusLabel = "Rendering live animated jump HUD..."
+                            exportProgress = 0
+                            exportedVideoFile = null
+                            exportError = null
+                            VideoWatermarkExporter.exportDynamicTelemetryVideo(
+                                context = context,
+                                sourceVideoUri = sourceVideoUri!!,
+                                session = session,
+                                telemetryEvents = telemetryEvents,
+                                totalDurationMs = session.durationMs,
+                                template = selectedTemplate,
+                                overlayScale = watermarkScale,
+                                onProgress = { pct -> exportProgress = pct },
+                                onSuccess = { outFile, savedToGallery ->
+                                    isExportingVideo = false
+                                    exportedVideoFile = outFile
+                                    Toast.makeText(
+                                        context,
+                                        if (savedToGallery) "Live HUD video saved to Movies/Jumpvex!" else "Live HUD video ready!",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                onError = { err ->
+                                    isExportingVideo = false
+                                    exportError = err
+                                }
+                            )
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = IceMint,
+                            contentColor = DeepMidnight
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "EXPORT LIVE ANIMATED VIDEO",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+
                 // Video Export Progress / Result
                 if (isExportingVideo) {
                     Column(
@@ -321,13 +381,13 @@ fun ShareCardDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Applying watermark to video...", color = ElectricCyan, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                            Text("$exportProgress%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text(exportStatusLabel, color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text("$exportProgress%", color = IceMint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                         LinearProgressIndicator(
                             progress = { exportProgress / 100f },
-                            color = NeonLime,
-                            trackColor = Color.White.copy(alpha = 0.15f),
+                            color = IceMint,
+                            trackColor = MidnightElevated,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
@@ -338,8 +398,8 @@ fun ShareCardDialog(
                     Surface(
                         onClick = { VideoWatermarkExporter.shareVideoFile(context, exportedVideoFile!!) },
                         shape = RoundedCornerShape(14.dp),
-                        color = MintGreen.copy(alpha = 0.18f),
-                        border = BorderStroke(1.dp, MintGreen.copy(alpha = 0.65f)),
+                        color = IceMintSoft,
+                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.65f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -347,18 +407,18 @@ fun ShareCardDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MintGreen, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = IceMint, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Video Saved! Tap to Share",
-                                color = MintGreen,
+                                color = IceMint,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 } else if (exportError != null) {
-                    Text(text = exportError!!, color = SoftRed, fontSize = 11.sp)
+                    Text(text = exportError!!, color = DangerSoft, fontSize = 11.sp)
                 }
 
                 // Watermark Size Slider
@@ -372,8 +432,8 @@ fun ShareCardDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Watermark Size", color = Color.White.copy(alpha = 0.72f), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                        Text("${(watermarkScale * 100).toInt()}%", color = NeonLime, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Watermark Size", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        Text("${(watermarkScale * 100).toInt()}%", color = IceMint, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                     Slider(
                         value = watermarkScale,
@@ -381,9 +441,9 @@ fun ShareCardDialog(
                         enabled = !isExportingVideo,
                         valueRange = 0.60f..1.30f,
                         colors = SliderDefaults.colors(
-                            thumbColor = NeonLime,
-                            activeTrackColor = NeonLime,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                            thumbColor = IceMint,
+                            activeTrackColor = IceMint,
+                            inactiveTrackColor = MidnightElevated
                         ),
                         modifier = Modifier.height(24.dp)
                     )
@@ -405,22 +465,22 @@ fun ShareCardDialog(
                             ).show()
                         },
                         enabled = !isExportingVideo,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, if (savedSuccess) MintGreen else GlassBorder),
+                        shape = CircleShape,
+                        border = BorderStroke(1.dp, if (savedSuccess) IceMint else MidnightBorder),
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
+                            .height(44.dp)
                     ) {
                         Icon(
                             imageVector = if (savedSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.Download,
                             contentDescription = null,
-                            tint = if (savedSuccess) MintGreen else Color.White,
+                            tint = if (savedSuccess) IceMint else TextPrimary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (savedSuccess) "SAVED" else "SAVE",
-                            color = if (savedSuccess) MintGreen else Color.White,
+                            text = if (savedSuccess) "SAVED" else "SAVE PNG",
+                            color = if (savedSuccess) IceMint else TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )
@@ -431,18 +491,18 @@ fun ShareCardDialog(
                             WorkoutCardRenderer.shareBitmap(context, renderedBitmap, "Jumpvex")
                         },
                         enabled = !isExportingVideo,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonLime,
-                            contentColor = Color(0xFF0A0D10)
+                            containerColor = IceMint,
+                            contentColor = DeepMidnight
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(46.dp)
+                            .height(44.dp)
                     ) {
                         Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("SHARE", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                        Text("SHARE PNG", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                     }
                 }
             }

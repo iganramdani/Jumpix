@@ -8,7 +8,7 @@
 
 **Open-Source On-Device AI Jump Rope, Trick & Shuffle Footwork Counter for Android — Zero Cloud, Zero Lag on Low-End Phones, Built-In 1-Tap GitHub Updates!**
 
-[![Release](https://img.shields.io/badge/Release-v3.3.6_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v3.3.6)
+[![Release](https://img.shields.io/badge/Release-v4.0.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.0)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3_Open--Source-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
 [![Philosophy](https://img.shields.io/badge/Philosophy-99%25_Accuracy_&_99%25_Lightweight-0D1321?style=for-the-badge&labelColor=151D2E&color=2EE59D)](#-core-philosophy-99-accuracy--99-lightweight)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Jetpack_Compose-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](#)
@@ -19,7 +19,7 @@
 [✨ Core Philosophy](#-core-philosophy-99-accuracy--99-lightweight) •
 [📱 Modern UI Gallery](#-modern-two-tone-ui-gallery) •
 [📊 Real-Device Benchmarks](#-real-device--4-smartphone-benchmarks) •
-[🧠 AI Engine v13.5](#-ai-engine-v135-architecture) •
+[🧠 AI Engine v14](#-ai-engine-v14-pro-studio-architecture) •
 [📦 Download APK (Release & Debug)](#-download-apk-release--debug) •
 [⚖️ License & Copyright](#️-open-source-license-copyright--anti-plagiarism)
 
@@ -33,9 +33,9 @@ Every line of code, UI component, and DSP algorithm in **Jumpvex** is engineered
 
 | 🎯 99% Accuracy (Competition-Grade Precision) | ⚡ 99% Lightweight (Blazing Fast on Any Phone) |
 | :--- | :--- |
-| 🧠 **AI Engine v13.5 + 100 Hz STFT Audio Hybrid** — fuses full-body + **Heel-to-Toe Foot-Triangle** kinematics with real-time 100 Hz acoustic rope-slap & music-beat spectrum analysis. | 🪶 **100% On-Device, Zero Cloud** — no servers, no internet required, full privacy, and near-zero latency. |
-| 🕺 **Real-Data Calibrated Trick, Shuffle & Form Coach** — detects **Regular**, **Boxer Step** (300 ms windowed), **Heel-Toe**, **Criss-Cross**, **Double Under**, **High Knees**, **Side Swing**, plus camera-angle-aware **Melbourne Shuffle** (*Running Man, T-Step, Charleston*) & **Music BPM / Beat-Sync %**. | ⚡ **Zero-GC `O(log N)` Hot Path (`64 µs` on Redmi Note 9)** — verified across **21 real videos (11,042 frames)** with `26 MB` median JVM heap and isolated `PoseOverlay` recomposition for maximum FPS. |
-| 🏃 **Competition Speed-Sprint & Anti-False-Positive Guards** — counts **270–350+ RPM** sprints even on **10–15 FPS** cameras while rejecting walking, standing up, and camera-angle jitter. | 📦 **Compact `46 MB` Release APK + AMOLED Eco Mode** — R8 minification, resource shrinking, ARM-only native libs (`arm64-v8a`, `armeabi-v7a`), and pure-black AMOLED battery saver. |
+| 🧠 **AI Engine v14.0 + 100 Hz 5-Band STFT Hybrid** — fuses full-body 2D/3D + **Heel-to-Toe Foot-Triangle** kinematics with anti-aliased streaming 100 Hz acoustic rope-slap & `60–250 Hz` kick-drum beat analysis. | 🪶 **100% On-Device, Zero Cloud** — no servers, no subscriptions, full privacy, and near-zero latency. |
+| 🕺 **Peak-Aligned Trick, Triple Under & Shuffle Coach** — detects **Regular, Boxer Step, Heel-Toe, Criss-Cross, Double Under, Triple Under, High Knees, Side Swing**, plus camera-angle-aware **Melbourne Shuffle** (*Running Man, T-Step, Charleston*), **Combo Chains**, & **3D Posture Form Coach**. | ⚡ **True Zero-GC `O(log N)` Hot Path (`64 µs` on Redmi Note 9)** — pre-allocated FFT/kinematic buffers, `O(1)` streaming video audio STFT, atomic crash-safe history, and isolated `PoseOverlay` recomposition. |
+| ✋ **Touchless Gym UX & Official IJRU Modes** — raise 1 hand for 1.2s from 2–4m to Start/Pause hands-free, guided by **Smart Foot-in-Frame Assistant**, plus **IJRU 30s Speed Sprint** & **3m Endurance**. | 🎬 **Live Animated Video HUD Exporter + 46 MB Release APK** — exports videos with real-time incrementing jump counter, live RPM & trick callouts via Media3 GPU textures while staying ~46 MB. |
 
 ---
 
@@ -49,17 +49,17 @@ Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)
     <td align="center" width="33%">
       <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpvex Dynamic Ring HUD"/><br/>
       <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
-      <sub>Animated Ice Mint progress ring, Live Trick & Form Coach pill, Heel-to-Toe skeleton overlay & 3/5/8s countdown</sub>
+      <sub>Animated Ice Mint ring, Touchless Hand-Raise Start/Pause, Smart Framing Assistant, Live Trick & Form Coach pill</sub>
     </td>
     <td align="center" width="33%">
       <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpvex Video Studio"/><br/>
       <b>🎬 Tab 2: Multi-Video Studio</b><br/>
-      <sub>Unlimited batch video queue, Live Trick pill, Music BPM, auto-saved CSV debug logs & Media3 watermark export</sub>
+      <sub>Jump Rope & Shuffle toggle, unlimited batch queue, Live Animated Counter Video HUD export & auto-saved CSV logs</sub>
     </td>
     <td align="center" width="33%">
       <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpvex History & Weekly Stats"/><br/>
-      <b>📈 Tab 3: History & 7-Day Chart</b><br/>
-      <sub>Weekly Mon–Sun performance chart, cumulative stats, Freestyle/Shuffle sessions & one-tap share cards</sub>
+      <b>📈 Tab 3: History, PRs & Daily Goal</b><br/>
+      <sub>Daily goal bar, active day streak, Personal Records trophy strip, 7-day chart, trick breakdown & 1-tap CSV backup</sub>
     </td>
   </tr>
 </table>
@@ -87,20 +87,22 @@ Measured directly from 21 consecutive batch videos (`11,042 frames`) using Jumpv
 
 ---
 
-## 🧠 AI Engine v13.5 Architecture
+## 🧠 AI Engine v14 Pro Studio Architecture
 
 ```mermaid
 flowchart LR
-    CAM["📷 CameraX (360×480 Fast Pose)"] --> ML["🦴 ML Kit Pose + Heel-to-Toe Foot Triangle"]
-    MIC["🎙️ AudioRecord / Video PCM"] --> STFT["🎵 Radix-2 256-pt STFT (100 Hz)"]
-    ML --> JD["⚡ JumpDetector v12 (Zero-GC)\n• Coherence & Symmetry Law\n• Walking & Stand-Up Guard\n• Competition Speed-Sprint ZC"]
-    STFT --> FE["🧠 FusionEngine v12 (O(log N))\n• 1-Jump Pending Confirmation\n• Self-Learning 3-Band Acoustic\n• Nyquist-Aware Low-FPS PLL"]
+    CAM["📷 CameraX (360×480 Fast Pose)"] --> ML["🦴 ML Kit 2D/3D Pose + Foot Triangle"]
+    MIC["🎙️ AudioRecord / O(1) Streaming PCM"] --> STFT["🎵 Zero-GC 5-Band STFT (100 Hz)\n• 60–250Hz Bass Kick + 2.5–7kHz Whip"]
+    ML --> TG["✋ Touchless Gesture & Smart Framing\n• 1.2s Single-Hand Start/Pause\n• Feet-in-Frame & Centering Guard"]
+    ML --> JD["⚡ JumpDetector v14 (Zero-GC)\n• 420ms Time-Based Airborne\n• Coherence, Symmetry & Sprint ZC"]
+    STFT --> FE["🧠 FusionEngine v14 (O(log N))\n• Self-Learning 3-Band Acoustic\n• Nyquist-Aware Low-FPS PLL"]
     JD --> FE
-    ML --> KT["🕺 KineticTrickCoach v13.5\n• Camera-Angle-Aware Shuffle\n• Heel-Toe Pitch Contrast\n• 300ms Windowed Boxer Step\n• AI Form Coach (0–100%)"]
-    STFT --> BS["🎧 BeatSyncEngine\n• 100 Hz Music BPM\n• Beat-Sync Score %"]
-    FE --> UI["🟢 Jumpvex Ring HUD, Video Studio\n& Unlimited Auto-Save CSV Logs"]
+    ML --> KT["🕺 KineticTrickCoach v14\n• Peak-Aligned +-110ms Trick Window\n• Triple/Double Under & Combos\n• 3D Posture Form Coach (0–100%)"]
+    STFT --> BS["🎧 Unbiased BeatSyncEngine v14\n• Kick-Drum BPM (80–176 BPM)\n• Lookahead-Compensated Sync %"]
+    FE --> UI["🟢 Ring HUD, Live Animated Video HUD\n& Atomic Rich History + PRs"]
     KT --> UI
     BS --> UI
+    TG --> UI
 ```
 
 ---
@@ -108,37 +110,38 @@ flowchart LR
 ## 🎛️ Features (Click to Expand)
 
 <details>
-<summary><b>🏋️ 5 Workout Modes with Full Custom Inputs</b></summary>
+<summary><b>🏋️ 7 Workout & Competition Modes with Custom Inputs</b></summary>
 <br/>
 
 - **🔥 Free Mode:** Custom session name + custom audio milestone interval (`5 – 1,000` jumps).
 - **🎯 Target Jumps:** Quick presets or any custom count (`1 – 99,999` jumps) synced to the dynamic ring gauge.
 - **⏱️ Target Time:** Quick presets or custom **Minutes + Seconds** countdown timer.
 - **⚡ HIIT Interval:** Custom **Work**, **Rest**, and **Rounds** with live total duration preview and automatic English TTS phase cues.
-- **🕺 Freestyle / Shuffle:** Counts both jump rope tricks and rhythmic Melbourne Shuffle steps (*Running Man, T-Step, Charleston*) synced to Music BPM.
+- **🕺 Shuffle & Tricks:** Counts both jump rope tricks and rhythmic Melbourne Shuffle steps (*Running Man, T-Step, Charleston*) synced to Music BPM.
+- **🏆 IJRU 30s Sprint:** Official competition 30-second speed-sprint benchmark powered by 100 Hz acoustic + ankle tracking.
+- **🏆 IJRU 3m Endurance:** Official competition 3-minute endurance test tracking sustained cadence, form stability, and trips.
 
 </details>
 
 <details>
-<summary><b>🎬 Unlimited Multi-Video Batch Studio & Auto-Save CSV Debug Logs</b></summary>
+<summary><b>🎬 Multi-Video Batch Studio & Live Animated Counter Video HUD</b></summary>
 <br/>
 
-- **Multi-Video Queue:** Select 1 or unlimited videos at once from your gallery (`OpenMultipleDocuments`) — Jumpvex processes every video sequentially (`Video 1 of N`) and displays a full **Batch Summary**.
-- **Live Trick Pill & Heel-to-Toe Skeleton:** Watch real-time AI trick classification, full foot-triangle skeleton overlay, and live RPM during analysis.
-- **Unlimited Auto-Save Debug Telemetry:** Every Video Studio run and diagnostic Live Workout automatically streams frame-by-frame CSV telemetry (zero row limit, 60-row chunk flush) directly to **`Documents/Jumpvex/DebugLogs/`**.
-- **Media3 Watermark Exporter:** Export crisp watermarked videos with pixel-accurate 1:1 scaling across 720p / 1080p / 4K.
+- **Dynamic Animated Video HUD Exporter:** Burn a live, frame-accurate jump counter, real-time RPM, streak, calories, and active trick callout onto your workout video via Media3 OpenGL texture reuse — ready for Reels, Shorts & TikTok!
+- **Jump Rope & Shuffle Modes + Multi-Video Queue:** Select 1 or unlimited videos at once (`OpenMultipleDocuments`) with O(1)-RAM streaming anti-aliased audio STFT so even multi-hour videos never OOM.
+- **Unlimited Auto-Save Debug Telemetry:** Streams frame-by-frame CSV telemetry in background IO directly to **`Documents/Jumpvex/DebugLogs/`**.
 
 </details>
 
 <details>
-<summary><b>⚙️ Clean Workout Settings Sheet & In-App Updates</b></summary>
+<summary><b>✋ Touchless Gym UX, Athlete Profile & Personal Records</b></summary>
 <br/>
 
-- **Pre-Start Countdown:** `Off / 3s / 5s / 8s` countdown ring so you can step into frame comfortably.
-- **AI Sensor Mode:** Switch seamlessly between `Fusion AI`, `Camera`, and `Audio Eco`.
-- **Pose Skeleton Overlay:** Full body + Heel-to-Toe foot-triangle skeleton (*Ice Mint* airborne, white on landing) in an isolated Compose scope for maximum FPS.
-- **Hide Toolbar While Active & AMOLED Eco Mode:** Distraction-free workout view and pure-black battery saver.
-- **1-Tap GitHub Update Checker:** Zero-dependency in-app check against GitHub Releases.
+- **Touchless Hand-Gesture Control:** Raise 1 hand above your head for 1.2s from 2–4 meters away to Start or Pause hands-free.
+- **Smart Framing Assistant:** Real-time pre-workout guidance (*feet cut off, off-center, low light, full body locked*).
+- **Athlete Profile & Rope Physics:** Configure body weight (`30–200 kg`), rope type (*Speed Cable, PVC, Beaded, Weighted 0.5/1.0 lb, Cordless*), and daily jump goal for accurate ACSM MET calorie tracking.
+- **Crash-Safe Atomic History & CSV Backup:** Stores up to 5,000 rich sessions (trick breakdown, form score, BPM, combos), Personal Records, active day streaks, and 1-tap CSV export.
+- **1-Tap GitHub Update Checker + Automated CI/CD:** Strictly selects `*-release.apk` with size metadata and builds automatically via GitHub Actions.
 
 </details>
 
@@ -151,7 +154,7 @@ flowchart LR
 git clone https://github.com/iganramdani/Jumpvex.git
 cd Jumpvex
 
-# Run all unit tests (AI Engine v13.5, Fusion, BeatSync, Metrics & Workout Modes)
+# Run all unit tests (AI Engine v14, Touchless Gestures, Streaming STFT, Fusion, BeatSync, IJRU Modes)
 ./gradlew testDebugUnitTest
 
 # Build R8-minified, ARM-optimized Release APK (~46 MB)
@@ -161,7 +164,7 @@ cd Jumpvex
 ./gradlew assembleDebug
 ```
 
-**Tech Stack:** Kotlin • Jetpack Compose (Material 3) • CameraX • Google ML Kit Pose Detection • Custom Radix-2 STFT Audio DSP • AndroidX Media3 Transformer.
+**Tech Stack:** Kotlin • Jetpack Compose (Material 3) • CameraX • Google ML Kit 2D/3D Pose Detection • Custom Zero-GC 5-Band Radix-2 STFT Audio DSP • AndroidX Media3 Transformer.
 
 </details>
 
@@ -171,11 +174,11 @@ cd Jumpvex
 
 <div align="center">
 
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v3.3.6_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v3.3.6/Jumpvex-v3.3.6-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.0/Jumpvex-v4.0.0-release.apk)
 &nbsp;
-[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v3.3.6_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v3.3.6/Jumpvex-v3.3.6-debug.apk)
+[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v4.0.0_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.0/Jumpvex-v4.0.0-debug.apk)
 
-<sub>Android 7.0+ (API 24+) • 100% On-Device • Free & Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v3.3.6">View Full Release Notes</a></sub>
+<sub>Android 7.0+ (API 24+) • 100% On-Device • Free & Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.0">View Full Release Notes</a></sub>
 
 </div>
 

@@ -1,7 +1,6 @@
 package com.jumpropeai.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,20 +10,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.EmojiEvents
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,7 +27,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -49,23 +42,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.jumpropeai.data.CumulativeStats
 import com.jumpropeai.data.WorkoutSession
-import com.jumpropeai.ui.theme.DarkSurface
-import com.jumpropeai.ui.theme.ElectricCyan
-import com.jumpropeai.ui.theme.FlameOrange
-import com.jumpropeai.ui.theme.GlassBorder
-import com.jumpropeai.ui.theme.GlassCard
-import com.jumpropeai.ui.theme.NeonLime
-import com.jumpropeai.ui.theme.SoftRed
+import com.jumpropeai.ui.theme.DeepMidnight
+import com.jumpropeai.ui.theme.IceMint
+import com.jumpropeai.ui.theme.IceMintSoft
+import com.jumpropeai.ui.theme.MidnightBorder
+import com.jumpropeai.ui.theme.MidnightElevated
+import com.jumpropeai.ui.theme.MidnightSurface
+import com.jumpropeai.ui.theme.TextPrimary
+import com.jumpropeai.ui.theme.TextSecondary
 import com.jumpropeai.workout.WorkoutConfig
 import com.jumpropeai.workout.WorkoutModeType
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -77,7 +67,6 @@ fun WorkoutModeSheet(
 ) {
     var draft by remember(currentConfig) { mutableStateOf(currentConfig) }
 
-    // Custom text input states synced with presets & user typing
     var freeLabelText by remember(currentConfig) { mutableStateOf(currentConfig.customLabel) }
     var milestoneText by remember(currentConfig) { mutableStateOf(currentConfig.milestoneInterval.toString()) }
     var targetJumpsText by remember(currentConfig) { mutableStateOf(currentConfig.targetJumps.toString()) }
@@ -89,8 +78,8 @@ fun WorkoutModeSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        contentColor = Color.White
+        containerColor = DeepMidnight,
+        contentColor = TextPrimary
     ) {
         Column(
             modifier = Modifier
@@ -104,10 +93,9 @@ fun WorkoutModeSheet(
                 text = "Select Workout Mode",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White
+                color = TextPrimary
             )
 
-            // Mode Type selector
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -124,21 +112,20 @@ fun WorkoutModeSheet(
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = NeonLime,
-                            selectedLabelColor = Color(0xFF0A0D10),
-                            containerColor = GlassCard,
-                            labelColor = Color.White
+                            selectedContainerColor = IceMint,
+                            selectedLabelColor = DeepMidnight,
+                            containerColor = MidnightSurface,
+                            labelColor = TextPrimary
                         )
                     )
                 }
             }
 
-            // Mode-specific presets + custom inputs
             when (draft.mode) {
                 WorkoutModeType.FREE -> {
                     Text(
-                        text = "Lompat bebas tanpa batas waktu atau target. Atur nama sesi & pengingat suara sesuai keinginan.",
-                        color = Color.White.copy(alpha = 0.72f),
+                        text = "Open-ended skipping without a fixed limit. Customize your session title and voice milestone cues.",
+                        color = TextSecondary,
                         fontSize = 13.sp
                     )
                     CustomInputTextField(
@@ -148,17 +135,17 @@ fun WorkoutModeSheet(
                             freeLabelText = clean
                             draft = draft.copy(customLabel = clean)
                         },
-                        label = "Nama Sessions Custom (opsional)",
-                        placeholder = "e.g., Morning Warm-Up / Double Under",
-                        accentColor = NeonLime,
+                        label = "Custom Session Name (optional)",
+                        placeholder = "e.g., Morning Warm-Up / Double Unders",
+                        accentColor = IceMint,
                         isNumeric = false,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = "Pengingat Suara (Tiap X Jumps)",
+                        text = "Voice Milestone (Every X Jumps)",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = NeonLime
+                        color = IceMint
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(10, 25, 50, 100).forEach { step ->
@@ -171,10 +158,10 @@ fun WorkoutModeSheet(
                                 },
                                 label = { Text("$step") },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = NeonLime,
-                                    selectedLabelColor = Color(0xFF0A0D10),
-                                    containerColor = GlassCard,
-                                    labelColor = Color.White
+                                    selectedContainerColor = IceMint,
+                                    selectedLabelColor = DeepMidnight,
+                                    containerColor = MidnightSurface,
+                                    labelColor = TextPrimary
                                 )
                             )
                         }
@@ -188,9 +175,9 @@ fun WorkoutModeSheet(
                                 draft = draft.copy(milestoneInterval = it.coerceIn(5, 1000))
                             }
                         },
-                        label = "Custom Interval Pengingat (5–1000 lompatan)",
+                        label = "Custom Milestone Interval (5–1,000 jumps)",
                         placeholder = "25",
-                        accentColor = NeonLime,
+                        accentColor = IceMint,
                         isNumeric = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -198,10 +185,10 @@ fun WorkoutModeSheet(
 
                 WorkoutModeType.TARGET_JUMPS -> {
                     Text(
-                        text = "Target Jumlah Jumps",
+                        text = "Target Jump Count",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = ElectricCyan
+                        color = IceMint
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(50, 100, 200, 300, 500, 1000).forEach { target ->
@@ -214,10 +201,10 @@ fun WorkoutModeSheet(
                                 },
                                 label = { Text("$target") },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = ElectricCyan,
-                                    selectedLabelColor = Color(0xFF0A0D10),
-                                    containerColor = GlassCard,
-                                    labelColor = Color.White
+                                    selectedContainerColor = IceMint,
+                                    selectedLabelColor = DeepMidnight,
+                                    containerColor = MidnightSurface,
+                                    labelColor = TextPrimary
                                 )
                             )
                         }
@@ -231,9 +218,9 @@ fun WorkoutModeSheet(
                                 draft = draft.copy(targetJumps = it.coerceIn(1, 99999))
                             }
                         },
-                        label = "Custom Target Jumps (1–99.999)",
-                        placeholder = "Contoh: 150",
-                        accentColor = ElectricCyan,
+                        label = "Custom Target Jumps (1–99,999)",
+                        placeholder = "e.g., 250",
+                        accentColor = IceMint,
                         isNumeric = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -241,13 +228,13 @@ fun WorkoutModeSheet(
 
                 WorkoutModeType.TARGET_TIME -> {
                     Text(
-                        text = "Duration Target",
+                        text = "Target Duration",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = ElectricCyan
+                        color = IceMint
                     )
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(60 to "1 Minutes", 180 to "3 Minutes", 300 to "5 Minutes", 600 to "10 Minutes").forEach { (sec, label) ->
+                        listOf(60 to "1 Minute", 180 to "3 Minutes", 300 to "5 Minutes", 600 to "10 Minutes").forEach { (sec, label) ->
                             val selected = draft.targetTimeSeconds == sec
                             FilterChip(
                                 selected = selected,
@@ -258,10 +245,10 @@ fun WorkoutModeSheet(
                                 },
                                 label = { Text(label) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = ElectricCyan,
-                                    selectedLabelColor = Color(0xFF0A0D10),
-                                    containerColor = GlassCard,
-                                    labelColor = Color.White
+                                    selectedContainerColor = IceMint,
+                                    selectedLabelColor = DeepMidnight,
+                                    containerColor = MidnightSurface,
+                                    labelColor = TextPrimary
                                 )
                             )
                         }
@@ -282,7 +269,7 @@ fun WorkoutModeSheet(
                             },
                             label = "Minutes (0–180)",
                             placeholder = "3",
-                            accentColor = ElectricCyan,
+                            accentColor = IceMint,
                             isNumeric = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -298,14 +285,14 @@ fun WorkoutModeSheet(
                             },
                             label = "Seconds (0–59)",
                             placeholder = "0",
-                            accentColor = ElectricCyan,
+                            accentColor = IceMint,
                             isNumeric = true,
                             modifier = Modifier.weight(1f)
                         )
                     }
                     Text(
-                        text = "Total target: ${draft.shortLabel()}",
-                        color = ElectricCyan.copy(alpha = 0.85f),
+                        text = "Selected target: ${draft.shortLabel()}",
+                        color = IceMint,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -313,15 +300,15 @@ fun WorkoutModeSheet(
 
                 WorkoutModeType.HIIT -> {
                     Text(
-                        text = "Preset & Custom Interval HIIT",
+                        text = "HIIT Interval Presets & Custom Builder",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = FlameOrange
+                        color = IceMint
                     )
                     val presets = listOf(
-                        Triple(20, 10, 4) to "Pemula: 20s / 10s × 4",
-                        Triple(30, 15, 5) to "Standar: 30s / 15s × 5",
-                        Triple(45, 15, 6) to "Intens: 45s / 15s × 6",
+                        Triple(20, 10, 4) to "Beginner: 20s / 10s × 4",
+                        Triple(30, 15, 5) to "Standard: 30s / 15s × 5",
+                        Triple(45, 15, 6) to "Intense: 45s / 15s × 6",
                         Triple(60, 20, 5) to "Pro: 60s / 20s × 5"
                     )
                     FlowRow(
@@ -346,10 +333,10 @@ fun WorkoutModeSheet(
                                 },
                                 label = { Text(label, fontSize = 12.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = FlameOrange,
-                                    selectedLabelColor = Color(0xFF0A0D10),
-                                    containerColor = GlassCard,
-                                    labelColor = Color.White
+                                    selectedContainerColor = IceMint,
+                                    selectedLabelColor = DeepMidnight,
+                                    containerColor = MidnightSurface,
+                                    labelColor = TextPrimary
                                 )
                             )
                         }
@@ -367,9 +354,9 @@ fun WorkoutModeSheet(
                                     draft = draft.copy(hiitWorkSeconds = it.coerceIn(5, 600))
                                 }
                             },
-                            label = "Lompat (d)",
+                            label = "Work (s)",
                             placeholder = "30",
-                            accentColor = FlameOrange,
+                            accentColor = IceMint,
                             isNumeric = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -382,9 +369,9 @@ fun WorkoutModeSheet(
                                     draft = draft.copy(hiitRestSeconds = it.coerceIn(5, 300))
                                 }
                             },
-                            label = "Istirahat (d)",
+                            label = "Rest (s)",
                             placeholder = "15",
-                            accentColor = FlameOrange,
+                            accentColor = IceMint,
                             isNumeric = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -399,7 +386,7 @@ fun WorkoutModeSheet(
                             },
                             label = "Rounds",
                             placeholder = "5",
-                            accentColor = FlameOrange,
+                            accentColor = IceMint,
                             isNumeric = true,
                             modifier = Modifier.weight(1f)
                         )
@@ -408,7 +395,7 @@ fun WorkoutModeSheet(
                         (draft.hiitRounds - 1).coerceAtLeast(0) * draft.hiitRestSeconds
                     Text(
                         text = "Total HIIT: ${totalHiitSec / 60}m ${totalHiitSec % 60}s (${draft.hiitWorkSeconds}s work / ${draft.hiitRestSeconds}s rest × ${draft.hiitRounds} rounds)",
-                        color = FlameOrange.copy(alpha = 0.9f),
+                        color = IceMint,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -419,11 +406,41 @@ fun WorkoutModeSheet(
                         text = "Freestyle Jump Tricks & Shuffle Dance",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = NeonLime
+                        color = IceMint
                     )
                     Text(
-                        text = "Detects Running Man, T-Step, Charleston, Criss-Cross, Double Under, Boxer Step, High Knees & live Music BPM Beat-Sync Score — 100% on-device.",
-                        color = Color.White.copy(alpha = 0.78f),
+                        text = "Detects Triple Under, Double Under, Criss-Cross, Boxer Step, Heel-Toe, High Knees, Running Man, T-Step, Charleston & live Music BPM Beat-Sync — 100% on-device.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+
+                WorkoutModeType.IJRU_SPEED_30S -> {
+                    Text(
+                        text = "Official IJRU 30-Second Speed Sprint",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = IceMint
+                    )
+                    Text(
+                        text = "Competition-grade 30-second all-out sprint benchmark. Uses 100 Hz STFT acoustic + ankle alternation tracking to resolve 270–350+ RPM sprints without camera aliasing.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+
+                WorkoutModeType.IJRU_ENDURANCE_180S -> {
+                    Text(
+                        text = "Official IJRU 3-Minute Speed Endurance",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = IceMint
+                    )
+                    Text(
+                        text = "Competition-grade 180-second endurance test tracking sustained cadence, trips, unbroken streak, and biomechanical form stability.",
+                        color = TextSecondary,
                         fontSize = 13.sp,
                         lineHeight = 19.sp
                     )
@@ -432,7 +449,6 @@ fun WorkoutModeSheet(
 
             Button(
                 onClick = {
-                    // Normalize & clamp all custom inputs before applying
                     val finalConfig = draft.copy(
                         customLabel = freeLabelText.trim(),
                         milestoneInterval = (milestoneText.toIntOrNull() ?: draft.milestoneInterval).coerceIn(5, 1000),
@@ -447,17 +463,17 @@ fun WorkoutModeSheet(
                     )
                     onApply(finalConfig)
                 },
-                shape = RoundedCornerShape(16.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = NeonLime,
-                    contentColor = Color(0xFF0A0D10)
+                    containerColor = IceMint,
+                    contentColor = DeepMidnight
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
                 Text(
-                    text = "TERAPKAN MODE",
+                    text = "APPLY MODE",
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.sp
                 )
@@ -480,7 +496,7 @@ private fun CustomInputTextField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label, fontSize = 12.sp) },
-        placeholder = { Text(placeholder, color = Color.White.copy(alpha = 0.35f), fontSize = 13.sp) },
+        placeholder = { Text(placeholder, color = TextSecondary.copy(alpha = 0.6f), fontSize = 13.sp) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(
             keyboardType = if (isNumeric) KeyboardType.Number else KeyboardType.Text
@@ -488,19 +504,20 @@ private fun CustomInputTextField(
         shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = accentColor,
-            unfocusedBorderColor = GlassBorder,
+            unfocusedBorderColor = MidnightBorder,
             focusedLabelColor = accentColor,
-            unfocusedLabelColor = Color.White.copy(alpha = 0.65f),
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
+            unfocusedLabelColor = TextSecondary,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
             cursorColor = accentColor,
-            focusedContainerColor = GlassCard,
-            unfocusedContainerColor = GlassCard
+            focusedContainerColor = MidnightSurface,
+            unfocusedContainerColor = MidnightSurface
         ),
         modifier = modifier
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SessionSummaryDialog(
     session: WorkoutSession,
@@ -510,8 +527,8 @@ fun SessionSummaryDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(26.dp),
-            color = DarkSurface,
-            border = BorderStroke(1.dp, NeonLime.copy(alpha = 0.45f)),
+            color = MidnightSurface,
+            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -521,14 +538,14 @@ fun SessionSummaryDialog(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = NeonLime.copy(alpha = 0.16f),
+                    color = IceMintSoft,
                     modifier = Modifier.size(64.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Rounded.EmojiEvents,
                             contentDescription = null,
-                            tint = NeonLime,
+                            tint = IceMint,
                             modifier = Modifier.size(34.dp)
                         )
                     }
@@ -538,12 +555,12 @@ fun SessionSummaryDialog(
                     text = "Workout Complete!",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = Color.White
+                    color = TextPrimary
                 )
                 Text(
-                    text = "${session.modeLabel} • Tersimpan di Riwayat",
+                    text = "${session.modeLabel} • Saved to History",
                     fontSize = 13.sp,
-                    color = ElectricCyan,
+                    color = IceMint,
                     fontWeight = FontWeight.SemiBold
                 )
 
@@ -551,23 +568,54 @@ fun SessionSummaryDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    SummaryStat("Jumps", "${session.jumpCount}", NeonLime)
-                    SummaryStat("Duration", formatMillis(session.durationMs), Color.White)
-                    SummaryStat("Calories", String.format(Locale.US, "%.1f", session.estimatedCalories), FlameOrange)
+                    SummaryStat("Jumps", "${session.jumpCount}", IceMint)
+                    SummaryStat("Duration", formatMillis(session.durationMs), TextPrimary)
+                    SummaryStat("Calories", String.format(Locale.US, "%.1f", session.estimatedCalories), IceMint)
                 }
 
-                HorizontalDivider(color = GlassBorder)
+                HorizontalDivider(color = MidnightBorder)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    SummaryStat("Avg RPM", "${session.averageRpm}", ElectricCyan)
-                    SummaryStat("Peak RPM", "${session.peakRpm}", ElectricCyan)
-                    SummaryStat("Best Streak", "${session.bestStreak}", FlameOrange)
+                    SummaryStat("Avg RPM", "${session.averageRpm}", TextPrimary)
+                    SummaryStat("Peak RPM", "${session.peakRpm}", IceMint)
+                    SummaryStat(
+                        if (session.formScore > 0) "AI Form" else "Best Streak",
+                        if (session.formScore > 0) "${session.formScore}%" else "${session.bestStreak}",
+                        IceMint
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                if (session.moveBreakdown.isNotEmpty()) {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        session.moveBreakdown.entries
+                            .sortedByDescending { it.value }
+                            .take(5)
+                            .forEach { (move, cnt) ->
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MidnightElevated,
+                                    border = BorderStroke(1.dp, MidnightBorder)
+                                ) {
+                                    Text(
+                                        text = "$move × $cnt",
+                                        color = TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -575,9 +623,9 @@ fun SessionSummaryDialog(
                 ) {
                     Surface(
                         onClick = { onShareSession(session) },
-                        shape = RoundedCornerShape(16.dp),
-                        color = GlassCard,
-                        border = BorderStroke(1.dp, ElectricCyan.copy(alpha = 0.6f)),
+                        shape = CircleShape,
+                        color = MidnightElevated,
+                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
@@ -588,184 +636,36 @@ fun SessionSummaryDialog(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.Share,
-                                contentDescription = "Simpan / Bagikan Kartu",
-                                tint = ElectricCyan,
+                                contentDescription = "Share Card",
+                                tint = IceMint,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.size(6.dp))
                             Text(
-                                text = "KARTU",
-                                color = ElectricCyan,
+                                text = "SHARE CARD",
+                                color = IceMint,
                                 fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp
+                                fontSize = 12.sp
                             )
                         }
                     }
 
                     Button(
                         onClick = onDismiss,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = CircleShape,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = NeonLime,
-                            contentColor = Color(0xFF0A0D10)
+                            containerColor = IceMint,
+                            contentColor = DeepMidnight
                         ),
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
                     ) {
                         Text(
-                            text = "LANJUT",
+                            text = "DONE",
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = 1.sp
                         )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun WorkoutHistorySheet(
-    stats: CumulativeStats,
-    sessions: List<WorkoutSession>,
-    onShareSession: (WorkoutSession) -> Unit,
-    onDeleteSession: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val dateFormatter = remember { SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()) }
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        contentColor = Color.White
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.History,
-                    contentDescription = null,
-                    tint = NeonLime
-                )
-                Text(
-                    text = "Riwayat & Statistik",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = Color.White
-                )
-            }
-
-            // Cumulative Stats Card
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = GlassCard,
-                border = BorderStroke(1.dp, GlassBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 14.dp, horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    SummaryStat("Total Lompat", "${stats.totalJumps}", NeonLime)
-                    SummaryStat("Sessions", "${stats.totalSessions}", Color.White)
-                    SummaryStat("Calories", String.format(Locale.US, "%.0f", stats.totalCalories), FlameOrange)
-                    SummaryStat("Best Streak", "${stats.allTimeBestStreak}", ElectricCyan)
-                }
-            }
-
-            if (sessions.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Belum ada riwayat latihan.\nDonekan sesi pertamamu untuk melihat statistik di sini!",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 360.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(sessions, key = { it.id }) { session ->
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = GlassCard,
-                            border = BorderStroke(1.dp, GlassBorder),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(
-                                    modifier = Modifier.weight(1f),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Text(
-                                            text = "${session.jumpCount} lompatan",
-                                            color = NeonLime,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 16.sp
-                                        )
-                                        Text(
-                                            text = "• ${session.modeLabel}",
-                                            color = ElectricCyan,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                    }
-                                    Text(
-                                        text = "${dateFormatter.format(Date(session.timestampMillis))}  •  ${formatMillis(session.durationMs)}  •  ${session.averageRpm} RPM  •  ${String.format(Locale.US, "%.1f", session.estimatedCalories)} kkal",
-                                        color = Color.White.copy(alpha = 0.7f),
-                                        fontSize = 12.sp
-                                    )
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { onShareSession(session) }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Share,
-                                            contentDescription = "Simpan / Bagikan Kartu",
-                                            tint = ElectricCyan
-                                        )
-                                    }
-                                    IconButton(onClick = { onDeleteSession(session.id) }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.DeleteOutline,
-                                            contentDescription = "Hapus",
-                                            tint = SoftRed.copy(alpha = 0.85f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -780,11 +680,12 @@ private fun SummaryStat(label: String, value: String, valueColor: Color) {
             text = value,
             color = valueColor,
             fontSize = 20.sp,
-            fontWeight = FontWeight.ExtraBold
+            fontWeight = FontWeight.ExtraBold,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
         )
         Text(
             text = label,
-            color = Color.White.copy(alpha = 0.65f),
+            color = TextSecondary,
             fontSize = 11.sp
         )
     }

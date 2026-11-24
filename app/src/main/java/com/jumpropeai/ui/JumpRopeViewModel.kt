@@ -10,12 +10,15 @@ import androidx.lifecycle.viewModelScope
 import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.AcousticFingerprint
 import com.jumpropeai.ai.FormCoachSnapshot
+import com.jumpropeai.ai.FramingStatus
 import com.jumpropeai.ai.FusionEngine
+import com.jumpropeai.ai.GestureTrigger
 import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.JumpStyle
 import com.jumpropeai.ai.KineticMove
 import com.jumpropeai.ai.KineticTrickCoach
 import com.jumpropeai.ai.PoseFrame
+import com.jumpropeai.ai.TouchlessGestureController
 import com.jumpropeai.audio.AudioCue
 import com.jumpropeai.audio.BeatSyncEngine
 import com.jumpropeai.audio.BeatSyncSnapshot
@@ -26,6 +29,7 @@ import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.debug.PerfStats
 import com.jumpropeai.debug.SessionDiagnosticLogger
 import com.jumpropeai.metrics.MetricsTracker
+import com.jumpropeai.metrics.RopeType
 import com.jumpropeai.metrics.WorkoutMetrics
 import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.update.AppUpdateChecker
@@ -39,6 +43,7 @@ import com.jumpropeai.workout.WorkoutModeEvaluator
 import com.jumpropeai.workout.WorkoutModeType
 import com.jumpropeai.workout.WorkoutProgress
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -50,8 +55,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class SensorMode(val label: String) {
@@ -72,13 +79,24 @@ data class JumpRopeUiState(
     val isControlsVisible: Boolean = true,
     val startCountdownDurationSec: Int = 3,
     val preStartCountdownRemaining: Int = 0,
+    // Touchless Gesture & Smart Framing (v4.0)
+    val isGestureControlEnabled: Boolean = true,
+    val framingStatus: FramingStatus = FramingStatus.NO_PERSON,
+    val gestureHoldProgress: Float = 0f,
+    // Athlete Profile & Rope Physics (v4.0)
+    val userWeightKg: Int = 65,
+    val ropeType: RopeType = RopeType.SPEED_CABLE,
+    val dailyGoalJumps: Int = 500,
+    // Diagnostics & Performance
     val isDiagnosticsEnabled: Boolean = false,
     val perfStats: PerfStats = PerfStats(),
     val recommendEcoLowFps: Boolean = false,
+    // Live Metrics & AI Coaching
     val metrics: WorkoutMetrics = WorkoutMetrics(),
     val jumpStyle: JumpStyle = JumpStyle.REGULAR,
     val currentMove: KineticMove = KineticMove.REGULAR,
     val moveCounts: Map<KineticMove, Int> = emptyMap(),
+    val comboCount: Int = 0,
     val formCoach: FormCoachSnapshot = FormCoachSnapshot(),
     val beatSync: BeatSyncSnapshot = BeatSyncSnapshot(),
     val fingerprint: AcousticFingerprint = AcousticFingerprint(),
@@ -90,8 +108,9 @@ data class JumpRopeUiState(
     val cumulativeStats: CumulativeStats = CumulativeStats(),
     val showHistorySheet: Boolean = false,
     val showModeSheet: Boolean = false,
-    // Video Studio analysis state (supports unlimited multi-video batch queue)
+    // Video Studio analysis state
     val showVideoSheet: Boolean = false,
+    val isVideoShuffleMode: Boolean = false,
     val isAnalyzingVideo: Boolean = false,
     val videoProgress: VideoAnalysisProgress? = null,
     val videoResult: VideoAnalysisResult? = null,
@@ -121,6 +140,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private val jumpDetector = JumpDetector()
     private val fusionEngine = FusionEngine()
     private val kineticTrickCoach = KineticTrickCoach()
+    private val touchlessController = TouchlessGestureController()
     private val beatSyncEngine = BeatSyncEngine()
     private val stftAudioEngine = StftAudioEngine()
     private val metricsTracker = MetricsTracker()
@@ -130,16 +150,25 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         File(application.filesDir, "workout_history.json")
     )
 
+    private val initialWeightKg = prefs.getInt(KEY_USER_WEIGHT_KG, 65).coerceIn(30, 200)
+    private val initialRopeType = runCatching {
+        RopeType.valueOf(prefs.getString(KEY_ROPE_TYPE, RopeType.SPEED_CABLE.name) ?: RopeType.SPEED_CABLE.name)
+    }.getOrDefault(RopeType.SPEED_CABLE)
+
     private val _uiState = MutableStateFlow(
         JumpRopeUiState(
             startCountdownDurationSec = prefs.getInt(KEY_START_COUNTDOWN_SEC, 3),
             autoHideControlsWhileActive = prefs.getBoolean(KEY_AUTO_HIDE_CONTROLS, false),
-            isDiagnosticsEnabled = prefs.getBoolean(KEY_DIAGNOSTICS_ENABLED, false)
+            isDiagnosticsEnabled = prefs.getBoolean(KEY_DIAGNOSTICS_ENABLED, false),
+            isGestureControlEnabled = prefs.getBoolean(KEY_GESTURE_ENABLED, true),
+            userWeightKg = initialWeightKg,
+            ropeType = initialRopeType,
+            dailyGoalJumps = prefs.getInt(KEY_DAILY_GOAL_JUMPS, 500).coerceIn(50, 20_000)
         )
     )
     val uiState: StateFlow<JumpRopeUiState> = _uiState.asStateFlow()
 
-    // Isolated high-frequency pose stream so ONLY PoseOverlay redraws at 18-30 FPS (0% full-HUD recomposition!)
+    // Isolated high-frequency pose stream so ONLY PoseOverlay redraws at 18-30 FPS
     private val _latestPose = MutableStateFlow<PoseFrame?>(null)
     val latestPose: StateFlow<PoseFrame?> = _latestPose.asStateFlow()
 
@@ -156,6 +185,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private var activeSessionStartEpochMs: Long = 0L
     private var lastAutoSavedJumpCount: Int = 0
     private var lastAudioBeatPollMs: Long = -10_000L
+    private var lastLiveMoveAcceptedMs: Long = -10_000L
 
     // Live FPS & CPU profiler counters (Zero-GC)
     private var fpsWindowStartMs: Long = 0L
@@ -164,12 +194,17 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private var lastPerfEmitMs: Long = 0L
 
     init {
-        val loaded = historyRepository.loadSessions()
-        _uiState.update {
-            it.copy(
-                historySessions = loaded,
-                cumulativeStats = WorkoutHistoryRepository.computeStats(loaded)
-            )
+        metricsTracker.updateAthleteProfile(initialWeightKg.toDouble(), initialRopeType)
+        viewModelScope.launch(Dispatchers.IO) {
+            SessionDiagnosticLogger.pruneStaleSharedCache(application.applicationContext)
+            val loaded = historyRepository.loadSessions()
+            val stats = WorkoutHistoryRepository.computeStats(loaded)
+            _uiState.update {
+                it.copy(
+                    historySessions = loaded,
+                    cumulativeStats = stats
+                )
+            }
         }
         checkForUpdates(manual = false)
     }
@@ -178,6 +213,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         private const val KEY_START_COUNTDOWN_SEC = "start_countdown_sec"
         private const val KEY_AUTO_HIDE_CONTROLS = "auto_hide_controls"
         private const val KEY_DIAGNOSTICS_ENABLED = "diagnostics_enabled"
+        private const val KEY_GESTURE_ENABLED = "gesture_control_enabled"
+        private const val KEY_USER_WEIGHT_KG = "user_weight_kg"
+        private const val KEY_ROPE_TYPE = "rope_type"
+        private const val KEY_DAILY_GOAL_JUMPS = "daily_goal_jumps"
     }
 
     fun onAudioPermissionResult(granted: Boolean) {
@@ -205,6 +244,44 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         syncAudioCapture()
     }
 
+    fun updateAthleteProfile(weightKg: Int, ropeType: RopeType, dailyGoalJumps: Int) {
+        val cleanWeight = weightKg.coerceIn(30, 200)
+        val cleanGoal = dailyGoalJumps.coerceIn(50, 20_000)
+        prefs.edit()
+            .putInt(KEY_USER_WEIGHT_KG, cleanWeight)
+            .putString(KEY_ROPE_TYPE, ropeType.name)
+            .putInt(KEY_DAILY_GOAL_JUMPS, cleanGoal)
+            .apply()
+        metricsTracker.updateAthleteProfile(cleanWeight.toDouble(), ropeType)
+        _uiState.update {
+            it.copy(
+                userWeightKg = cleanWeight,
+                ropeType = ropeType,
+                dailyGoalJumps = cleanGoal
+            )
+        }
+    }
+
+    fun toggleGestureControl() {
+        _uiState.update { state ->
+            val next = !state.isGestureControlEnabled
+            prefs.edit().putBoolean(KEY_GESTURE_ENABLED, next).apply()
+            if (!next) touchlessController.reset()
+            state.copy(
+                isGestureControlEnabled = next,
+                gestureHoldProgress = 0f
+            )
+        }
+    }
+
+    fun toggleVideoShuffleMode() {
+        _uiState.update { it.copy(isVideoShuffleMode = !it.isVideoShuffleMode) }
+    }
+
+    fun exportHistoryBackup(context: Context): Boolean {
+        return historyRepository.exportBackupCsvAndShare(context)
+    }
+
     fun onPoseFrame(frame: PoseFrame) {
         val currentState = _uiState.value
         if (currentState.sensorMode == SensorMode.AUDIO_ONLY) return
@@ -221,6 +298,24 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val isShuffleMode = currentState.workoutConfig.mode == WorkoutModeType.FREESTYLE_SHUFFLE
         val result = jumpDetector.processFrame(frame, isCountingActive = isCountingAllowed)
 
+        // Evaluate Touchless Hand-Raise Gesture & Smart Framing Assistant (Zero-GC)
+        val touchlessState = touchlessController.evaluate(
+            frame = frame,
+            isSessionRunning = currentState.isSessionRunning,
+            isCountingDown = currentState.isCountingDown,
+            isAirborne = result.isAirborne,
+            lastJumpAcceptedMs = lastLiveMoveAcceptedMs,
+            gestureEnabled = currentState.isGestureControlEnabled
+        )
+
+        if (touchlessState.trigger == GestureTrigger.TOGGLE_SESSION) {
+            val willStart = !currentState.isSessionRunning
+            notifySpeakerPlayed(500L)
+            _audioCues.tryEmit(AudioCue.GestureTriggered(starting = willStart))
+            toggleSession()
+            return
+        }
+
         var jumpsAccepted = 0
         var latestStyle = currentState.jumpStyle
         var latestFingerprint = currentState.fingerprint
@@ -230,8 +325,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val candidate = result.candidate
         val shouldPollBeatAudio = isCountingAllowed && useAudio && (nowMs - lastAudioBeatPollMs >= 500L)
 
-        // CPU/GC Optimization: ONLY snapshot the 600-element STFT ring buffer on jump candidates (~2Hz) or beat poll (2Hz),
-        // eliminating 90% of per-frame array copies & audio-thread lock contention!
         val audioSnapshot = if (isCountingAllowed && useAudio && (candidate != null || shouldPollBeatAudio)) {
             if (shouldPollBeatAudio) lastAudioBeatPollMs = nowMs
             stftAudioEngine.snapshotHistory()
@@ -255,7 +348,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             }
         }
 
-        // Parallel AI v13.3 Kinetic Trick, Shuffle Footwork & Form Coach (Zero-GC, never alters jump counter!)
         val kineticRes = if (isCountingAllowed) {
             kineticTrickCoach.processFrame(
                 frame = frame,
@@ -263,13 +355,13 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 jumpAccepted = jumpsAccepted > 0,
                 jumpAmplitude = candidate?.amplitude ?: 0f,
                 audioHistory = audioSnapshot,
-                isShuffleMode = isShuffleMode
+                isShuffleMode = isShuffleMode,
+                jumpPeakTimeMs = candidate?.peakTimeMs ?: nowMs
             )
         } else {
             null
         }
 
-        // In Freestyle / Shuffle mode, also count rhythmic Shuffle Dance steps (Running Man, T-Step, Charleston)
         val totalMovesAccepted = when {
             jumpsAccepted > 0 -> jumpsAccepted
             isShuffleMode && kineticRes?.shuffleStepDetected == true -> 1
@@ -283,7 +375,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 beatSyncEngine.snapshot()
             }
             if (totalMovesAccepted > 0) {
-                beatSyncEngine.recordMoveOnBeat(nowMs)
+                // Compensate causal lookahead by passing true jump peak timestamp!
+                beatSyncEngine.recordMoveOnBeat(candidate?.peakTimeMs ?: nowMs)
                 beatSyncEngine.snapshot()
             } else {
                 snap
@@ -293,13 +386,13 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
 
         if (totalMovesAccepted > 0 && isCountingAllowed) {
+            lastLiveMoveAcceptedMs = nowMs
             repeat(totalMovesAccepted) {
                 metricsTracker.recordJump(nowMs)
             }
             emitJumpCue(metricsTracker.jumpCount)
         }
 
-        // Optional Zero-Overhead Live FPS/CPU/RAM Monitor + CSV Diagnostic Telemetry
         var updatedPerf: PerfStats? = null
         if (currentState.isDiagnosticsEnabled) {
             val aiUs = ((System.nanoTime() - tStartNs) / 1000L).toInt().coerceAtLeast(1)
@@ -353,14 +446,19 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val prevMetrics = currentState.metrics
         val moveChanged = kineticRes != null && (
             kineticRes.currentMove != currentState.currentMove ||
-                kineticRes.formSnapshot.overallScore != currentState.formCoach.overallScore
+                kineticRes.formSnapshot.overallScore != currentState.formCoach.overallScore ||
+                kineticRes.comboCount != currentState.comboCount
             )
         val beatChanged = beatSnapshot.detectedBpm != currentState.beatSync.detectedBpm ||
             beatSnapshot.beatSyncScore != currentState.beatSync.beatSyncScore
+        val framingOrGestureChanged = touchlessState.framingStatus != currentState.framingStatus ||
+            abs(touchlessState.gestureProgress - currentState.gestureHoldProgress) >= 0.04f ||
+            (touchlessState.gestureProgress == 0f && currentState.gestureHoldProgress > 0f)
 
         val stateChanged = totalMovesAccepted > 0 ||
             moveChanged ||
             beatChanged ||
+            framingOrGestureChanged ||
             updatedPerf != null ||
             result.isAirborne != prevMetrics.isAirborne ||
             result.status != prevMetrics.detectorStatus ||
@@ -381,10 +479,13 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         _uiState.update { state ->
             state.copy(
+                framingStatus = touchlessState.framingStatus,
+                gestureHoldProgress = touchlessState.gestureProgress,
                 workoutProgress = progress,
                 jumpStyle = latestStyle,
                 currentMove = kineticRes?.currentMove ?: state.currentMove,
                 moveCounts = kineticRes?.moveCounts ?: state.moveCounts,
+                comboCount = kineticRes?.comboCount ?: state.comboCount,
                 formCoach = kineticRes?.formSnapshot ?: state.formCoach,
                 beatSync = beatSnapshot,
                 perfStats = updatedPerf ?: state.perfStats,
@@ -411,39 +512,43 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    private fun onAudioOnlyJump(timestampMs: Long) {
-        val currentState = _uiState.value
-        if (currentState.sensorMode != SensorMode.AUDIO_ONLY) return
-        val isCountingAllowed = currentState.isSessionRunning && currentState.workoutProgress.isCountingAllowed
-        if (!isCountingAllowed) return
+    private fun onAudioOnlyJumpFromThread(timestampMs: Long) {
+        // Marshal from background STFT audio thread onto Main coroutine scope to prevent data races!
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            val currentState = _uiState.value
+            if (currentState.sensorMode != SensorMode.AUDIO_ONLY) return@launch
+            val isCountingAllowed = currentState.isSessionRunning && currentState.workoutProgress.isCountingAllowed
+            if (!isCountingAllowed) return@launch
 
-        metricsTracker.recordJump(timestampMs)
-        emitJumpCue(metricsTracker.jumpCount)
+            lastLiveMoveAcceptedMs = timestampMs
+            metricsTracker.recordJump(timestampMs)
+            emitJumpCue(metricsTracker.jumpCount)
 
-        val elapsedMs = metricsTracker.getElapsedMs(timestampMs)
-        val progress = WorkoutModeEvaluator.evaluate(
-            config = currentState.workoutConfig,
-            jumpCount = metricsTracker.jumpCount,
-            elapsedMs = elapsedMs
-        )
-
-        _uiState.update { state ->
-            state.copy(
-                workoutProgress = progress,
-                metrics = state.metrics.copy(
-                    jumpCount = metricsTracker.jumpCount,
-                    elapsedMs = elapsedMs,
-                    currentRpm = metricsTracker.getCurrentRpm(timestampMs),
-                    peakRpm = metricsTracker.peakRpm,
-                    estimatedCalories = metricsTracker.estimatedCalories,
-                    currentStreak = metricsTracker.getActiveStreak(timestampMs),
-                    bestStreak = metricsTracker.bestStreak
-                )
+            val elapsedMs = metricsTracker.getElapsedMs(timestampMs)
+            val progress = WorkoutModeEvaluator.evaluate(
+                config = currentState.workoutConfig,
+                jumpCount = metricsTracker.jumpCount,
+                elapsedMs = elapsedMs
             )
-        }
 
-        if (progress.isCompleted) {
-            finishAndSaveSession(completedByTarget = true)
+            _uiState.update { state ->
+                state.copy(
+                    workoutProgress = progress,
+                    metrics = state.metrics.copy(
+                        jumpCount = metricsTracker.jumpCount,
+                        elapsedMs = elapsedMs,
+                        currentRpm = metricsTracker.getCurrentRpm(timestampMs),
+                        peakRpm = metricsTracker.peakRpm,
+                        estimatedCalories = metricsTracker.estimatedCalories,
+                        currentStreak = metricsTracker.getActiveStreak(timestampMs),
+                        bestStreak = metricsTracker.bestStreak
+                    )
+                )
+            }
+
+            if (progress.isCompleted) {
+                finishAndSaveSession(completedByTarget = true)
+            }
         }
     }
 
@@ -498,6 +603,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 _uiState.update {
                     it.copy(
                         preStartCountdownRemaining = sec,
+                        gestureHoldProgress = 0f,
                         completedSessionSummary = null
                     )
                 }
@@ -515,6 +621,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val nowMs = SystemClock.elapsedRealtime()
         val isFreshStart = metricsTracker.getElapsedMs(nowMs) == 0L
         metricsTracker.start(nowMs)
+        lastLiveMoveAcceptedMs = nowMs
         lastCountdownSecond = -1
 
         val config = _uiState.value.workoutConfig
@@ -540,6 +647,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             state.copy(
                 isSessionRunning = true,
                 preStartCountdownRemaining = 0,
+                gestureHoldProgress = 0f,
                 isControlsVisible = !state.autoHideControlsWhileActive,
                 completedSessionSummary = null
             )
@@ -548,11 +656,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         startTicker()
     }
 
-    fun autoSaveIfNeeded(nowMs: Long = SystemClock.elapsedRealtime()) {
+    private fun buildRichActiveSessionSnapshot(nowMs: Long): WorkoutSession {
+        val state = _uiState.value
         val totalJumps = metricsTracker.jumpCount
         val durationMs = metricsTracker.getElapsedMs(nowMs)
-        if (totalJumps == 0 || totalJumps == lastAutoSavedJumpCount) return
-
         val sessionId = activeSessionId ?: UUID.randomUUID().toString().also {
             activeSessionId = it
             activeSessionStartEpochMs = System.currentTimeMillis()
@@ -562,32 +669,55 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         } else {
             0
         }
-        val config = _uiState.value.workoutConfig
-        val session = WorkoutSession(
+        val moveStrMap = LinkedHashMap<String, Int>()
+        for ((m, c) in kineticTrickCoach.snapshotMoveCounts()) {
+            if (c > 0) moveStrMap[m.label] = c
+        }
+        val formSnap = kineticTrickCoach.currentFormSnapshot()
+        val beatSnap = beatSyncEngine.snapshot()
+        return WorkoutSession(
             id = sessionId,
-            timestampMillis = activeSessionStartEpochMs,
-            modeLabel = "${config.shortLabel()} • ${_uiState.value.sensorMode.label}",
-            modeType = config.mode,
+            timestampMillis = if (activeSessionStartEpochMs > 0L) activeSessionStartEpochMs else System.currentTimeMillis(),
+            modeLabel = "${state.workoutConfig.shortLabel()} • ${state.sensorMode.label}",
+            modeType = state.workoutConfig.mode,
             jumpCount = totalJumps,
             durationMs = durationMs,
             averageRpm = avgRpm,
             peakRpm = metricsTracker.peakRpm,
             estimatedCalories = metricsTracker.estimatedCalories,
-            bestStreak = metricsTracker.bestStreak
+            bestStreak = metricsTracker.bestStreak,
+            trips = fusionEngine.totalTrips,
+            formScore = formSnap.overallScore,
+            beatSyncScore = beatSnap.beatSyncScore,
+            detectedBpm = beatSnap.detectedBpm,
+            comboCount = kineticTrickCoach.comboCount,
+            ropeTypeLabel = state.ropeType.label,
+            moveBreakdown = moveStrMap
         )
-        val updated = historyRepository.upsertSession(session)
+    }
+
+    fun autoSaveIfNeeded(nowMs: Long = SystemClock.elapsedRealtime()) {
+        val totalJumps = metricsTracker.jumpCount
+        if (totalJumps == 0 || totalJumps == lastAutoSavedJumpCount) return
+        val session = buildRichActiveSessionSnapshot(nowMs)
         lastAutoSavedJumpCount = totalJumps
-        _uiState.update {
-            it.copy(
-                historySessions = updated,
-                cumulativeStats = WorkoutHistoryRepository.computeStats(updated)
-            )
+
+        // Non-blocking background disk persistence (zero Main-Thread jank!)
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = historyRepository.upsertSession(session)
+            val stats = WorkoutHistoryRepository.computeStats(updated)
+            _uiState.update {
+                it.copy(
+                    historySessions = updated,
+                    cumulativeStats = stats
+                )
+            }
         }
     }
 
-    private fun autoSaveDiagnosticLogIfNeeded(): String? {
-        if (!_uiState.value.isDiagnosticsEnabled || diagnosticLogger.loggedRowCount() <= 0) return null
-        return diagnosticLogger.autoSaveToDebugFolder(getApplication())
+    private suspend fun autoSaveDiagnosticLogSuspend(): String? = withContext(Dispatchers.IO) {
+        if (!_uiState.value.isDiagnosticsEnabled || diagnosticLogger.loggedRowCount() <= 0) return@withContext null
+        diagnosticLogger.autoSaveToDebugFolder(getApplication())
     }
 
     fun pauseSession() {
@@ -598,26 +728,31 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
         autoSaveIfNeeded(nowMs)
-        val savedLog = autoSaveDiagnosticLogIfNeeded()
         _uiState.update { state ->
             state.copy(
                 isSessionRunning = false,
                 isControlsVisible = true,
+                gestureHoldProgress = 0f,
                 recommendEcoLowFps = false,
-                perfStats = if (savedLog != null) {
-                    state.perfStats.copy(
-                        loggedRows = diagnosticLogger.loggedRowCount(),
-                        lastSavedLogPath = savedLog
-                    )
-                } else {
-                    state.perfStats
-                },
                 metrics = state.metrics.copy(
                     elapsedMs = metricsTracker.getElapsedMs(nowMs),
                     currentRpm = 0,
                     isAirborne = false
                 )
             )
+        }
+        viewModelScope.launch {
+            val savedLog = autoSaveDiagnosticLogSuspend()
+            if (savedLog != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        perfStats = state.perfStats.copy(
+                            loggedRows = diagnosticLogger.loggedRowCount(),
+                            lastSavedLogPath = savedLog
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -628,7 +763,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
 
-        val savedLog = autoSaveDiagnosticLogIfNeeded()
         val durationMs = metricsTracker.getElapsedMs(nowMs)
         val totalJumps = metricsTracker.jumpCount
         if (totalJumps == 0 && durationMs < 1000L) {
@@ -636,29 +770,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             return
         }
 
-        val avgRpm = if (durationMs >= 1000L) {
-            (totalJumps * 60_000.0 / durationMs).roundToInt()
-        } else {
-            0
-        }
-
-        val config = _uiState.value.workoutConfig
-        val sessionId = activeSessionId ?: UUID.randomUUID().toString()
-        val sessionTs = if (activeSessionStartEpochMs > 0L) activeSessionStartEpochMs else System.currentTimeMillis()
-        val session = WorkoutSession(
-            id = sessionId,
-            timestampMillis = sessionTs,
-            modeLabel = "${config.shortLabel()} • ${_uiState.value.sensorMode.label}",
-            modeType = config.mode,
-            jumpCount = totalJumps,
-            durationMs = durationMs,
-            averageRpm = avgRpm,
-            peakRpm = metricsTracker.peakRpm,
-            estimatedCalories = metricsTracker.estimatedCalories,
-            bestStreak = metricsTracker.bestStreak
-        )
-
-        val updatedHistory = historyRepository.upsertSession(session)
+        val session = buildRichActiveSessionSnapshot(nowMs)
         if (completedByTarget) {
             notifySpeakerPlayed(1500L)
             _audioCues.tryEmit(AudioCue.WorkoutCompleted(totalJumps))
@@ -667,6 +779,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         jumpDetector.reset()
         fusionEngine.reset()
         kineticTrickCoach.reset()
+        touchlessController.reset()
         beatSyncEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
@@ -681,36 +794,48 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 isSessionRunning = false,
                 isControlsVisible = true,
                 isEcoMode = false,
+                gestureHoldProgress = 0f,
                 recommendEcoLowFps = false,
                 tripsCount = 0,
                 currentMove = KineticMove.REGULAR,
                 moveCounts = emptyMap(),
+                comboCount = 0,
                 formCoach = FormCoachSnapshot(),
                 beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
-                perfStats = if (savedLog != null) {
-                    state.perfStats.copy(
-                        loggedRows = diagnosticLogger.loggedRowCount(),
-                        lastSavedLogPath = savedLog
-                    )
-                } else {
-                    state.perfStats
-                },
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress(),
-                completedSessionSummary = session,
-                historySessions = updatedHistory,
-                cumulativeStats = WorkoutHistoryRepository.computeStats(updatedHistory)
+                completedSessionSummary = session
             )
+        }
+
+        viewModelScope.launch {
+            val (updatedHistory, stats) = withContext(Dispatchers.IO) {
+                val list = historyRepository.upsertSession(session)
+                list to WorkoutHistoryRepository.computeStats(list)
+            }
+            val savedLog = autoSaveDiagnosticLogSuspend()
+            _uiState.update { state ->
+                state.copy(
+                    historySessions = updatedHistory,
+                    cumulativeStats = stats,
+                    perfStats = if (savedLog != null) {
+                        state.perfStats.copy(
+                            loggedRows = diagnosticLogger.loggedRowCount(),
+                            lastSavedLogPath = savedLog
+                        )
+                    } else {
+                        state.perfStats
+                    }
+                )
+            }
         }
     }
 
     fun resetSession() {
-        // Auto-save before reset if user had >= 5 jumps so accidental reset never loses data
         if (metricsTracker.jumpCount >= 5) {
             autoSaveIfNeeded()
         }
-        val savedLog = autoSaveDiagnosticLogIfNeeded()
         cancelPreStartCountdown()
         tickerJob?.cancel()
         tickerJob = null
@@ -718,6 +843,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         jumpDetector.reset()
         fusionEngine.reset()
         kineticTrickCoach.reset()
+        touchlessController.reset()
         beatSyncEngine.reset()
         stftAudioEngine.reset()
         metricsTracker.reset()
@@ -730,28 +856,35 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             state.copy(
                 isSessionRunning = false,
                 isControlsVisible = true,
+                gestureHoldProgress = 0f,
                 recommendEcoLowFps = false,
                 tripsCount = 0,
                 currentMove = KineticMove.REGULAR,
                 moveCounts = emptyMap(),
+                comboCount = 0,
                 formCoach = FormCoachSnapshot(),
                 beatSync = BeatSyncSnapshot(),
                 fingerprint = AcousticFingerprint(),
-                perfStats = if (savedLog != null) {
-                    state.perfStats.copy(
-                        loggedRows = diagnosticLogger.loggedRowCount(),
-                        lastSavedLogPath = savedLog
-                    )
-                } else {
-                    state.perfStats
-                },
                 metrics = WorkoutMetrics(),
                 workoutProgress = WorkoutProgress()
             )
         }
+        viewModelScope.launch {
+            val savedLog = autoSaveDiagnosticLogSuspend()
+            if (savedLog != null) {
+                _uiState.update { state ->
+                    state.copy(
+                        perfStats = state.perfStats.copy(
+                            loggedRows = diagnosticLogger.loggedRowCount(),
+                            lastSavedLogPath = savedLog
+                        )
+                    )
+                }
+            }
+        }
     }
 
-    // --- Video Analysis ---
+    // --- Video Studio Analysis ---
 
     fun openVideoSheet() {
         if (_uiState.value.isSessionRunning) pauseSession()
@@ -785,6 +918,11 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         if (videos.isEmpty()) return
         videoJob?.cancel()
         val totalCount = videos.size
+        val stateSnap = _uiState.value
+        val shuffleEnabled = stateSnap.isVideoShuffleMode
+        val weightKg = stateSnap.userWeightKg.toDouble()
+        val ropeType = stateSnap.ropeType
+
         _uiState.update {
             it.copy(
                 showVideoSheet = true,
@@ -819,34 +957,57 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 try {
-                    val result = videoAnalyzer.analyzeVideo(uri, fileName) { prog ->
+                    val result = videoAnalyzer.analyzeVideo(
+                        uri = uri,
+                        fileName = fileName,
+                        enableDebugLog = true,
+                        isShuffleMode = shuffleEnabled,
+                        userWeightKg = weightKg,
+                        ropeType = ropeType
+                    ) { prog ->
                         _uiState.update { it.copy(videoProgress = prog) }
                     }
                     completed.add(result)
 
-                    // Auto-save analyzed video session to history immediately so user never forgets!
                     var updatedHistory = _uiState.value.historySessions
+                    var updatedStats = _uiState.value.cumulativeStats
                     if (result.jumpCount > 0) {
+                        val moveStrMap = LinkedHashMap<String, Int>()
+                        for ((m, c) in result.moveCounts) {
+                            if (c > 0) moveStrMap[m.label] = c
+                        }
                         val autoSession = WorkoutSession(
                             id = UUID.randomUUID().toString(),
                             timestampMillis = System.currentTimeMillis(),
-                            modeLabel = "Video • ${result.style.label}",
-                            modeType = WorkoutModeType.FREE,
+                            modeLabel = if (shuffleEnabled) "Video • Shuffle & Tricks" else "Video • ${result.style.label}",
+                            modeType = if (shuffleEnabled) WorkoutModeType.FREESTYLE_SHUFFLE else WorkoutModeType.FREE,
                             jumpCount = result.jumpCount,
                             durationMs = result.durationMs,
                             averageRpm = result.averageRpm,
                             peakRpm = result.peakRpm,
                             estimatedCalories = result.estimatedCalories,
-                            bestStreak = result.bestStreak
+                            bestStreak = result.bestStreak,
+                            trips = result.trips,
+                            formScore = result.formScore,
+                            beatSyncScore = result.beatSyncScore,
+                            detectedBpm = result.detectedBpm,
+                            comboCount = result.comboCount,
+                            ropeTypeLabel = ropeType.label,
+                            moveBreakdown = moveStrMap
                         )
-                        updatedHistory = historyRepository.upsertSession(autoSession)
+                        val savedPair = withContext(Dispatchers.IO) {
+                            val list = historyRepository.upsertSession(autoSession)
+                            list to WorkoutHistoryRepository.computeStats(list)
+                        }
+                        updatedHistory = savedPair.first
+                        updatedStats = savedPair.second
                     }
                     _uiState.update {
                         it.copy(
                             videoResult = result,
                             batchCompletedResults = completed.toList(),
                             historySessions = updatedHistory,
-                            cumulativeStats = WorkoutHistoryRepository.computeStats(updatedHistory)
+                            cumulativeStats = updatedStats
                         )
                     }
                 } catch (ce: CancellationException) {
@@ -860,7 +1021,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 it.copy(
                     isAnalyzingVideo = false,
                     videoProgress = null,
-                    videoError = if (completed.isEmpty()) lastError else lastError,
+                    videoError = lastError,
                     batchCompletedResults = completed.toList()
                 )
             }
@@ -868,7 +1029,6 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun saveVideoResultToHistory(result: VideoAnalysisResult) {
-        // Already auto-saved on completion; close cleanly
         _uiState.update {
             it.copy(
                 showVideoSheet = false,
@@ -884,6 +1044,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
     fun toggleCamera() {
         jumpDetector.reset()
+        touchlessController.reset()
         _latestPose.value = null
         _uiState.update { state ->
             val nextLens = if (state.lensFacing == CameraSelector.LENS_FACING_FRONT) {
@@ -891,7 +1052,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             } else {
                 CameraSelector.LENS_FACING_FRONT
             }
-            state.copy(lensFacing = nextLens)
+            state.copy(lensFacing = nextLens, gestureHoldProgress = 0f)
         }
     }
 
@@ -1021,12 +1182,15 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun deleteHistorySession(sessionId: String) {
-        val updated = historyRepository.deleteSession(sessionId)
-        _uiState.update {
-            it.copy(
-                historySessions = updated,
-                cumulativeStats = WorkoutHistoryRepository.computeStats(updated)
-            )
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = historyRepository.deleteSession(sessionId)
+            val stats = WorkoutHistoryRepository.computeStats(updated)
+            _uiState.update {
+                it.copy(
+                    historySessions = updated,
+                    cumulativeStats = stats
+                )
+            }
         }
     }
 
@@ -1038,7 +1202,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         if (needsMic) {
             val audioOnlyCallback: ((Long) -> Unit)? = if (state.sensorMode == SensorMode.AUDIO_ONLY) {
-                { ts -> onAudioOnlyJump(ts) }
+                { ts -> onAudioOnlyJumpFromThread(ts) }
             } else {
                 null
             }

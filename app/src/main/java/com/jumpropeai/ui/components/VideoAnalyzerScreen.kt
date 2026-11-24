@@ -26,12 +26,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.UploadFile
 import androidx.compose.material3.Button
@@ -72,12 +73,14 @@ import com.jumpropeai.video.VideoAnalysisResult
 import java.util.Locale
 
 /**
- * Modern Two-Tone Video Studio tab (Deep Midnight + Ice Mint).
- * Live camera is completely turned OFF while this tab is active.
+ * Modern Two-Tone Video Studio tab (Deep Midnight + Ice Mint) with Shuffle toggle,
+ * BPM & Beat-Sync telemetry, and Live Animated HUD export.
  */
 @Composable
 fun VideoAnalyzerScreen(
     isAnalyzing: Boolean,
+    isShuffleMode: Boolean,
+    onToggleShuffleMode: () -> Unit,
     progress: VideoAnalysisProgress?,
     result: VideoAnalysisResult?,
     errorMessage: String?,
@@ -118,13 +121,13 @@ fun VideoAnalyzerScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp, vertical = 20.dp)
     ) {
-        // 1. Clean Top Header
+        // 1. Top Header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Video Studio",
                     color = TextPrimary,
@@ -168,9 +171,50 @@ fun VideoAnalyzerScreen(
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(10.dp))
 
-        // 2. Adaptive Full-Frame Video Preview Card (never crops portrait or landscape videos!)
+        // Mode Toggle Strip: Jump Rope vs Shuffle & Footwork
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                onClick = { if (!isAnalyzing && isShuffleMode) onToggleShuffleMode() },
+                shape = CircleShape,
+                color = if (!isShuffleMode) IceMint else MidnightSurface,
+                border = BorderStroke(1.dp, if (!isShuffleMode) IceMint else MidnightBorder),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Jump Rope AI",
+                    color = if (!isShuffleMode) DeepMidnight else TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            Surface(
+                onClick = { if (!isAnalyzing && !isShuffleMode) onToggleShuffleMode() },
+                shape = CircleShape,
+                color = if (isShuffleMode) IceMint else MidnightSurface,
+                border = BorderStroke(1.dp, if (isShuffleMode) IceMint else MidnightBorder),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "Shuffle & Footwork",
+                    color = if (isShuffleMode) DeepMidnight else TextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        // 2. Adaptive Full-Frame Video Preview Card
         val isPortraitVideo = imageBitmap != null && imageBitmap.height > imageBitmap.width
         val previewAspect = if (isPortraitVideo) 3f / 4f else 16f / 10f
         Surface(
@@ -200,7 +244,6 @@ fun VideoAnalyzerScreen(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Live AI Skeleton Overlay aligned 1:1 with ContentScale.Fit
                         if (isAnalyzing && progress?.latestPose != null) {
                             PoseOverlay(
                                 poseFrame = progress.latestPose,
@@ -210,18 +253,21 @@ fun VideoAnalyzerScreen(
                             )
                         }
 
-                        // Live AI Detected Trick / Move Pill in Top-Left during analysis
                         if (isAnalyzing && progress != null && liveJumpCount > 0) {
+                            val pillLabel = buildString {
+                                append(progress.currentMove.label.uppercase(Locale.US))
+                                if (progress.detectedBpm > 0) append(" • ${progress.detectedBpm} BPM")
+                            }
                             Surface(
                                 shape = CircleShape,
-                                color = DeepMidnight.copy(alpha = 0.78f),
+                                color = DeepMidnight.copy(alpha = 0.80f),
                                 border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(12.dp)
                             ) {
                                 Text(
-                                    text = progress.currentMove.label.uppercase(Locale.US),
+                                    text = pillLabel,
                                     color = IceMint,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
@@ -231,7 +277,6 @@ fun VideoAnalyzerScreen(
                             }
                         }
 
-                        // Crisp Ice Mint Jump Counter Badge in Top-Right
                         Surface(
                             shape = CircleShape,
                             color = IceMint,
@@ -241,7 +286,7 @@ fun VideoAnalyzerScreen(
                                 .scale(badgeScale)
                         ) {
                             Text(
-                                text = "$liveJumpCount Jumps",
+                                text = "$liveJumpCount ${if (isShuffleMode) "Moves" else "Jumps"}",
                                 color = DeepMidnight,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.ExtraBold,
@@ -250,7 +295,6 @@ fun VideoAnalyzerScreen(
                             )
                         }
 
-                        // Thin Ice Mint Progress Bar at Bottom of Video Frame
                         val barProgress = when {
                             isAnalyzing -> (progress?.fraction ?: 0f).coerceIn(0f, 1f)
                             result != null -> 1f
@@ -269,7 +313,6 @@ fun VideoAnalyzerScreen(
                         )
                     }
                 } else {
-                    // Empty Idle State
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -293,7 +336,7 @@ fun VideoAnalyzerScreen(
                         }
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            text = "Analyze Jump Rope Video",
+                            text = "Analyze Jump Rope & Shuffle Videos",
                             color = TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -301,7 +344,7 @@ fun VideoAnalyzerScreen(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Pick a workout video from your gallery to automatically count jumps with AI and export a watermarked video.",
+                            text = "Pick 1 or multiple videos from your gallery to count jumps, classify tricks, measure Music BPM, and export a live animated counter video.",
                             color = TextSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
@@ -312,7 +355,6 @@ fun VideoAnalyzerScreen(
             }
         }
 
-        // Error Banner if any
         if (!errorMessage.isNullOrBlank()) {
             Spacer(Modifier.height(12.dp))
             Surface(
@@ -332,7 +374,6 @@ fun VideoAnalyzerScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        // 3. Status / 2x2 Metric Grid
         if (isAnalyzing) {
             val pct = ((progress?.fraction ?: 0f) * 100).toInt().coerceIn(0, 100)
             Surface(
@@ -372,7 +413,7 @@ fun VideoAnalyzerScreen(
                     ) {
                         StudioMetricCard(
                             value = "${progress?.currentJumps ?: 0}",
-                            label = "Jumps",
+                            label = if (isShuffleMode) "Moves" else "Jumps",
                             icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                             modifier = Modifier.weight(1f)
                         )
@@ -386,7 +427,6 @@ fun VideoAnalyzerScreen(
                 }
             }
         } else if (result != null) {
-            // 2x2 Crisp Metric Grid
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -394,7 +434,7 @@ fun VideoAnalyzerScreen(
                 ) {
                     StudioMetricCard(
                         value = "${result.jumpCount}",
-                        label = "Total Jumps",
+                        label = if (isShuffleMode) "Total Moves" else "Total Jumps",
                         icon = Icons.AutoMirrored.Rounded.DirectionsRun,
                         modifier = Modifier.weight(1f)
                     )
@@ -424,8 +464,7 @@ fun VideoAnalyzerScreen(
                 }
             }
 
-            // AI Form Coach + Detected Tricks Breakdown Card
-            if (result.formScore > 0 || result.moveCounts.isNotEmpty()) {
+            if (result.formScore > 0 || result.moveCounts.isNotEmpty() || result.detectedBpm > 0) {
                 Spacer(Modifier.height(12.dp))
                 Surface(
                     shape = RoundedCornerShape(18.dp),
@@ -443,23 +482,39 @@ fun VideoAnalyzerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "AI Form & Trick Breakdown",
+                                text = "AI Form, Tricks & Rhythm",
                                 color = TextPrimary,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            if (result.formScore > 0) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = IceMintSoft
-                                ) {
-                                    Text(
-                                        text = "Form ${result.formScore}%",
-                                        color = IceMint,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (result.detectedBpm > 0) {
+                                    Surface(shape = CircleShape, color = MidnightElevated) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Rounded.MusicNote, null, tint = IceMint, modifier = Modifier.size(12.dp))
+                                            Spacer(Modifier.width(3.dp))
+                                            Text(
+                                                text = if (result.beatSyncScore > 0) "${result.detectedBpm} BPM • ${result.beatSyncScore}%" else "${result.detectedBpm} BPM",
+                                                color = TextPrimary,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                                if (result.formScore > 0) {
+                                    Surface(shape = CircleShape, color = IceMintSoft) {
+                                        Text(
+                                            text = "Form ${result.formScore}%",
+                                            color = IceMint,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -491,13 +546,27 @@ fun VideoAnalyzerScreen(
                                         )
                                     }
                                 }
+                                if (result.comboCount > 0) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = IceMintSoft,
+                                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
+                                    ) {
+                                        Text(
+                                            text = "${result.comboCount} Combos",
+                                            color = IceMint,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Auto-saved Unlimited Debug Log status badge (Documents/Jumpvex/DebugLogs/)
             if (!result.savedDebugLogPath.isNullOrBlank()) {
                 Spacer(Modifier.height(12.dp))
                 Surface(
@@ -536,7 +605,6 @@ fun VideoAnalyzerScreen(
                 }
             }
 
-            // Multi-Video Batch Summary Card when 2+ videos were analyzed
             if (batchResults.size > 1) {
                 Spacer(Modifier.height(12.dp))
                 Surface(
@@ -571,7 +639,7 @@ fun VideoAnalyzerScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(
-                                    text = "${item.jumpCount} jumps • ${item.averageRpm} RPM",
+                                    text = "${item.jumpCount} • ${item.averageRpm} RPM",
                                     color = IceMint,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
@@ -585,7 +653,6 @@ fun VideoAnalyzerScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Primary CTA: Export & Share
             Button(
                 onClick = { onShareResult(result) },
                 shape = CircleShape,
@@ -604,7 +671,7 @@ fun VideoAnalyzerScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Export & Share",
+                    text = "Export Live HUD Video & Card",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -612,7 +679,6 @@ fun VideoAnalyzerScreen(
 
             Spacer(Modifier.height(10.dp))
 
-            // Secondary CTA: Save / Done
             OutlinedButton(
                 onClick = { onSaveResultToHistory(result) },
                 shape = CircleShape,
@@ -639,7 +705,6 @@ fun VideoAnalyzerScreen(
                 )
             }
         } else {
-            // Idle CTA Button
             Button(
                 onClick = onPickVideo,
                 shape = CircleShape,
@@ -716,4 +781,3 @@ private fun StudioMetricCard(
         }
     }
 }
-

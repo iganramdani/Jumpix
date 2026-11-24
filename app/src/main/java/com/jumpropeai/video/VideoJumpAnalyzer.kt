@@ -2,11 +2,7 @@ package com.jumpropeai.video
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.graphics.YuvImage
+import android.media.AudioFormat
 import android.media.Image
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -32,18 +28,28 @@ import com.jumpropeai.audio.FluxSample
 import com.jumpropeai.audio.StftAudioEngine
 import com.jumpropeai.debug.SessionDiagnosticLogger
 import com.jumpropeai.metrics.MetricsTracker
+import com.jumpropeai.metrics.RopeType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.EnumMap
 import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
+
+data class VideoTelemetryEvent(
+    val timestampMs: Long,
+    val jumpNumber: Int,
+    val currentRpm: Int,
+    val currentStreak: Int,
+    val move: KineticMove,
+    val calories: Double
+)
 
 data class VideoAnalysisProgress(
     val stage: String,
@@ -57,6 +63,8 @@ data class VideoAnalysisProgress(
     val isAirborne: Boolean = false,
     val style: JumpStyle = JumpStyle.REGULAR,
     val currentMove: KineticMove = KineticMove.REGULAR,
+    val detectedBpm: Int = 0,
+    val beatSyncScore: Int = 0,
     val fingerprint: AcousticFingerprint = AcousticFingerprint(),
     val previewBitmap: Bitmap? = null,
     val latestPose: PoseFrame? = null
@@ -79,7 +87,11 @@ data class VideoAnalysisResult(
     val sourceUri: Uri? = null,
     val formScore: Int = 0,
     val formTip: String = "",
+    val detectedBpm: Int = 0,
+    val beatSyncScore: Int = 0,
+    val comboCount: Int = 0,
     val moveCounts: Map<KineticMove, Int> = emptyMap(),
+    val telemetryEvents: List<VideoTelemetryEvent> = emptyList(),
     val highlightStartMs: Long = 0L,
     val highlightEndMs: Long = 0L,
     val highlightSummary: String = "",
@@ -88,7 +100,10 @@ data class VideoAnalysisResult(
 )
 
 /**
- * High-speed hardware-accelerated video jump rope & footwork analyzer with real-time CSV debug logging.
+ * High-speed hardware-accelerated video jump rope & footwork analyzer (AI Engine v14):
+ * - O(1)-memory anti-aliased streaming audio STFT (supports PCM 16-bit & PCM Float without OOM).
+ * - Peak-aligned Trick & Shuffle footwork classification + per-jump timeline telemetry for
+ *   frame-accurate Dynamic Animated Video HUD export.
  */
 class VideoJumpAnalyzer(private val context: Context) {
 
@@ -96,12 +111,15 @@ class VideoJumpAnalyzer(private val context: Context) {
         uri: Uri,
         fileName: String,
         enableDebugLog: Boolean = true,
+        isShuffleMode: Boolean = false,
+        userWeightKg: Double = 65.0,
+        ropeType: RopeType = RopeType.SPEED_CABLE,
         onProgress: (VideoAnalysisProgress) -> Unit
     ): VideoAnalysisResult = withContext(Dispatchers.Default) {
         onProgress(VideoAnalysisProgress("Scanning audio spectrum...", 0.04f, 0))
 
-        // 1. Fast primitive-array MP4 audio decode -> 100 Hz multi-band STFT flux
-        val audioFlux = decodeMp4AudioToFlux(uri)
+        // 1. O(1)-RAM Streaming Audio Decode -> Anti-aliased 100 Hz 5-Band STFT Flux
+        val audioFlux = decodeVideoAudioStreamingToFlux(uri)
         val hadAudio = audioFlux.size >= 20
 
         ensureActive()
@@ -125,12 +143,14 @@ class VideoJumpAnalyzer(private val context: Context) {
         val fusionEngine = FusionEngine()
         val kineticTrickCoach = KineticTrickCoach()
         val beatSyncEngine = BeatSyncEngine()
-        val metricsTracker = MetricsTracker()
+        val metricsTracker = MetricsTracker(userWeightKg = userWeightKg).apply {
+            updateAthleteProfile(userWeightKg, ropeType)
+        }
         val videoLogger = if (enableDebugLog) {
             SessionDiagnosticLogger().also {
                 it.startSession(
                     context = context,
-                    modeLabel = "Video Studio",
+                    modeLabel = if (isShuffleMode) "Video Studio (Shuffle)" else "Video Studio",
                     sensorLabel = if (hadAudio) "Fusion AI" else "Video Only",
                     filePrefix = "Video_${fileName.substringBeforeLast('.')}"
                 )
@@ -139,6 +159,7 @@ class VideoJumpAnalyzer(private val context: Context) {
             null
         }
         val jumpTimestamps = ArrayList<Long>(256)
+        val telemetryEvents = ArrayList<VideoTelemetryEvent>(256)
         var lastDisplayedBitmap: Bitmap? = null
 
         try {
@@ -171,7 +192,6 @@ class VideoJumpAnalyzer(private val context: Context) {
                 0
             }
 
-            // Request universal flexible YUV420 output for zero-copy hardware decoding
             videoFormat.setInteger(
                 MediaFormat.KEY_COLOR_FORMAT,
                 MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible
@@ -191,7 +211,6 @@ class VideoJumpAnalyzer(private val context: Context) {
             var lastUiEmitWallMs = 0L
             var lastFrameMs = 0L
 
-            // Reusable buffers to eliminate per-frame GC pauses
             var nv21Buffer: ByteArray? = null
             var previewArgbBuffer: IntArray? = null
 
@@ -218,7 +237,6 @@ class VideoJumpAnalyzer(private val context: Context) {
                     val isEos = (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0
                     val currentMs = (bufferInfo.presentationTimeUs / 1000L).coerceAtLeast(0L)
 
-                    // Sample at ~15.4 FPS (every >= 65ms): full accuracy up to 240 RPM + smoother low-end speed
                     val shouldProcess = !isEos && bufferInfo.size > 0 && (currentMs - lastProcessedMs >= 65L)
 
                     if (shouldProcess) {
@@ -239,7 +257,6 @@ class VideoJumpAnalyzer(private val context: Context) {
                             yuv420ToNv21(outputImage, nv21)
                             outputImage.close()
 
-                            // Release hardware buffer immediately BEFORE running ML Kit!
                             codec.releaseOutputBuffer(outIdx, false)
 
                             val inputImage = InputImage.fromByteBuffer(
@@ -250,7 +267,6 @@ class VideoJumpAnalyzer(private val context: Context) {
                                 InputImage.IMAGE_FORMAT_NV21
                             )
 
-                            // Start ML Kit asynchronously AND build fast RGB_565 preview concurrently (both read-only on nv21!)
                             val poseTask = poseDetector.process(inputImage)
                             val nowWallMs = System.nanoTime() / 1_000_000L
                             val wantUiFrame = (nowWallMs - lastUiEmitWallMs >= 32L)
@@ -277,7 +293,7 @@ class VideoJumpAnalyzer(private val context: Context) {
 
                             val aiStartNs = if (videoLogger != null) System.nanoTime() else 0L
                             val det = jumpDetector.processFrame(poseFrame, isCountingActive = true)
-                            var jumpJustCounted = false
+                            var acceptedThisFrame = 0
                             val cand = det.candidate
                             if (cand != null) {
                                 val decision = fusionEngine.evaluateCandidate(
@@ -285,32 +301,60 @@ class VideoJumpAnalyzer(private val context: Context) {
                                     audioHistory = audioFlux,
                                     useAudioFusion = hadAudio
                                 )
-                                if (decision.acceptedJumps > 0) {
-                                    jumpJustCounted = true
-                                    repeat(decision.acceptedJumps) {
-                                        metricsTracker.recordJump(cand.landTimeMs)
-                                        jumpTimestamps.add(cand.landTimeMs)
-                                    }
-                                    if (hadAudio) {
-                                        beatSyncEngine.recordMoveOnBeat(cand.landTimeMs)
-                                    }
-                                }
+                                acceptedThisFrame = decision.acceptedJumps
                             }
 
-                            // Update STFT Music BPM & Beat-Sync every ~500ms during Video Studio analysis
                             if (hadAudio && (currentMs / 500L) != (prevProcMs.coerceAtLeast(0L) / 500L)) {
                                 beatSyncEngine.updateFromAudio(audioFlux, currentMs)
                             }
 
-                            // Run AI v13.5 Trick & Form Coach in parallel
                             val kineticRes = kineticTrickCoach.processFrame(
                                 frame = poseFrame,
                                 isAirborne = det.isAirborne,
-                                jumpAccepted = jumpJustCounted,
+                                jumpAccepted = acceptedThisFrame > 0,
                                 jumpAmplitude = cand?.amplitude ?: 0f,
                                 audioHistory = audioFlux,
-                                isShuffleMode = false
+                                isShuffleMode = isShuffleMode,
+                                jumpPeakTimeMs = cand?.peakTimeMs ?: currentMs
                             )
+
+                            val totalMovesThisFrame = when {
+                                acceptedThisFrame > 0 -> acceptedThisFrame
+                                isShuffleMode && kineticRes.shuffleStepDetected -> 1
+                                else -> 0
+                            }
+
+                            if (totalMovesThisFrame > 0) {
+                                val baseEventMs = if (cand != null) {
+                                    (cand.peakTimeMs + 85L).coerceAtMost(currentMs)
+                                } else {
+                                    currentMs
+                                }
+                                repeat(totalMovesThisFrame) { idx ->
+                                    val evMs = if (totalMovesThisFrame > 1) {
+                                        (baseEventMs - (totalMovesThisFrame - 1 - idx) * 180L).coerceAtLeast(0L)
+                                    } else {
+                                        baseEventMs
+                                    }
+                                    metricsTracker.recordJump(evMs)
+                                    jumpTimestamps.add(evMs)
+                                    telemetryEvents.add(
+                                        VideoTelemetryEvent(
+                                            timestampMs = evMs,
+                                            jumpNumber = metricsTracker.jumpCount,
+                                            currentRpm = metricsTracker.getCurrentRpm(evMs),
+                                            currentStreak = metricsTracker.getActiveStreak(evMs),
+                                            move = kineticRes.currentMove,
+                                            calories = metricsTracker.estimatedCalories
+                                        )
+                                    )
+                                }
+                                if (hadAudio) {
+                                    beatSyncEngine.recordMoveOnBeat(cand?.peakTimeMs ?: currentMs)
+                                }
+                            }
+
+                            val beatSnap = beatSyncEngine.snapshot()
 
                             if (videoLogger != null) {
                                 val aiUs = ((System.nanoTime() - aiStartNs) / 1000L).toInt().coerceAtLeast(1)
@@ -321,7 +365,6 @@ class VideoJumpAnalyzer(private val context: Context) {
                                 }
                                 val rt = Runtime.getRuntime()
                                 val heapMb = ((rt.totalMemory() - rt.freeMemory()) / (1024L * 1024L)).toInt()
-                                val beatSnap = beatSyncEngine.snapshot()
                                 videoLogger.recordFrame(
                                     tsMs = currentMs,
                                     fps = dtFps,
@@ -347,8 +390,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                                 )
                             }
 
-                            // Emit smooth live preview + skeleton on EVERY processed frame (capped at ~30 FPS wall-clock)
-                            if (wantUiFrame || jumpJustCounted) {
+                            if (wantUiFrame || totalMovesThisFrame > 0) {
                                 if (previewBmp != null) {
                                     lastDisplayedBitmap = previewBmp
                                 }
@@ -367,6 +409,8 @@ class VideoJumpAnalyzer(private val context: Context) {
                                         isAirborne = det.isAirborne,
                                         style = fusionEngine.latestStyle,
                                         currentMove = kineticRes.currentMove,
+                                        detectedBpm = beatSnap.detectedBpm,
+                                        beatSyncScore = beatSnap.beatSyncScore,
                                         fingerprint = fusionEngine.currentFingerprint(),
                                         previewBitmap = lastDisplayedBitmap,
                                         latestPose = poseFrame
@@ -391,6 +435,7 @@ class VideoJumpAnalyzer(private val context: Context) {
             val totalJumps = metricsTracker.jumpCount
             val avgRpm = (totalJumps * 60_000.0 / finalDur).roundToInt()
             val formSnap = kineticTrickCoach.currentFormSnapshot()
+            val finalBeatSnap = beatSyncEngine.snapshot()
             val (hlStart, hlEnd, hlSummary) = computePeakHighlightWindow(jumpTimestamps, finalDur)
             val savedLogPath = videoLogger?.autoSaveToDebugFolder(context)
             val savedLogFile = videoLogger?.exportToFile(context)
@@ -412,7 +457,11 @@ class VideoJumpAnalyzer(private val context: Context) {
                 sourceUri = uri,
                 formScore = formSnap.overallScore,
                 formTip = formSnap.coachingTip,
+                detectedBpm = finalBeatSnap.detectedBpm,
+                beatSyncScore = finalBeatSnap.beatSyncScore,
+                comboCount = kineticTrickCoach.comboCount,
                 moveCounts = kineticTrickCoach.snapshotMoveCounts(),
+                telemetryEvents = telemetryEvents,
                 highlightStartMs = hlStart,
                 highlightEndMs = hlEnd,
                 highlightSummary = hlSummary,
@@ -427,9 +476,6 @@ class VideoJumpAnalyzer(private val context: Context) {
         }
     }
 
-    /**
-     * O(N) sliding-window scan that locates the densest 10-second Peak-Action highlight segment.
-     */
     private fun computePeakHighlightWindow(
         jumpTimestamps: List<Long>,
         totalDurationMs: Long
@@ -475,9 +521,6 @@ class VideoJumpAnalyzer(private val context: Context) {
         }
     }
 
-    /**
-     * Universal YUV_420_888 -> NV21 converter with fast bulk row copies for semi-planar hardware decoders.
-     */
     private fun yuv420ToNv21(image: Image, out: ByteArray) {
         val width = image.width
         val height = image.height
@@ -519,14 +562,10 @@ class VideoJumpAnalyzer(private val context: Context) {
         val vRowStride = vPlane.rowStride
         val vPixelStride = vPlane.pixelStride
 
-        // Fast path for NV21 semi-planar (vBuf already has V,U interleaved with stride 2 and no row padding)
         if (vPixelStride == 2 && uPixelStride == 2 && vRowStride == width && uRowStride == width &&
             vBuf.remaining() >= chromaH * width - 1
         ) {
-            val vPos0 = 0
-            val uPos0 = 0
-            // Verify vBuf[1] == uBuf[0] (standard NV21 memory layout)
-            if (vBuf.limit() >= 2 && uBuf.limit() >= 1 && vBuf.get(vPos0 + 1) == uBuf.get(uPos0)) {
+            if (vBuf.limit() >= 2 && uBuf.limit() >= 1 && vBuf.get(1) == uBuf.get(0)) {
                 val copyLen = (chromaH * width - 1).coerceAtMost(vBuf.limit())
                 vBuf.position(0)
                 vBuf.get(out, pos, copyLen)
@@ -545,11 +584,6 @@ class VideoJumpAnalyzer(private val context: Context) {
         }
     }
 
-    /**
-     * Ultra-fast direct integer NV21 -> rotated RGB_565 downsampled preview (~1.5ms vs ~35ms JPEG).
-     * Reuses [reuseArgb] across frames so there is zero per-frame ByteArrayOutputStream / GC stutter,
-     * and uses RGB_565 (half GPU upload bandwidth on low-end phones).
-     */
     private fun nv21ToFastPreviewBitmap(
         nv21: ByteArray,
         width: Int,
@@ -613,9 +647,10 @@ class VideoJumpAnalyzer(private val context: Context) {
     }
 
     /**
-     * Fast zero-boxing primitive FloatArray MP4 audio decoder -> 100 Hz STFT flux.
+     * O(1)-RAM Streaming Audio Decoder -> Anti-Aliased 100 Hz STFT Flux.
+     * Supports both `ENCODING_PCM_16BIT` and `ENCODING_PCM_FLOAT` decoders without allocating full-audio arrays!
      */
-    private fun decodeMp4AudioToFlux(uri: Uri): List<FluxSample> {
+    private fun decodeVideoAudioStreamingToFlux(uri: Uri): List<FluxSample> {
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         return try {
@@ -635,23 +670,29 @@ class VideoJumpAnalyzer(private val context: Context) {
 
             extractor.selectTrack(audioTrackIndex)
             val mime = audioFormat.getString(MediaFormat.KEY_MIME) ?: return emptyList()
-            val sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
-            val channels = audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceAtLeast(1)
+            var sampleRate = audioFormat.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+            var channels = audioFormat.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceAtLeast(1)
+            var pcmEncoding = if (audioFormat.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                audioFormat.getInteger(MediaFormat.KEY_PCM_ENCODING)
+            } else {
+                AudioFormat.ENCODING_PCM_16BIT
+            }
 
             codec = MediaCodec.createDecoderByType(mime).apply {
                 configure(audioFormat, null, null, 0)
                 start()
             }
 
-            // Unlimited practical duration (up to 60 min); primitive FloatArray avoids boxed Float allocations!
-            val maxMonoSamples = sampleRate * 3600
-            var pcm = FloatArray(minOf(sampleRate * 30, maxMonoSamples))
-            var pcmLen = 0
+            val stftEngine = StftAudioEngine()
+            var streamSession = stftEngine.StreamingOfflineSession(sampleRate)
+            var monoChunk = FloatArray(8192)
             val bufferInfo = MediaCodec.BufferInfo()
             var inputDone = false
             var outputDone = false
+            var totalMonoFrames = 0L
+            val maxFramesCap = sampleRate.toLong() * 7200L // up to 2 hours safety cap
 
-            while (!outputDone && pcmLen < maxMonoSamples) {
+            while (!outputDone && totalMonoFrames < maxFramesCap) {
                 if (!inputDone) {
                     val inIdx = codec.dequeueInputBuffer(5_000L)
                     if (inIdx >= 0) {
@@ -668,26 +709,60 @@ class VideoJumpAnalyzer(private val context: Context) {
                 }
 
                 val outIdx = codec.dequeueOutputBuffer(bufferInfo, 5_000L)
-                if (outIdx >= 0) {
+                if (outIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    val newFmt = codec.outputFormat
+                    if (newFmt.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
+                        val newSr = newFmt.getInteger(MediaFormat.KEY_SAMPLE_RATE)
+                        if (newSr != sampleRate && totalMonoFrames == 0L) {
+                            sampleRate = newSr
+                            streamSession = stftEngine.StreamingOfflineSession(sampleRate)
+                        }
+                    }
+                    if (newFmt.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) {
+                        channels = newFmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT).coerceAtLeast(1)
+                    }
+                    if (newFmt.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
+                        pcmEncoding = newFmt.getInteger(MediaFormat.KEY_PCM_ENCODING)
+                    }
+                } else if (outIdx >= 0) {
                     val outBuf = codec.getOutputBuffer(outIdx)
                     if (outBuf != null && bufferInfo.size > 0) {
                         outBuf.position(bufferInfo.offset)
                         outBuf.limit(bufferInfo.offset + bufferInfo.size)
-                        val shorts = outBuf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-                        val count = shorts.remaining()
-                        val framesInBuf = count / channels
-                        if (pcmLen + framesInBuf > pcm.size) {
-                            val newCap = minOf(maxMonoSamples, maxOf(pcm.size * 2, pcmLen + framesInBuf))
-                            pcm = pcm.copyOf(newCap)
-                        }
-                        var i = 0
-                        while (i + channels <= count && pcmLen < pcm.size) {
-                            var sum = 0f
-                            for (ch in 0 until channels) {
-                                sum += shorts.get(i + ch) * (1f / 32768f)
+                        if (pcmEncoding == AudioFormat.ENCODING_PCM_FLOAT) {
+                            val floats = outBuf.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+                            val count = floats.remaining()
+                            val framesInBuf = count / channels
+                            if (monoChunk.size < framesInBuf) monoChunk = FloatArray(framesInBuf * 2)
+                            var mLen = 0
+                            var i = 0
+                            while (i + channels <= count) {
+                                var sum = 0f
+                                for (ch in 0 until channels) {
+                                    sum += floats.get(i + ch).coerceIn(-1f, 1f)
+                                }
+                                monoChunk[mLen++] = sum / channels
+                                i += channels
                             }
-                            pcm[pcmLen++] = sum / channels
-                            i += channels
+                            streamSession.feedMonoChunk(monoChunk, mLen)
+                            totalMonoFrames += mLen
+                        } else {
+                            val shorts = outBuf.order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+                            val count = shorts.remaining()
+                            val framesInBuf = count / channels
+                            if (monoChunk.size < framesInBuf) monoChunk = FloatArray(framesInBuf * 2)
+                            var mLen = 0
+                            var i = 0
+                            while (i + channels <= count) {
+                                var sum = 0f
+                                for (ch in 0 until channels) {
+                                    sum += shorts.get(i + ch) * (1f / 32768f)
+                                }
+                                monoChunk[mLen++] = sum / channels
+                                i += channels
+                            }
+                            streamSession.feedMonoChunk(monoChunk, mLen)
+                            totalMonoFrames += mLen
                         }
                     }
                     codec.releaseOutputBuffer(outIdx, false)
@@ -697,9 +772,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                 }
             }
 
-            if (pcmLen < 1024) return emptyList()
-            val trimmed = if (pcmLen == pcm.size) pcm else pcm.copyOf(pcmLen)
-            StftAudioEngine().processOfflinePcm(trimmed, sampleRate)
+            if (totalMonoFrames < 1024L) emptyList() else streamSession.finish()
         } catch (_: Exception) {
             emptyList()
         } finally {
@@ -710,10 +783,15 @@ class VideoJumpAnalyzer(private val context: Context) {
     }
 
     private fun Pose.toPoseFrame(timestampMs: Long, w: Int, h: Int): PoseFrame {
-        val map = mutableMapOf<BodyLandmark, LandmarkPoint>()
+        val map = EnumMap<BodyLandmark, LandmarkPoint>(BodyLandmark::class.java)
         for ((mlType, bodyType) in LANDMARK_MAP) {
             val lm = getPoseLandmark(mlType) ?: continue
-            map[bodyType] = LandmarkPoint(lm.position.x, lm.position.y, lm.inFrameLikelihood)
+            map[bodyType] = LandmarkPoint(
+                x = lm.position.x,
+                y = lm.position.y,
+                confidence = lm.inFrameLikelihood,
+                z = lm.position3D.z
+            )
         }
         return PoseFrame(map, timestampMs, w, h, isMirrored = false)
     }

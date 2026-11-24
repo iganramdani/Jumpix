@@ -23,7 +23,8 @@ enum class BodyLandmark {
 data class LandmarkPoint(
     val x: Float,
     val y: Float,
-    val confidence: Float
+    val confidence: Float,
+    val z: Float = 0f
 )
 
 data class PoseFrame(

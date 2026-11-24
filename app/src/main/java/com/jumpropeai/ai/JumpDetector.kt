@@ -73,7 +73,7 @@ class JumpDetector(
     private data class FrameSample(
         val timestampMs: Long,
         val rawY: Float,
-        val smoothedY: Float,
+        var smoothedY: Float,
         val torsoX: Float,
         val scale: Float,
         val signedAnkleDiff: Float,
@@ -270,8 +270,7 @@ class JumpDetector(
             val prevS = ring[midIdx - 1]
             val curS = ring[midIdx]
             val nextS = ring[midIdx + 1]
-            val smVal = 0.22f * prevS.rawY + 0.56f * curS.rawY + 0.22f * nextS.rawY
-            ring[midIdx] = curS.copy(smoothedY = smVal)
+            curS.smoothedY = 0.22f * prevS.rawY + 0.56f * curS.rawY + 0.22f * nextS.rawY
         }
 
         val nowMs = frame.timestampMs
@@ -522,8 +521,13 @@ class JumpDetector(
             }
         }
 
-        // Instantaneous airborne hint for live skeleton highlight (lime green when rising)
-        val recentMaxY = ring.takeLast(6).maxOfOrNull { it.smoothedY } ?: sample.smoothedY
+        // FPS-independent 420ms ground baseline for live skeleton highlight & Double/Triple Under flight time (Zero-GC!)
+        var recentMaxY = sample.smoothedY
+        for (k in ring.size - 1 downTo 0) {
+            val s = ring[k]
+            if (nowMs - s.timestampMs > 420L) break
+            if (s.smoothedY > recentMaxY) recentMaxY = s.smoothedY
+        }
         val normDisp = ((recentMaxY - sample.smoothedY) / currentScale).coerceAtLeast(0f)
         val isAirborne = normDisp >= effPromStrong * 0.85f
 

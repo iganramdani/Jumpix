@@ -5,7 +5,9 @@ enum class WorkoutModeType(val label: String) {
     TARGET_JUMPS("Target Jumps"),
     TARGET_TIME("Target Time"),
     HIIT("HIIT"),
-    FREESTYLE_SHUFFLE("Shuffle & Tricks")
+    FREESTYLE_SHUFFLE("Shuffle & Tricks"),
+    IJRU_SPEED_30S("30s Sprint"),
+    IJRU_ENDURANCE_180S("3m Endurance")
 }
 
 enum class HiitPhase {
@@ -40,6 +42,8 @@ data class WorkoutConfig(
         }
         WorkoutModeType.HIIT -> "HIIT ${hiitWorkSeconds}s/${hiitRestSeconds}s × $hiitRounds"
         WorkoutModeType.FREESTYLE_SHUFFLE -> "Shuffle & Tricks"
+        WorkoutModeType.IJRU_SPEED_30S -> "IJRU 30s Sprint"
+        WorkoutModeType.IJRU_ENDURANCE_180S -> "IJRU 3m Endurance"
     }
 }
 
@@ -54,7 +58,7 @@ data class WorkoutProgress(
 )
 
 /**
- * Pure Kotlin evaluator for workout modes (Free, Target Jumps, Target Time, HIIT Interval, Shuffle & Tricks).
+ * Pure Kotlin evaluator for workout modes including official IJRU 30s Sprint & 3m Endurance tests.
  */
 object WorkoutModeEvaluator {
 
@@ -82,23 +86,25 @@ object WorkoutModeEvaluator {
                 )
             }
 
-            WorkoutModeType.TARGET_TIME -> {
-                val targetMs = config.targetTimeSeconds.coerceAtLeast(1) * 1000L
-                val remaining = (targetMs - elapsedMs).coerceAtLeast(0L)
-                val fraction = (elapsedMs.toFloat() / targetMs).coerceIn(0f, 1f)
-                WorkoutProgress(
-                    progressFraction = fraction,
-                    remainingMs = remaining,
-                    isCompleted = elapsedMs >= targetMs,
-                    isCountingAllowed = elapsedMs < targetMs
-                )
-            }
+            WorkoutModeType.TARGET_TIME -> evaluateFixedDuration(
+                targetSeconds = config.targetTimeSeconds.coerceAtLeast(1),
+                elapsedMs = elapsedMs
+            )
+
+            WorkoutModeType.IJRU_SPEED_30S -> evaluateFixedDuration(
+                targetSeconds = 30,
+                elapsedMs = elapsedMs
+            )
+
+            WorkoutModeType.IJRU_ENDURANCE_180S -> evaluateFixedDuration(
+                targetSeconds = 180,
+                elapsedMs = elapsedMs
+            )
 
             WorkoutModeType.HIIT -> {
                 val workMs = config.hiitWorkSeconds.coerceAtLeast(5) * 1000L
                 val restMs = config.hiitRestSeconds.coerceAtLeast(5) * 1000L
                 val rounds = config.hiitRounds.coerceAtLeast(1)
-                // Total duration: N work intervals + (N - 1) rest intervals
                 val cycleMs = workMs + restMs
                 val totalMs = rounds * workMs + (rounds - 1) * restMs
 
@@ -135,5 +141,17 @@ object WorkoutModeEvaluator {
                 )
             }
         }
+    }
+
+    private fun evaluateFixedDuration(targetSeconds: Int, elapsedMs: Long): WorkoutProgress {
+        val targetMs = targetSeconds * 1000L
+        val remaining = (targetMs - elapsedMs).coerceAtLeast(0L)
+        val fraction = (elapsedMs.toFloat() / targetMs).coerceIn(0f, 1f)
+        return WorkoutProgress(
+            progressFraction = fraction,
+            remainingMs = remaining,
+            isCompleted = elapsedMs >= targetMs,
+            isCountingAllowed = elapsedMs < targetMs
+        )
     }
 }

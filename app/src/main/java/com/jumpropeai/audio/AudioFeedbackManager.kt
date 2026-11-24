@@ -9,6 +9,7 @@ import java.util.Locale
 sealed interface AudioCue {
     data object JumpTick : AudioCue
     data object SessionStart : AudioCue
+    data class GestureTriggered(val starting: Boolean) : AudioCue
     data class Milestone(val count: Int) : AudioCue
     data class HiitWorkStart(val round: Int) : AudioCue
     data object HiitRestStart : AudioCue
@@ -17,8 +18,8 @@ sealed interface AudioCue {
 }
 
 /**
- * Provides real-time audio cues (subtle jump tick beeps, HIIT phase tones, and
- * Indonesian/English Text-to-Speech voice coaching).
+ * Provides real-time audio cues (jump tick beeps, touchless gesture confirmation, HIIT phase tones,
+ * and International English Text-to-Speech voice coaching).
  */
 class AudioFeedbackManager(context: Context) {
 
@@ -53,6 +54,11 @@ class AudioFeedbackManager(context: Context) {
                 speak("Go!")
             }
 
+            is AudioCue.GestureTriggered -> {
+                toneGenerator?.startTone(ToneGenerator.TONE_PROP_ACK, 150)
+                speak(if (cue.starting) "Ready!" else "Paused")
+            }
+
             is AudioCue.Milestone -> {
                 toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP2, 120)
                 speak("${cue.count} jumps!")
@@ -81,7 +87,7 @@ class AudioFeedbackManager(context: Context) {
 
     private fun speak(text: String) {
         if (!isTtsReady) return
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jumprope_${System.currentTimeMillis()}")
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jumpvex_${System.currentTimeMillis()}")
     }
 
     fun release() {

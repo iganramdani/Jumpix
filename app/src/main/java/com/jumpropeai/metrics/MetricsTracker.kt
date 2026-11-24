@@ -3,25 +3,48 @@ package com.jumpropeai.metrics
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+enum class RopeType(val label: String, val metMultiplier: Double) {
+    SPEED_CABLE("Speed Cable", 1.00),
+    PVC_FREESTYLE("PVC Freestyle", 1.04),
+    BEADED("Beaded Rope", 1.08),
+    WEIGHTED_HALF_LB("Weighted 0.5 lb", 1.18),
+    WEIGHTED_ONE_LB("Weighted 1.0 lb", 1.32),
+    CORDLESS("Cordless", 0.92)
+}
+
 /**
- * Tracks live jump rope metrics: duration, rolling RPM (pace), peak RPM,
- * unbroken jump streak, best streak, and MET-based calorie estimation.
+ * Thread-safe live jump rope metrics tracker: duration, rolling RPM, peak RPM,
+ * unbroken jump streak, best streak, and athlete-weight + rope-weighted MET calorie estimation.
  */
 class MetricsTracker(
-    private val userWeightKg: Double = 65.0,
+    userWeightKg: Double = 65.0,
     private val rpmWindowMs: Long = 10_000L,
     private val streakTimeoutMs: Long = 2_200L
 ) {
     private val jumpTimestamps = ArrayDeque<Long>()
 
+    @Volatile
+    private var weightKg: Double = userWeightKg.coerceIn(30.0, 200.0)
+    @Volatile
+    private var ropeType: RopeType = RopeType.SPEED_CABLE
+
+    @get:Synchronized
     var jumpCount: Int = 0
         private set
+
+    @get:Synchronized
     var currentStreak: Int = 0
         private set
+
+    @get:Synchronized
     var bestStreak: Int = 0
         private set
+
+    @get:Synchronized
     var peakRpm: Int = 0
         private set
+
+    @get:Synchronized
     var estimatedCalories: Double = 0.0
         private set
 
@@ -29,12 +52,20 @@ class MetricsTracker(
     private var accumulatedElapsedMs: Long = 0L
     private var activeSegmentStartMs: Long? = null
 
+    @Synchronized
+    fun updateAthleteProfile(newWeightKg: Double, newRopeType: RopeType) {
+        weightKg = newWeightKg.coerceIn(30.0, 200.0)
+        ropeType = newRopeType
+    }
+
+    @Synchronized
     fun start(nowMs: Long) {
         if (activeSegmentStartMs == null) {
             activeSegmentStartMs = nowMs
         }
     }
 
+    @Synchronized
     fun pause(nowMs: Long) {
         activeSegmentStartMs?.let { start ->
             accumulatedElapsedMs += max(0L, nowMs - start)
@@ -42,6 +73,7 @@ class MetricsTracker(
         }
     }
 
+    @Synchronized
     fun reset() {
         jumpTimestamps.clear()
         jumpCount = 0
@@ -54,11 +86,11 @@ class MetricsTracker(
         activeSegmentStartMs = null
     }
 
+    @Synchronized
     fun recordJump(timestampMs: Long) {
         jumpCount++
 
         val prevJumpMs = lastJumpMs
-        // Update streak: continues if within streakTimeoutMs of previous jump.
         if (prevJumpMs != null && (timestampMs - prevJumpMs) <= streakTimeoutMs) {
             currentStreak++
         } else {
@@ -68,7 +100,6 @@ class MetricsTracker(
             bestStreak = currentStreak
         }
 
-        // Update rolling RPM window.
         jumpTimestamps.addLast(timestampMs)
         pruneOldJumps(timestampMs)
         val rpm = computeCurrentRpm(timestampMs)
@@ -76,41 +107,43 @@ class MetricsTracker(
             peakRpm = rpm
         }
 
-        // Estimate calories per jump scaled by intensity (MET 8.8 - 12.3 for jump rope).
-        val met = when {
+        // ACSM Jump Rope MET curve scaled by athlete body weight & rope resistance
+        val baseMet = when {
+            rpm >= 160 -> 13.2
             rpm >= 120 -> 12.3
             rpm >= 100 -> 11.8
             rpm >= 80 -> 10.5
             else -> 8.8
         }
-        // Standard MET formula: kcal/min = MET * 3.5 * weightKg / 200.
-        // Convert to per-jump using actual interval (clamped 0.25s..1.5s) for smooth real-time increments.
+        val effectiveMet = baseMet * ropeType.metMultiplier
         val deltaSec = if (prevJumpMs != null) {
-            ((timestampMs - prevJumpMs) / 1000.0).coerceIn(0.25, 1.5)
+            ((timestampMs - prevJumpMs) / 1000.0).coerceIn(0.18, 1.5)
         } else {
             0.55
         }
-        val kcalPerSec = (met * 3.5 * userWeightKg / 200.0) / 60.0
+        val kcalPerSec = (effectiveMet * 3.5 * weightKg / 200.0) / 60.0
         estimatedCalories += kcalPerSec * deltaSec
 
         lastJumpMs = timestampMs
     }
 
+    @Synchronized
     fun getElapsedMs(nowMs: Long): Long {
         val activeDelta = activeSegmentStartMs?.let { max(0L, nowMs - it) } ?: 0L
         return accumulatedElapsedMs + activeDelta
     }
 
+    @Synchronized
     fun getCurrentRpm(nowMs: Long): Int {
         pruneOldJumps(nowMs)
         val last = lastJumpMs ?: return 0
-        // If user stopped jumping for > 3 seconds, pace drops to 0.
         if ((nowMs - last) > 3_000L) {
             return 0
         }
         return computeCurrentRpm(nowMs)
     }
 
+    @Synchronized
     fun getActiveStreak(nowMs: Long): Int {
         val last = lastJumpMs ?: return 0
         if ((nowMs - last) > streakTimeoutMs) {
@@ -130,7 +163,6 @@ class MetricsTracker(
         val count = jumpTimestamps.size
         if (count < 2) return 0
         val spanMs = max(nowMs - jumpTimestamps.first(), 1_000L)
-        // Use actual span for fast ramp-up during first 10 seconds, capped by rpmWindowMs.
         val effectiveWindowMs = spanMs.coerceAtMost(rpmWindowMs)
         return ((count - 1) * 60_000.0 / effectiveWindowMs).roundToInt()
     }

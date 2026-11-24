@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,10 +24,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,13 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jumpropeai.data.CumulativeStats
 import com.jumpropeai.data.WorkoutSession
-import com.jumpropeai.ui.theme.DangerSoft
 import com.jumpropeai.ui.theme.DeepMidnight
 import com.jumpropeai.ui.theme.IceMint
 import com.jumpropeai.ui.theme.IceMintSoft
@@ -61,14 +67,16 @@ private data class DayBarData(
 )
 
 /**
- * Full-screen History & Weekly Performance tab in strict Two-Tone (Deep Midnight + Ice Mint).
+ * Full-screen History, Daily Goal, Personal Records & CSV Backup tab in strict Two-Tone (Deep Midnight + Ice Mint).
  */
 @Composable
 fun HistoryTabScreen(
     stats: CumulativeStats,
+    dailyGoalJumps: Int,
     sessions: List<WorkoutSession>,
     onShareSession: (WorkoutSession) -> Unit,
     onDeleteSession: (String) -> Unit,
+    onExportHistoryCsv: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val numberFmt = remember { NumberFormat.getIntegerInstance(Locale.US) }
@@ -83,22 +91,133 @@ fun HistoryTabScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Header
+        // Header + Day Streak & CSV Backup Button
         item {
-            Column {
-                Text(
-                    text = "History",
-                    color = TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Last 7 days performance summary",
-                    color = TextSecondary,
-                    fontSize = 14.sp
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "History",
+                        color = TextPrimary,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Performance, Personal Records & Logs",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (stats.activeDayStreak > 0) {
+                        Surface(
+                            shape = CircleShape,
+                            color = IceMintSoft,
+                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LocalFireDepartment,
+                                    contentDescription = null,
+                                    tint = IceMint,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                Text(
+                                    text = "${stats.activeDayStreak}d",
+                                    color = IceMint,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                    }
+
+                    if (sessions.isNotEmpty()) {
+                        Surface(
+                            onClick = onExportHistoryCsv,
+                            shape = CircleShape,
+                            color = MidnightSurface,
+                            border = BorderStroke(1.dp, MidnightBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = "Export CSV Backup",
+                                    tint = IceMint,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "CSV",
+                                    color = TextPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Daily Goal Progress Card
+        item {
+            val goal = dailyGoalJumps.coerceAtLeast(50)
+            val todayFrac = (stats.todayJumps.toFloat() / goal.toFloat()).coerceIn(0f, 1f)
+            val pct = (todayFrac * 100f).toInt()
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, if (pct >= 100) IceMint.copy(alpha = 0.6f) else MidnightBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Today's Goal",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "${numberFmt.format(stats.todayJumps)} / ${numberFmt.format(goal)} ($pct%)",
+                            color = IceMint,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    LinearProgressIndicator(
+                        progress = { todayFrac },
+                        color = IceMint,
+                        trackColor = MidnightElevated,
+                        strokeCap = StrokeCap.Round,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(7.dp)
+                    )
+                }
             }
         }
 
@@ -149,7 +268,6 @@ fun HistoryTabScreen(
 
                     Spacer(Modifier.height(14.dp))
 
-                    // Mini summary row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -173,7 +291,6 @@ fun HistoryTabScreen(
 
                     Spacer(Modifier.height(22.dp))
 
-                    // 7-Day Vertical Bar Chart
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -213,6 +330,59 @@ fun HistoryTabScreen(
                                     fontWeight = if (bar.isToday) FontWeight.Bold else FontWeight.Medium
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Personal Records Trophy Strip
+        if (sessions.isNotEmpty()) {
+            item {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MidnightSurface,
+                    border = BorderStroke(1.dp, MidnightBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.EmojiEvents,
+                                contentDescription = null,
+                                tint = IceMint,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "Personal Records",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            MiniSummaryChip(
+                                label = "Peak RPM",
+                                value = "${stats.fastestPeakRpm}",
+                                modifier = Modifier.weight(1f)
+                            )
+                            MiniSummaryChip(
+                                label = "Best Session",
+                                value = numberFmt.format(stats.highestSingleSessionJumps),
+                                modifier = Modifier.weight(1f)
+                            )
+                            MiniSummaryChip(
+                                label = if (stats.best30sSprintJumps > 0) "30s Sprint" else "Best Form",
+                                value = if (stats.best30sSprintJumps > 0) "${stats.best30sSprintJumps}" else if (stats.bestFormScore > 0) "${stats.bestFormScore}%" else "—",
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }
@@ -312,6 +482,7 @@ private fun MiniSummaryChip(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistorySessionCard(
     session: WorkoutSession,
@@ -331,60 +502,109 @@ private fun HistorySessionCard(
         border = BorderStroke(1.dp, MidnightBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Surface(
-                    shape = CircleShape,
-                    color = IceMint
-                ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = IceMint
+                        ) {
+                            Text(
+                                text = session.modeLabel,
+                                color = DeepMidnight,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                            )
+                        }
+                        if (session.formScore > 0) {
+                            Surface(
+                                shape = CircleShape,
+                                color = IceMintSoft
+                            ) {
+                                Text(
+                                    text = "Form ${session.formScore}%",
+                                    color = IceMint,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = session.modeLabel,
-                        color = DeepMidnight,
-                        fontSize = 11.sp,
+                        text = "${numberFmt.format(session.jumpCount)} Jumps",
+                        color = TextPrimary,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = "$dateStr  •  ${session.averageRpm} RPM  •  $durStr",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "${numberFmt.format(session.jumpCount)} Jumps",
-                    color = TextPrimary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = "$dateStr  •  ${session.averageRpm} RPM  •  $durStr",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+
+                IconButton(onClick = onShare) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = "Share",
+                        tint = IceMint,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = "Delete",
+                        tint = TextSecondary.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
-            IconButton(onClick = onShare) {
-                Icon(
-                    imageVector = Icons.Rounded.Share,
-                    contentDescription = "Share",
-                    tint = IceMint,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Rounded.DeleteOutline,
-                    contentDescription = "Delete",
-                    tint = TextSecondary.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
-                )
+            if (session.moveBreakdown.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    session.moveBreakdown.entries
+                        .sortedByDescending { it.value }
+                        .take(4)
+                        .forEach { (move, cnt) ->
+                            Surface(
+                                shape = CircleShape,
+                                color = MidnightElevated
+                            ) {
+                                Text(
+                                    text = "$move × $cnt",
+                                    color = TextSecondary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                }
             }
         }
     }

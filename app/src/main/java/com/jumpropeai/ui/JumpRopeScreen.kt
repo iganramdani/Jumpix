@@ -28,6 +28,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -55,7 +57,9 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.PanTool
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
@@ -70,6 +74,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -108,9 +113,11 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.DetectorStatus
+import com.jumpropeai.ai.FramingStatus
 import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.audio.AudioFeedbackManager
 import com.jumpropeai.data.WorkoutSession
+import com.jumpropeai.metrics.RopeType
 import com.jumpropeai.ui.components.CameraPreview
 import com.jumpropeai.ui.components.HistoryTabScreen
 import com.jumpropeai.ui.components.PoseOverlay
@@ -129,6 +136,7 @@ import com.jumpropeai.ui.theme.MidnightSurface
 import com.jumpropeai.ui.theme.TextPrimary
 import com.jumpropeai.ui.theme.TextSecondary
 import com.jumpropeai.update.AppReleaseInfo
+import com.jumpropeai.video.VideoTelemetryEvent
 import com.jumpropeai.workout.HiitPhase
 import com.jumpropeai.workout.WorkoutModeType
 import kotlinx.coroutines.flow.StateFlow
@@ -142,6 +150,14 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
     VIDEO("Video", Icons.Rounded.Movie),
     RIWAYAT("History", Icons.Rounded.History)
 }
+
+private data class ShareCardRequest(
+    val session: WorkoutSession,
+    val backdrop: Bitmap? = null,
+    val styleLabel: String? = null,
+    val sourceVideoUri: Uri? = null,
+    val telemetryEvents: List<VideoTelemetryEvent> = emptyList()
+)
 
 @Composable
 fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
@@ -223,7 +239,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         }
     }
 
-    var shareCardTarget by remember { mutableStateOf<Triple<WorkoutSession, Bitmap?, String?>?>(null) }
+    var shareCardTarget by remember { mutableStateOf<ShareCardRequest?>(null) }
 
     if (!hasCameraPermission) {
         CameraPermissionView(
@@ -282,6 +298,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 MainTab.VIDEO -> {
                     VideoAnalyzerScreen(
                         isAnalyzing = uiState.isAnalyzingVideo,
+                        isShuffleMode = uiState.isVideoShuffleMode,
+                        onToggleShuffleMode = viewModel::toggleVideoShuffleMode,
                         progress = uiState.videoProgress,
                         result = uiState.videoResult,
                         errorMessage = uiState.videoError,
@@ -290,19 +308,36 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         batchResults = uiState.batchCompletedResults,
                         onPickVideo = { videoPickerLauncher.launch(arrayOf("video/*")) },
                         onShareResult = { res ->
+                            val moveStrMap = LinkedHashMap<String, Int>()
+                            for ((m, c) in res.moveCounts) {
+                                if (c > 0) moveStrMap[m.label] = c
+                            }
                             val session = WorkoutSession(
                                 id = "video_share",
                                 timestampMillis = System.currentTimeMillis(),
-                                modeLabel = "Video",
-                                modeType = WorkoutModeType.FREE,
+                                modeLabel = if (uiState.isVideoShuffleMode) "Video • Shuffle" else "Video",
+                                modeType = if (uiState.isVideoShuffleMode) WorkoutModeType.FREESTYLE_SHUFFLE else WorkoutModeType.FREE,
                                 jumpCount = res.jumpCount,
                                 durationMs = res.durationMs,
                                 averageRpm = res.averageRpm,
                                 peakRpm = res.peakRpm,
                                 estimatedCalories = res.estimatedCalories,
-                                bestStreak = res.bestStreak
+                                bestStreak = res.bestStreak,
+                                trips = res.trips,
+                                formScore = res.formScore,
+                                beatSyncScore = res.beatSyncScore,
+                                detectedBpm = res.detectedBpm,
+                                comboCount = res.comboCount,
+                                ropeTypeLabel = uiState.ropeType.label,
+                                moveBreakdown = moveStrMap
                             )
-                            shareCardTarget = Triple(session, res.finalPreviewBitmap, res.style.label)
+                            shareCardTarget = ShareCardRequest(
+                                session = session,
+                                backdrop = res.finalPreviewBitmap,
+                                styleLabel = res.style.label,
+                                sourceVideoUri = res.sourceUri,
+                                telemetryEvents = res.telemetryEvents
+                            )
                         },
                         onSaveResultToHistory = { res ->
                             viewModel.saveVideoResultToHistory(res)
@@ -318,9 +353,11 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 MainTab.RIWAYAT -> {
                     HistoryTabScreen(
                         stats = uiState.cumulativeStats,
+                        dailyGoalJumps = uiState.dailyGoalJumps,
                         sessions = uiState.historySessions,
-                        onShareSession = { session -> shareCardTarget = Triple(session, null, null) },
-                        onDeleteSession = viewModel::deleteHistorySession
+                        onShareSession = { session -> shareCardTarget = ShareCardRequest(session = session) },
+                        onDeleteSession = viewModel::deleteHistorySession,
+                        onExportHistoryCsv = { viewModel.exportHistoryBackup(context) }
                     )
                 }
             }
@@ -345,7 +382,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         }
     }
 
-    // Mode Selector Sheet (with all 4 Custom Inputs)
+    // Mode Selector Sheet (with IJRU Competition & Custom Inputs)
     if (uiState.showModeSheet) {
         WorkoutModeSheet(
             currentConfig = uiState.workoutConfig,
@@ -354,12 +391,14 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         )
     }
 
-    // Clean Settings Bottom Sheet (all secondary HUD toggles + Countdown + Diagnostics + App Update)
+    // Clean Settings Bottom Sheet (Countdown + Touchless Gesture + Athlete Profile + Diagnostics + Updates)
     if (showSettingsSheet) {
         WorkoutSettingsSheet(
             uiState = uiState,
             onCycleSensorMode = viewModel::cycleSensorMode,
             onSelectCountdown = viewModel::setStartCountdownDuration,
+            onToggleGestureControl = viewModel::toggleGestureControl,
+            onUpdateAthleteProfile = viewModel::updateAthleteProfile,
             onToggleSkeleton = viewModel::toggleSkeletonOverlay,
             onToggleAudio = viewModel::toggleAudio,
             onToggleEcoMode = {
@@ -387,17 +426,21 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
     uiState.completedSessionSummary?.let { summary ->
         SessionSummaryDialog(
             session = summary,
-            onShareSession = { session -> shareCardTarget = Triple(session, null, uiState.jumpStyle.label) },
+            onShareSession = { session ->
+                shareCardTarget = ShareCardRequest(session = session, styleLabel = uiState.jumpStyle.label)
+            },
             onDismiss = viewModel::dismissSummaryDialog
         )
     }
 
-    // Share Card & Video Watermark Studio Dialog
-    shareCardTarget?.let { (session, backdrop, styleLabel) ->
+    // Share Card & Live Animated Video Watermark Studio Dialog
+    shareCardTarget?.let { req ->
         ShareCardDialog(
-            session = session,
-            backdropBitmap = backdrop,
-            styleLabel = styleLabel,
+            session = req.session,
+            backdropBitmap = req.backdrop,
+            styleLabel = req.styleLabel,
+            sourceVideoUri = req.sourceVideoUri,
+            telemetryEvents = req.telemetryEvents,
             onDismiss = { shareCardTarget = null }
         )
     }
@@ -642,6 +685,71 @@ private fun DynamicRingLiveHud(
                 }
             }
 
+            // Smart Camera Framing Assistant & Touchless Hand-Gesture Hold Indicator
+            if (uiState.sensorMode != SensorMode.AUDIO_ONLY && !uiState.isCountingDown) {
+                if (uiState.gestureHoldProgress > 0.02f) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = DeepMidnight.copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, IceMint)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth(0.76f)
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (uiState.isSessionRunning) "HOLD HAND UP TO PAUSE..." else "HOLD HAND UP TO START...",
+                                color = IceMint,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.sp
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            LinearProgressIndicator(
+                                progress = { uiState.gestureHoldProgress.coerceIn(0f, 1f) },
+                                color = IceMint,
+                                trackColor = MidnightElevated,
+                                strokeCap = StrokeCap.Round,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(5.dp)
+                            )
+                        }
+                    }
+                } else if (!uiState.isSessionRunning) {
+                    val framing = uiState.framingStatus
+                    val hintText = when {
+                        framing == FramingStatus.READY && uiState.isGestureControlEnabled ->
+                            "Full body locked • Raise 1 hand to start"
+                        framing == FramingStatus.READY ->
+                            "Full body locked • Ready to jump"
+                        else -> framing.guidance
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        shape = CircleShape,
+                        color = MidnightGlass,
+                        border = BorderStroke(
+                            1.dp,
+                            if (framing.isOptimal) IceMint.copy(alpha = 0.5f) else MidnightBorder
+                        )
+                    ) {
+                        Text(
+                            text = hintText,
+                            color = if (framing.isOptimal) IceMint else TextPrimary.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
             Spacer(Modifier.weight(0.55f))
 
             // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump/Move Counter
@@ -711,7 +819,10 @@ private fun DynamicRingLiveHud(
 
             // LOWER SYMMETRICAL STAT STRIP (more translucent when Skeleton Overlay is ON so feet stay clear!)
             val timerMs = when (config.mode) {
-                WorkoutModeType.TARGET_TIME, WorkoutModeType.HIIT -> progress.remainingMs ?: metrics.elapsedMs
+                WorkoutModeType.TARGET_TIME,
+                WorkoutModeType.HIIT,
+                WorkoutModeType.IJRU_SPEED_30S,
+                WorkoutModeType.IJRU_ENDURANCE_180S -> progress.remainingMs ?: metrics.elapsedMs
                 else -> metrics.elapsedMs
             }
 
@@ -992,7 +1103,7 @@ private fun DynamicProgressRingCounter(
             )
             Text(
                 text = subLabel,
-                color = if (subLabel.startsWith("KERJA") || subLabel.startsWith("ISTIRAHAT")) {
+                color = if (subLabel.startsWith("WORK") || subLabel.startsWith("REST")) {
                     IceMint
                 } else {
                     TextPrimary.copy(alpha = 0.78f)
@@ -1109,12 +1220,14 @@ private fun IsolatedPoseOverlay(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun WorkoutSettingsSheet(
     uiState: JumpRopeUiState,
     onCycleSensorMode: () -> Unit,
     onSelectCountdown: (Int) -> Unit,
+    onToggleGestureControl: () -> Unit,
+    onUpdateAthleteProfile: (Int, RopeType, Int) -> Unit,
     onToggleSkeleton: () -> Unit,
     onToggleAudio: () -> Unit,
     onToggleEcoMode: () -> Unit,
@@ -1155,6 +1268,170 @@ private fun WorkoutSettingsSheet(
                 color = TextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
+            )
+
+            // Athlete Profile & Rope Physics Card (Accurate MET Calories & Daily Goal)
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, MidnightBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = IceMint,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Athlete Profile & Rope",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Calibrates MET calories & daily goal",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Surface(
+                                onClick = {
+                                    onUpdateAthleteProfile(
+                                        (uiState.userWeightKg - 2).coerceAtLeast(30),
+                                        uiState.ropeType,
+                                        uiState.dailyGoalJumps
+                                    )
+                                },
+                                shape = CircleShape,
+                                color = MidnightElevated,
+                                border = BorderStroke(1.dp, MidnightBorder)
+                            ) {
+                                Text(
+                                    text = "−",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                )
+                            }
+                            Text(
+                                text = "${uiState.userWeightKg} kg",
+                                color = IceMint,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+                            )
+                            Surface(
+                                onClick = {
+                                    onUpdateAthleteProfile(
+                                        (uiState.userWeightKg + 2).coerceAtMost(200),
+                                        uiState.ropeType,
+                                        uiState.dailyGoalJumps
+                                    )
+                                },
+                                shape = CircleShape,
+                                color = MidnightElevated,
+                                border = BorderStroke(1.dp, MidnightBorder)
+                            ) {
+                                Text(
+                                    text = "+",
+                                    color = TextPrimary,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        RopeType.entries.forEach { rope ->
+                            val selected = uiState.ropeType == rope
+                            Surface(
+                                onClick = {
+                                    onUpdateAthleteProfile(uiState.userWeightKg, rope, uiState.dailyGoalJumps)
+                                },
+                                shape = CircleShape,
+                                color = if (selected) IceMint else MidnightElevated,
+                                border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder)
+                            ) {
+                                Text(
+                                    text = rope.label,
+                                    color = if (selected) DeepMidnight else TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Daily Goal:",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        listOf(250, 500, 1000, 2000).forEach { goal ->
+                            val selected = uiState.dailyGoalJumps == goal
+                            Surface(
+                                onClick = {
+                                    onUpdateAthleteProfile(uiState.userWeightKg, uiState.ropeType, goal)
+                                },
+                                shape = CircleShape,
+                                color = if (selected) IceMintSoft else MidnightElevated,
+                                border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "$goal",
+                                    color = if (selected) IceMint else TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(vertical = 5.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingsSwitchCard(
+                icon = Icons.Rounded.PanTool,
+                title = "Touchless Hand-Gesture Control",
+                subtitle = "Raise 1 hand above head for 1.2s to Start or Pause hands-free",
+                checked = uiState.isGestureControlEnabled,
+                onCheckedChange = { onToggleGestureControl() }
             )
 
             // Pre-Start Countdown Selector (Off / 3s / 5s / 8s)
@@ -1836,7 +2113,11 @@ private fun AppUpdateDialog(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Download APK",
+                        text = if (release.apkSizeMb > 0f) {
+                            String.format(Locale.US, "Download Release APK (%.1f MB)", release.apkSizeMb)
+                        } else {
+                            "Download Release APK"
+                        },
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )

@@ -8,12 +8,18 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
 import com.jumpropeai.BuildConfig
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 data class PerfStats(
     val liveFps: Int = 0,
@@ -24,26 +30,42 @@ data class PerfStats(
 )
 
 /**
- * Unlimited-length, chunk-flushed Diagnostic Telemetry Logger for Jumpvex.
+ * Zero-GC Unlimited Diagnostic Telemetry Logger for Jumpvex (v14).
  *
- * - NO row limit: flushes in lightweight 60-row chunks directly to disk so even 2-hour sessions
- *   use near-zero RAM.
- * - Auto-saves every completed Live Workout & Video Studio log directly into
- *   `Documents/Jumpvex/DebugLogs/` (visible immediately in Phone File Manager, zero permissions needed on Android 10+).
+ * - Pure integer fixed-point formatting (`appendFixed`) eliminates 11x `String.format` allocations per frame.
+ * - Background IO chunk flushing eliminates Main-Thread disk write jank during live workouts.
+ * - Automatic stale temp-file pruning prevents `cacheDir/shared_cards` bloat.
  */
 class SessionDiagnosticLogger {
 
-    private companion object {
-        const val FLUSH_EVERY_ROWS = 60
-        const val RELATIVE_LOG_DIR = "Documents/Jumpvex/DebugLogs"
-        const val HEADER =
+    companion object {
+        private const val FLUSH_EVERY_ROWS = 60
+        private const val RELATIVE_LOG_DIR = "Documents/Jumpvex/DebugLogs"
+        private const val STALE_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
+        private const val HEADER =
             "ts_ms,fps,ai_us,heap_mb,jumps,airborne,move,form_score,bpm,sync_pct," +
                 "sh_ratio,ank_sep,ank_dy,kn_asym,vlx_vrx,hip_vx,hip_std,l_pitch,r_pitch,v_yaw_l,v_yaw_r"
+
+        fun pruneStaleSharedCache(context: Context) {
+            runCatching {
+                val shareDir = File(context.cacheDir, "shared_cards")
+                if (!shareDir.exists()) return
+                val cutoff = System.currentTimeMillis() - STALE_CACHE_MAX_AGE_MS
+                shareDir.listFiles()?.forEach { f ->
+                    if (f.isFile && f.lastModified() < cutoff) {
+                        runCatching { f.delete() }
+                    }
+                }
+            }
+        }
     }
 
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val fileLock = Any()
     private val chunkBuffer = StringBuilder(8192)
     private var activeCacheFile: File? = null
     private var activeFileName: String = ""
+    @Volatile
     private var rowCount = 0
     private var bufferedRows = 0
     private var alreadyAutoSaved = false
@@ -78,7 +100,13 @@ class SessionDiagnosticLogger {
             append("# Mode: $modeLabel | Sensor: $sensorLabel | Started: $ts\n")
             append(HEADER).append('\n')
         }
-        runCatching { file.writeText(headerBlock) }
+        val appCtx = context.applicationContext
+        ioScope.launch {
+            pruneStaleSharedCache(appCtx)
+            synchronized(fileLock) {
+                runCatching { file.writeText(headerBlock) }
+            }
+        }
     }
 
     fun recordFrame(
@@ -114,61 +142,83 @@ class SessionDiagnosticLogger {
             .append(formScore).append(',')
             .append(bpm).append(',')
             .append(syncPct).append(',')
-            .append(fmt2(shRatio)).append(',')
-            .append(fmt2(ankSep)).append(',')
-            .append(fmt2(ankDy)).append(',')
-            .append(fmt2(knAsym)).append(',')
-            .append(fmt2(vLxTimesVRx)).append(',')
-            .append(fmt2(hipVx)).append(',')
-            .append(fmt3(hipStd)).append(',')
-            .append(fmt2(lPitch)).append(',')
-            .append(fmt2(rPitch)).append(',')
-            .append(fmt2(vYawL)).append(',')
-            .append(fmt2(vYawR)).append('\n')
+        appendFixed2(chunkBuffer, shRatio).append(',')
+        appendFixed2(chunkBuffer, ankSep).append(',')
+        appendFixed2(chunkBuffer, ankDy).append(',')
+        appendFixed2(chunkBuffer, knAsym).append(',')
+        appendFixed2(chunkBuffer, vLxTimesVRx).append(',')
+        appendFixed2(chunkBuffer, hipVx).append(',')
+        appendFixed3(chunkBuffer, hipStd).append(',')
+        appendFixed2(chunkBuffer, lPitch).append(',')
+        appendFixed2(chunkBuffer, rPitch).append(',')
+        appendFixed2(chunkBuffer, vYawL).append(',')
+        appendFixed2(chunkBuffer, vYawR).append('\n')
+
         rowCount++
         bufferedRows++
         alreadyAutoSaved = false
 
         if (bufferedRows >= FLUSH_EVERY_ROWS) {
-            flushChunkToCache()
+            val file = activeCacheFile
+            if (file != null && chunkBuffer.isNotEmpty()) {
+                val payload = chunkBuffer.toString()
+                chunkBuffer.setLength(0)
+                bufferedRows = 0
+                ioScope.launch {
+                    synchronized(fileLock) {
+                        runCatching {
+                            FileOutputStream(file, true).use { fos ->
+                                fos.write(payload.toByteArray(Charsets.UTF_8))
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     fun loggedRowCount(): Int = rowCount
 
-    private fun flushChunkToCache() {
+    private fun flushChunkSync() {
         val file = activeCacheFile ?: return
-        if (chunkBuffer.isEmpty()) return
-        runCatching {
-            FileOutputStream(file, true).use { fos ->
-                fos.write(chunkBuffer.toString().toByteArray(Charsets.UTF_8))
+        val pending = if (chunkBuffer.isNotEmpty()) {
+            val s = chunkBuffer.toString()
+            chunkBuffer.setLength(0)
+            bufferedRows = 0
+            s
+        } else {
+            null
+        }
+        if (pending != null) {
+            synchronized(fileLock) {
+                runCatching {
+                    FileOutputStream(file, true).use { fos ->
+                        fos.write(pending.toByteArray(Charsets.UTF_8))
+                    }
+                }
             }
         }
-        chunkBuffer.setLength(0)
-        bufferedRows = 0
     }
 
-    /**
-     * Flushes all remaining rows and auto-saves the CSV into `Documents/Jumpvex/DebugLogs/`.
-     * Returns the display path (e.g. "Documents/Jumpvex/DebugLogs/Jumpvex_...csv") or null if empty.
-     */
     fun autoSaveToDebugFolder(context: Context): String? {
         if (rowCount == 0) return null
-        flushChunkToCache()
+        flushChunkSync()
         val file = activeCacheFile ?: return null
-        if (!file.exists()) return null
-        if (alreadyAutoSaved) return "$RELATIVE_LOG_DIR/$activeFileName"
+        synchronized(fileLock) {
+            if (!file.exists()) return null
+            if (alreadyAutoSaved) return "$RELATIVE_LOG_DIR/$activeFileName"
 
-        val savedPath = saveFileToDebugFolder(context, file, activeFileName)
-        if (savedPath != null) {
-            alreadyAutoSaved = true
+            val savedPath = saveFileToDebugFolder(context, file, activeFileName)
+            if (savedPath != null) {
+                alreadyAutoSaved = true
+            }
+            return savedPath
         }
-        return savedPath
     }
 
     fun exportToFile(context: Context): File? {
         if (rowCount == 0) return null
-        flushChunkToCache()
+        flushChunkSync()
         autoSaveToDebugFolder(context)
         return activeCacheFile?.takeIf { it.exists() }
     }
@@ -225,6 +275,28 @@ class SessionDiagnosticLogger {
         }.getOrNull()
     }
 
-    private fun fmt2(v: Float): String = String.format(Locale.US, "%.2f", v)
-    private fun fmt3(v: Float): String = String.format(Locale.US, "%.3f", v)
+    private fun appendFixed2(sb: StringBuilder, v: Float): StringBuilder {
+        if (v.isNaN() || v.isInfinite()) return sb.append("0.00")
+        val scaled = (v * 100f).roundToLong()
+        if (scaled < 0L) sb.append('-')
+        val a = abs(scaled)
+        val whole = a / 100L
+        val frac = a % 100L
+        sb.append(whole).append('.')
+        if (frac < 10L) sb.append('0')
+        return sb.append(frac)
+    }
+
+    private fun appendFixed3(sb: StringBuilder, v: Float): StringBuilder {
+        if (v.isNaN() || v.isInfinite()) return sb.append("0.000")
+        val scaled = (v * 1000f).roundToLong()
+        if (scaled < 0L) sb.append('-')
+        val a = abs(scaled)
+        val whole = a / 1000L
+        val frac = a % 1000L
+        sb.append(whole).append('.')
+        if (frac < 100L) sb.append('0')
+        if (frac < 10L) sb.append('0')
+        return sb.append(frac)
+    }
 }

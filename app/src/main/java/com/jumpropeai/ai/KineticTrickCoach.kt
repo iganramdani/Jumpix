@@ -14,6 +14,7 @@ enum class KineticMove(val label: String, val isShuffle: Boolean = false) {
     HEEL_TOE("Heel-Toe"),
     CRISS_CROSS("Criss-Cross"),
     DOUBLE_UNDER("Double Under"),
+    TRIPLE_UNDER("Triple Under"),
     HIGH_KNEES("High Knees"),
     SIDE_SWING("Side Swing"),
     SHUFFLE_RUNNING_MAN("Running Man", isShuffle = true),
@@ -36,19 +37,21 @@ data class KineticFrameResult(
     val shuffleStepDetected: Boolean,
     val shuffleStepTimestampMs: Long,
     val formSnapshot: FormCoachSnapshot,
-    val moveCounts: Map<KineticMove, Int>
+    val moveCounts: Map<KineticMove, Int>,
+    val comboCount: Int = 0
 )
 
 /**
- * Jumpvex AI Engine v13.2 — Full Heel-to-Toe Foot-Triangle Trick Classifier, Authentic Melbourne
- * Shuffle Dance Detector & Biomechanical Form Coach (Zero-GC, < 15 µs/frame).
+ * Jumpvex AI Engine v14.0 — Peak-Aligned Heel-to-Toe Foot-Triangle Trick Classifier,
+ * Triple Under & Combo Chain Detector, Authentic Melbourne Shuffle Engine & 3D Form Coach (Zero-GC).
  *
- * Uses all 17 ML Kit landmarks including LEFT/RIGHT_HEEL & LEFT/RIGHT_FOOT_INDEX (0 extra inference cost):
- * - Heel-to-Toe Pitch ((toe.y - heel.y) / torsoH): detects Heel-Toe jump rope taps, Boxer Step
- *   heel-lift alternation, and Running Man heel-up back-glide vs flat front-stomp.
- * - Foot-Vector Yaw ((toe.x - heel.x) / torsoH): detects authentic T-Step heel-toe sideways pivot
- *   and Charleston synchronous toes-in / toes-out foot twist.
- * - Real-data calibrated thresholds against 46 real videos (0% regression on jump counting).
+ * Key v14 Enhancements over v13.5:
+ * - Peak-Aligned Trick Window (`[jumpPeakTimeMs - 110ms .. jumpPeakTimeMs + 110ms]`): eliminates the
+ *   ~250ms causal lookahead phase mismatch so fast Criss-Crosses, High Knees & Heel-Toe taps executed
+ *   at mid-air apex are captured even after arms uncross / knees descend by landing confirmation!
+ * - Triple Under (`TRIPLE_UNDER`) kinematic + triple-acoustic burst classifier.
+ * - Combo Chain tracker (`comboCount`) counting distinct freestyle skill transitions.
+ * - 3D World Z-Depth forward-lean posture scoring when ML Kit 3D coordinates are present.
  */
 class KineticTrickCoach {
 
@@ -68,6 +71,12 @@ class KineticTrickCoach {
     private val rightAnkleY = FloatArray(BUF_SIZE)
     private val leftFootYawBuf = FloatArray(BUF_SIZE)
     private val rightFootYawBuf = FloatArray(BUF_SIZE)
+    private val leftFootPitchBuf = FloatArray(BUF_SIZE)
+    private val rightFootPitchBuf = FloatArray(BUF_SIZE)
+    private val hasBothFeetBuf = BooleanArray(BUF_SIZE)
+    private val crossMetricBuf = FloatArray(BUF_SIZE)
+    private val minKneeLiftBuf = FloatArray(BUF_SIZE)
+    private val kneeAsymBuf = FloatArray(BUF_SIZE)
     private val hipXBuf = FloatArray(BUF_SIZE)
     private val hipYBuf = FloatArray(BUF_SIZE)
     private val wristMidXBuf = FloatArray(BUF_SIZE)
@@ -102,6 +111,11 @@ class KineticTrickCoach {
     private var prevToeInOut = 0f
     private var charlestonTwistCount = 0
     private var lastCharlestonTwistMs = -10_000L
+
+    // Combo chain tracker
+    private var prevNonRegularMove: KineticMove? = null
+    var comboCount: Int = 0
+        private set
 
     // Form coach running averages
     private var postureAccum = 0f
@@ -154,6 +168,8 @@ class KineticTrickCoach {
         prevToeInOut = 0f
         charlestonTwistCount = 0
         lastCharlestonTwistMs = -10_000L
+        prevNonRegularMove = null
+        comboCount = 0
         postureAccum = 0f
         handAccum = 0f
         softnessAccum = 0f
@@ -211,7 +227,8 @@ class KineticTrickCoach {
         jumpAccepted: Boolean,
         jumpAmplitude: Float,
         audioHistory: List<FluxSample>,
-        isShuffleMode: Boolean
+        isShuffleMode: Boolean,
+        jumpPeakTimeMs: Long = frame.timestampMs
     ): KineticFrameResult {
         val nowMs = frame.timestampMs
         val lm = frame.landmarks
@@ -230,14 +247,17 @@ class KineticTrickCoach {
                 shuffleStepDetected = false,
                 shuffleStepTimestampMs = 0L,
                 formSnapshot = currentFormSnapshot(),
-                moveCounts = snapshotMoveCounts()
+                moveCounts = snapshotMoveCounts(),
+                comboCount = comboCount
             )
         }
 
         val shoulderMidX = (lShoulder.x + rShoulder.x) * 0.5f
         val shoulderMidY = (lShoulder.y + rShoulder.y) * 0.5f
+        val shoulderMidZ = (lShoulder.z + rShoulder.z) * 0.5f
         val hipMidX = (lHip.x + rHip.x) * 0.5f
         val hipMidY = (lHip.y + rHip.y) * 0.5f
+        val hipMidZ = (lHip.z + rHip.z) * 0.5f
         val torsoH = max(1e-3f, abs(hipMidY - shoulderMidY))
         val shoulderDir = lShoulder.x - rShoulder.x
         val shoulderSpan = abs(shoulderDir)
@@ -255,12 +275,17 @@ class KineticTrickCoach {
         val rToe = lm[BodyLandmark.RIGHT_FOOT_INDEX]?.takeIf { it.confidence >= FOOT_MIN_CONF }
         val nose = lm[BodyLandmark.NOSE]?.takeIf { it.confidence >= MIN_CONF }
 
-        // Track airborne duration for Double Under detection
+        // Track airborne duration for Double & Triple Under detection
         if (isAirborne) {
             if (airborneStartMs < 0L) airborneStartMs = nowMs
         } else if (airborneStartMs >= 0L) {
             lastAirborneDurationMs = nowMs - airborneStartMs
             airborneStartMs = -1L
+        }
+        val activeFlightMs = if (isAirborne && airborneStartMs >= 0L) {
+            max(lastAirborneDurationMs, nowMs - airborneStartMs)
+        } else {
+            lastAirborneDurationMs
         }
 
         val prevIdx = if (bufCount > 0) (bufHead - 1 + BUF_SIZE) % BUF_SIZE else -1
@@ -278,12 +303,22 @@ class KineticTrickCoach {
         val hasRightFoot = rHeel != null && rToe != null
         val hasBothFeet = hasLeftFoot && hasRightFoot
 
-        // Pitch: positive = toe lower than heel (normal ~0.15-0.21; heel-up glide >0.23; heel-tap toes-up <0.04)
         val lFootPitch = if (hasLeftFoot) (lToe!!.y - lHeel!!.y) / torsoH else 0.16f
         val rFootPitch = if (hasRightFoot) (rToe!!.y - rHeel!!.y) / torsoH else 0.16f
-        // Yaw: horizontal vector from heel to toe normalized by torso
         val lFootYaw = if (hasLeftFoot) (lToe!!.x - lHeel!!.x) / torsoH else 0f
         val rFootYaw = if (hasRightFoot) (rToe!!.x - rHeel!!.x) / torsoH else 0f
+
+        val instCrossMetric = if (isFrontFacing && lWrist != null && rWrist != null && shoulderSpan > 1e-3f) {
+            ((lWrist.x - rWrist.x) * sign(shoulderDir)) / shoulderSpan
+        } else {
+            1f
+        }
+        val instMinKneeLift = if (lKnee != null && rKnee != null) {
+            min((lKnee.y - hipMidY) / torsoH, (rKnee.y - hipMidY) / torsoH)
+        } else {
+            1f
+        }
+        val knAsymVal = if (lKnee != null && rKnee != null) abs(lKnee.y - rKnee.y) / torsoH else 0f
 
         val vLx = if (prevIdx >= 0) (lAx - leftAnkleX[prevIdx]) / (torsoH * dtSec) else 0f
         val vLy = if (prevIdx >= 0) (lAy - leftAnkleY[prevIdx]) / (torsoH * dtSec) else 0f
@@ -300,6 +335,7 @@ class KineticTrickCoach {
             0f
         }
 
+        // Store frame into Zero-GC circular buffers BEFORE peak-window evaluation
         timesMs[bufHead] = nowMs
         leftAnkleX[bufHead] = lAx
         leftAnkleY[bufHead] = lAy
@@ -307,6 +343,12 @@ class KineticTrickCoach {
         rightAnkleY[bufHead] = rAy
         leftFootYawBuf[bufHead] = lFootYaw
         rightFootYawBuf[bufHead] = rFootYaw
+        leftFootPitchBuf[bufHead] = lFootPitch
+        rightFootPitchBuf[bufHead] = rFootPitch
+        hasBothFeetBuf[bufHead] = hasBothFeet
+        crossMetricBuf[bufHead] = instCrossMetric
+        minKneeLiftBuf[bufHead] = instMinKneeLift
+        kneeAsymBuf[bufHead] = knAsymVal
         hipXBuf[bufHead] = hipMidX
         hipYBuf[bufHead] = hipMidY
         wristMidXBuf[bufHead] = wMidX
@@ -314,15 +356,10 @@ class KineticTrickCoach {
         bufHead = (bufHead + 1) % BUF_SIZE
         if (bufCount < BUF_SIZE) bufCount++
 
-        // 1. Criss-Cross (front-facing only, deep wrist cross < -0.35 * shoulderSpan)
-        val wristsCrossedNow = if (isFrontFacing && lWrist != null && rWrist != null && shoulderSpan > 1e-3f) {
-            val crossMetric = ((lWrist.x - rWrist.x) * sign(shoulderDir)) / shoulderSpan
-            crossMetric < -0.35f
-        } else {
-            false
-        }
+        // 1. Criss-Cross (instantaneous + peak-windowed lookback across +-110ms around jump apex)
+        val wristsCrossedNow = instCrossMetric < -0.35f
         if (wristsCrossedNow) crissCrossStreakFrames++ else crissCrossStreakFrames = 0
-        val isCrissCross = wristsCrossedNow || crissCrossStreakFrames >= 2
+        val isCrissCrossNow = wristsCrossedNow || crissCrossStreakFrames >= 2
 
         // 2. Side Swing (active skipping window, front-facing, both wrists clearly past hip + swinging)
         val hipMinX = min(lHip.x, rHip.x)
@@ -333,7 +370,7 @@ class KineticTrickCoach {
             recentlySkipping &&
             isFrontFacing &&
             !isAirborne &&
-            !isCrissCross &&
+            !isCrissCrossNow &&
             nowMs >= sideSwingCooldownUntilMs &&
             lWrist != null &&
             rWrist != null &&
@@ -346,38 +383,20 @@ class KineticTrickCoach {
             false
         }
 
-        // 3. High Knees (strict real-data calibrated: knee rises near hip level + strong L/R asymmetry)
-        val isHighKnees = if (lKnee != null && rKnee != null) {
-            val leftLift = (lKnee.y - hipMidY) / torsoH
-            val rightLift = (rKnee.y - hipMidY) / torsoH
-            val kneeAsym = abs(lKnee.y - rKnee.y) / torsoH
-            min(leftLift, rightLift) < 0.30f && kneeAsym > 0.32f
-        } else {
-            false
-        }
+        // 3. Instantaneous High Knees & Heel-Toe (also evaluated across peak window below when jumpAccepted!)
+        val isHighKneesNow = instMinKneeLift < 0.30f && knAsymVal > 0.32f
+        val isHeelToeNow = evaluateHeelToeFrame(hasBothFeet, lFootPitch, rFootPitch)
 
-        // 4. Heel-Toe Tap (calibrated from 21 real Redmi Note 9 videos: one foot heel-down toes-up < 0.08f
-        //    with strong pitch contrast >= 0.14f against the opposite toe-pivot foot)
-        val pitchContrast = if (hasBothFeet) abs(lFootPitch - rFootPitch) else 0f
-        val minFootPitch = if (hasBothFeet) min(lFootPitch, rFootPitch) else 0.16f
-        val isHeelToe = hasBothFeet && (
-            (lFootPitch < 0.04f && rFootPitch > 0.12f) ||
-                (rFootPitch < 0.04f && lFootPitch > 0.12f) ||
-                (minFootPitch < 0.08f && pitchContrast >= 0.14f)
-            )
-
-        // 5. Authentic Melbourne Shuffle Dance Footwork (camera-angle aware!)
+        // 4. Authentic Melbourne Shuffle Dance Footwork (camera-angle aware!)
         val ankleSep = abs(lAx - rAx) / torsoH
         val ankleSepVel = (ankleSep - prevAnkleSep) / dtSec
         val hasAnkles = lAnkle != null && rAnkle != null
         val hipVertStd = computeRecentHipVertStd(torsoH)
-        val knAsymVal = if (lKnee != null && rKnee != null) abs(lKnee.y - rKnee.y) / torsoH else 0f
         val ankDyVal = if (hasAnkles) abs(lAy - rAy) / torsoH else 0f
         val vProd = vLx * vRx
         val shRatioVal = shoulderSpan / torsoH
         val isSideView = shRatioVal < 0.32f
 
-        // Store Zero-GC telemetry for optional diagnostic CSV logger
         lastShRatio = shRatioVal
         lastAnkSep = ankleSep
         lastAnkDy = ankDyVal
@@ -394,24 +413,18 @@ class KineticTrickCoach {
         var detectedShuffleMove: KineticMove? = null
 
         if (hasAnkles && bufCount >= 6) {
-            // Decay Charleston counter cleanly when no twist happens for > 750ms (fixes sticky Charleston bug!)
             if (nowMs - lastCharlestonTwistMs > 750L) {
                 charlestonTwistCount = 0
             }
 
-            // Sustained lateral hip displacement over ~350-450ms (eliminates 1-frame hipVx jitter during stationary skipping!)
             val sustainedHipShiftX = computeRecentHipShiftX(torsoH)
             val runningManBounceOk = hipVertStd < 0.22f
 
-            // Camera-angle-aware Running Man:
-            // In side-view (shRatio < 0.32), normal Boxer Step & Heel-Toe project onto X-axis, so require a true wide
-            // Melbourne Shuffle scissor stride (> 0.72 * torsoH) & faster opposing glide (< -3.80) + real knee drive!
             val minRmSep = if (isSideView) 0.72f else 0.45f
             val minRmVProd = if (isSideView) -3.80f else -2.20f
             val opposingGlide = (vProd < minRmVProd) && ankleSep > minRmSep
             val kneeDrive = knAsymVal > 0.20f
 
-            // T-Step: true sustained sideways travel (>= 0.26 * torsoH over ~400ms) + clear heel-toe yaw pivot
             val lateralTravel = sustainedHipShiftX >= 0.26f && abs(hipVx) > 0.55f
             val footYawPivot = hasBothFeet && (abs(vYawL) > 1.45f || abs(vYawR) > 1.45f)
             val tStepMotion = lateralTravel && (
@@ -420,7 +433,6 @@ class KineticTrickCoach {
                     (abs(vRx) > 1.35f && abs(vLy) > 0.85f && abs(vLx) < 0.55f)
                 )
 
-            // Charleston: stationary hips + strong synchronous toes-in/toes-out foot twist (>= 3 twists in 1.2s)
             val toeInOut = if (hasBothFeet) {
                 ((abs(lToe!!.x - rToe!!.x) - abs(lHeel!!.x - rHeel!!.x)) / torsoH)
             } else {
@@ -442,7 +454,7 @@ class KineticTrickCoach {
                 (abs(vYawL) + abs(vYawR) > 2.2f)
 
             val candidateMove = when {
-                !isHeelToe && runningManBounceOk && opposingGlide && kneeDrive -> KineticMove.SHUFFLE_RUNNING_MAN
+                !isHeelToeNow && runningManBounceOk && opposingGlide && kneeDrive -> KineticMove.SHUFFLE_RUNNING_MAN
                 tStepMotion -> KineticMove.SHUFFLE_T_STEP
                 charlestonMotion -> KineticMove.SHUFFLE_CHARLESTON
                 else -> null
@@ -450,7 +462,6 @@ class KineticTrickCoach {
 
             if (candidateMove != null && (nowMs - lastShuffleStepMs) >= SHUFFLE_REFRACTORY_MS) {
                 val sincePrevBeat = nowMs - lastShuffleCandidateMs
-                // Require SAME Shuffle move confirmed across 2 consecutive beats (eliminates 0.3s flickering!)
                 if (sincePrevBeat in 200L..850L && pendingShuffleMove == candidateMove) {
                     detectedShuffleMove = candidateMove
                     lastShuffleStepMs = nowMs
@@ -471,7 +482,7 @@ class KineticTrickCoach {
         prevAnkleSep = ankleSep
         prevAnkleSepVel = ankleSepVel
 
-        // 6. Classify Jump Move when a real Jump is accepted
+        // 5. Classify Jump Move when a real Jump is accepted (Peak-Aligned v14!)
         if (jumpAccepted) {
             lastJumpAcceptedMs = nowMs
             baselineJumpCount++
@@ -483,13 +494,23 @@ class KineticTrickCoach {
                 }
             }
 
-            val isDoubleUnder = baselineJumpCount >= 3 && (
-                (jumpAmplitude >= max(0.11f, rollingJumpAmp * 1.48f) && lastAirborneDurationMs >= 250L) ||
-                    (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && hasDualAudioBurst(audioHistory, nowMs))
+            val audioBursts = countHighAudioBursts(audioHistory, jumpPeakTimeMs)
+            val isTripleUnder = baselineJumpCount >= 3 && (
+                (jumpAmplitude >= max(0.15f, rollingJumpAmp * 1.75f) && activeFlightMs >= 370L) ||
+                    (jumpAmplitude >= max(0.13f, rollingJumpAmp * 1.55f) && audioBursts >= 3)
                 )
 
-            // Boxer Step (300ms windowed): capture peak signed L/R ankle asymmetry during the jump transfer phase,
-            // not just the single landing frame where both feet momentarily level out!
+            val isDoubleUnder = !isTripleUnder && baselineJumpCount >= 3 && (
+                (jumpAmplitude >= max(0.11f, rollingJumpAmp * 1.48f) && activeFlightMs >= 250L) ||
+                    (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && audioBursts >= 2)
+                )
+
+            // Peak-Aligned Window `[jumpPeakTimeMs - 110ms .. jumpPeakTimeMs + 110ms]`
+            val isCrissCross = isCrissCrossNow || hadCrissCrossNearPeak(jumpPeakTimeMs)
+            val isHighKnees = isHighKneesNow || hadHighKneesNearPeak(jumpPeakTimeMs)
+            val isHeelToe = isHeelToeNow || hadHeelToeNearPeak(jumpPeakTimeMs)
+
+            // Boxer Step (300ms windowed around jump peak/landing)
             val instAnkleDelta = if (hasAnkles) (lAy - rAy) / torsoH else 0f
             val peakWinAnkleDelta = if (hasAnkles) computeRecentPeakSignedAnkleDelta(torsoH, nowMs) else 0f
             val ankleDelta = if (abs(peakWinAnkleDelta) >= abs(instAnkleDelta)) peakWinAnkleDelta else instAnkleDelta
@@ -514,6 +535,7 @@ class KineticTrickCoach {
 
             val recentShuffleHold = (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
             val classifiedJump = when {
+                isTripleUnder -> KineticMove.TRIPLE_UNDER
                 isDoubleUnder -> KineticMove.DOUBLE_UNDER
                 isCrissCross -> KineticMove.CRISS_CROSS
                 isHighKnees -> KineticMove.HIGH_KNEES
@@ -528,8 +550,10 @@ class KineticTrickCoach {
                 nose = nose,
                 shoulderMidX = shoulderMidX,
                 shoulderMidY = shoulderMidY,
+                shoulderMidZ = shoulderMidZ,
                 hipMidX = hipMidX,
                 hipMidY = hipMidY,
+                hipMidZ = hipMidZ,
                 torsoH = torsoH,
                 shoulderSpan = shoulderSpan,
                 isFrontFacing = isFrontFacing,
@@ -538,20 +562,23 @@ class KineticTrickCoach {
                 jumpAmplitude = jumpAmplitude,
                 isCrissCross = isCrissCross,
                 audioHistory = audioHistory,
-                nowMs = nowMs
+                nowMs = jumpPeakTimeMs
             )
         } else if (isSideSwing) {
             currentMove = KineticMove.SIDE_SWING
             sideSwingCooldownUntilMs = nowMs + 550L
             moveCounter[KineticMove.SIDE_SWING.ordinal]++
+            updateComboChain(KineticMove.SIDE_SWING)
             rebuildMoveCountsCache()
         } else if (shuffleStepDetected && detectedShuffleMove != null) {
             evaluateFormSample(
                 nose = nose,
                 shoulderMidX = shoulderMidX,
                 shoulderMidY = shoulderMidY,
+                shoulderMidZ = shoulderMidZ,
                 hipMidX = hipMidX,
                 hipMidY = hipMidY,
+                hipMidZ = hipMidZ,
                 torsoH = torsoH,
                 shoulderSpan = shoulderSpan,
                 isFrontFacing = isFrontFacing,
@@ -569,8 +596,65 @@ class KineticTrickCoach {
             shuffleStepDetected = shuffleStepDetected,
             shuffleStepTimestampMs = if (shuffleStepDetected) nowMs else 0L,
             formSnapshot = cachedFormSnapshot,
-            moveCounts = cachedMoveCounts
+            moveCounts = cachedMoveCounts,
+            comboCount = comboCount
         )
+    }
+
+    private fun evaluateHeelToeFrame(hasBothFeet: Boolean, lFootPitch: Float, rFootPitch: Float): Boolean {
+        if (!hasBothFeet) return false
+        val pitchContrast = abs(lFootPitch - rFootPitch)
+        val minFootPitch = min(lFootPitch, rFootPitch)
+        return (lFootPitch < 0.04f && rFootPitch > 0.12f) ||
+            (rFootPitch < 0.04f && lFootPitch > 0.12f) ||
+            (minFootPitch < 0.08f && pitchContrast >= 0.14f)
+    }
+
+    private fun hadCrissCrossNearPeak(peakMs: Long): Boolean {
+        val minTs = peakMs - 110L
+        val maxTs = peakMs + 110L
+        for (i in 0 until bufCount) {
+            val idx = (bufHead - 1 - i + BUF_SIZE) % BUF_SIZE
+            val ts = timesMs[idx]
+            if (ts < minTs) break
+            if (ts <= maxTs && crossMetricBuf[idx] < -0.35f) return true
+        }
+        return false
+    }
+
+    private fun hadHighKneesNearPeak(peakMs: Long): Boolean {
+        val minTs = peakMs - 110L
+        val maxTs = peakMs + 110L
+        for (i in 0 until bufCount) {
+            val idx = (bufHead - 1 - i + BUF_SIZE) % BUF_SIZE
+            val ts = timesMs[idx]
+            if (ts < minTs) break
+            if (ts <= maxTs && minKneeLiftBuf[idx] < 0.30f && kneeAsymBuf[idx] > 0.32f) return true
+        }
+        return false
+    }
+
+    private fun hadHeelToeNearPeak(peakMs: Long): Boolean {
+        val minTs = peakMs - 110L
+        val maxTs = peakMs + 110L
+        for (i in 0 until bufCount) {
+            val idx = (bufHead - 1 - i + BUF_SIZE) % BUF_SIZE
+            val ts = timesMs[idx]
+            if (ts < minTs) break
+            if (ts <= maxTs && evaluateHeelToeFrame(hasBothFeetBuf[idx], leftFootPitchBuf[idx], rightFootPitchBuf[idx])) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun updateComboChain(move: KineticMove) {
+        if (move != KineticMove.REGULAR) {
+            if (prevNonRegularMove != null && prevNonRegularMove != move) {
+                comboCount++
+            }
+            prevNonRegularMove = move
+        }
     }
 
     private fun computeRecentHipVertStd(torsoH: Float): Float {
@@ -609,6 +693,7 @@ class KineticTrickCoach {
     private fun recordMoveAndInterval(move: KineticMove, nowMs: Long) {
         currentMove = move
         moveCounter[move.ordinal]++
+        updateComboChain(move)
         rebuildMoveCountsCache()
 
         if (lastEventTimeMs > 0L) {
@@ -626,8 +711,10 @@ class KineticTrickCoach {
         nose: LandmarkPoint?,
         shoulderMidX: Float,
         shoulderMidY: Float,
+        shoulderMidZ: Float,
         hipMidX: Float,
         hipMidY: Float,
+        hipMidZ: Float,
         torsoH: Float,
         shoulderSpan: Float,
         isFrontFacing: Boolean,
@@ -639,8 +726,14 @@ class KineticTrickCoach {
         nowMs: Long
     ) {
         val torsoTilt = abs(shoulderMidX - hipMidX) / torsoH
-        val headForward = if (nose != null) abs(nose.x - shoulderMidX) / torsoH else 0f
-        val posture = (100f - torsoTilt * 140f - headForward * 45f).coerceIn(45f, 100f)
+        val headForward = if (nose != null && isFrontFacing) abs(nose.x - shoulderMidX) / torsoH else 0f
+        // Incorporate 3D forward lean (Z depth normalized by torsoH) when ML Kit 3D coordinates are present
+        val forwardLean3d = if (shoulderMidZ != 0f || hipMidZ != 0f) {
+            max(0f, (abs(shoulderMidZ - hipMidZ) / torsoH) - 0.18f) * 55f
+        } else {
+            0f
+        }
+        val posture = (100f - torsoTilt * 140f - headForward * 45f - forwardLean3d).coerceIn(45f, 100f)
 
         val hands = if (isFrontFacing && lWrist != null && rWrist != null && !isCrissCross && shoulderSpan > 1e-3f) {
             val yDiff = abs(lWrist.y - rWrist.y) / torsoH
@@ -688,10 +781,10 @@ class KineticTrickCoach {
         return (100f - cv * 145f).roundToInt().coerceIn(45, 100)
     }
 
-    private fun hasDualAudioBurst(audioHistory: List<FluxSample>, peakMs: Long): Boolean {
-        if (audioHistory.size < 20) return false
-        val startMs = peakMs - 220L
-        val endMs = peakMs + 140L
+    private fun countHighAudioBursts(audioHistory: List<FluxSample>, peakMs: Long): Int {
+        if (audioHistory.size < 20) return 0
+        val startMs = peakMs - 240L
+        val endMs = peakMs + 160L
         var peaks = 0
         var lastPeakMs = -10_000L
         var mean = 0f
@@ -708,7 +801,7 @@ class KineticTrickCoach {
             count++
             idx++
         }
-        if (count < 6) return false
+        if (count < 6) return 0
         val thresh = (mean / count) * 1.75f + 1.0f
         idx = lo + 1
         val endIdx = min(audioHistory.size - 2, lo + count - 2)
@@ -716,14 +809,14 @@ class KineticTrickCoach {
             val v = audioHistory[idx].wideHigh
             if (v > thresh && v >= audioHistory[idx - 1].wideHigh && v >= audioHistory[idx + 1].wideHigh) {
                 val ts = audioHistory[idx].timestampMs
-                if (ts - lastPeakMs in 70L..165L || lastPeakMs < 0L) {
+                if (ts - lastPeakMs in 65L..165L || lastPeakMs < 0L) {
                     peaks++
                     lastPeakMs = ts
                 }
             }
             idx++
         }
-        return peaks >= 2
+        return peaks
     }
 
     private fun computeRecentPeakSignedAnkleDelta(torsoH: Float, nowMs: Long): Float {

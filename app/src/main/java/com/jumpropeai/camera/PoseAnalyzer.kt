@@ -90,13 +90,14 @@ class PoseAnalyzer(
         imageHeight: Int,
         isMirrored: Boolean
     ): PoseFrame {
-        val map = mutableMapOf<BodyLandmark, LandmarkPoint>()
+        val map = java.util.EnumMap<BodyLandmark, LandmarkPoint>(BodyLandmark::class.java)
         for ((mlType, bodyLandmark) in LANDMARK_MAPPING) {
             val landmark = getPoseLandmark(mlType) ?: continue
             map[bodyLandmark] = LandmarkPoint(
                 x = landmark.position.x,
                 y = landmark.position.y,
-                confidence = landmark.inFrameLikelihood
+                confidence = landmark.inFrameLikelihood,
+                z = landmark.position3D.z
             )
         }
         return PoseFrame(

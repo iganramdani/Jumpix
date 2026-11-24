@@ -31,6 +31,9 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.Transformer
 import com.google.common.collect.ImmutableList
+import com.jumpropeai.data.WorkoutSession
+import com.jumpropeai.debug.SessionDiagnosticLogger
+import com.jumpropeai.video.VideoTelemetryEvent
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -38,22 +41,64 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * Hardware-accelerated custom video watermark exporter powered by Jetpack Media3 Transformer.
+ * Hardware-accelerated video watermark exporter powered by Jetpack Media3 Transformer (v4.0).
  *
- * IMPORTANT Media3 detail:
- * In Media3 1.4.x, `OverlayMatrixProvider` scales every `BitmapOverlay` by
- * `(overlaySize.width / videoSize.width, overlaySize.height / videoSize.height)` in pixel space —
- * it does NOT auto-fit the bitmap to the video frame! Therefore, passing a 1080x1920 bitmap onto
- * a 720x1280 video blows the watermark up by 150% (1080/720 = 1.5x) and clips all 4 edges.
- *
- * `VideoFittedBitmapOverlay` overrides `TextureOverlay.configure(videoSize)` to receive Media3's
- * exact post-rotation frame dimensions and builds the transparent canvas at exact 1:1 pixel size
- * (with exact scale compensation if capped for 4K), guaranteeing ZERO unintended enlargement or
- * edge clipping across 480p, 720p, 1080p, 4K, portrait, square, and landscape videos.
+ * Supports TWO modes:
+ * 1. **Dynamic Animated Telemetry HUD (`exportDynamicTelemetryVideo`)**:
+ *    Increments the Jump Counter, Live RPM, Calories, Streak, and Active Trick Callout in real time
+ *    synchronized to every jump timestamp in the video, reusing a single OpenGL texture & mutable Bitmap!
+ * 2. **Static Summary Watermark (`exportWatermarkedVideo`)**:
+ *    Burns a clean static summary card onto any chosen video at 1:1 fitted resolution.
  */
 object VideoWatermarkExporter {
 
-    private const val MAX_OVERLAY_DIM = 2160
+    private const val MAX_OVERLAY_DIM = 1920
+
+    @OptIn(UnstableApi::class)
+    fun exportDynamicTelemetryVideo(
+        context: Context,
+        sourceVideoUri: Uri,
+        session: WorkoutSession,
+        telemetryEvents: List<VideoTelemetryEvent>,
+        totalDurationMs: Long,
+        template: WatermarkTemplate,
+        overlayScale: Float,
+        onProgress: (Int) -> Unit,
+        onSuccess: (File, Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SessionDiagnosticLogger.pruneStaleSharedCache(context)
+        val mainHandler = Handler(Looper.getMainLooper())
+        val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
+        val outFile = File(outDir, "Jumpvex_LiveHUD_${System.currentTimeMillis()}.mp4")
+
+        val fallbackSize = readVideoDisplaySize(context, sourceVideoUri)
+        val dynamicOverlay = DynamicTelemetryBitmapOverlay(
+            session = session,
+            events = telemetryEvents,
+            totalDurationMs = totalDurationMs.coerceAtLeast(1000L),
+            template = template,
+            userOverlayScale = overlayScale,
+            fallbackVideoWidth = fallbackSize.first,
+            fallbackVideoHeight = fallbackSize.second
+        )
+        val overlayEffect = OverlayEffect(ImmutableList.of(dynamicOverlay))
+        val effects = Effects(emptyList(), listOf(overlayEffect))
+
+        val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(sourceVideoUri))
+            .setEffects(effects)
+            .build()
+
+        runTransformerExport(
+            context = context,
+            editedMediaItem = editedMediaItem,
+            outFile = outFile,
+            mainHandler = mainHandler,
+            onProgress = onProgress,
+            onSuccess = onSuccess,
+            onError = onError
+        )
+    }
 
     @OptIn(UnstableApi::class)
     fun exportWatermarkedVideo(
@@ -66,6 +111,7 @@ object VideoWatermarkExporter {
         onSuccess: (File, Boolean) -> Unit,
         onError: (String) -> Unit
     ) {
+        SessionDiagnosticLogger.pruneStaleSharedCache(context)
         val mainHandler = Handler(Looper.getMainLooper())
         val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
         val prefix = if (clipStartMs != null && clipEndMs != null) "Jumpvex_Highlight_" else "Jumpvex_"
@@ -93,46 +139,6 @@ object VideoWatermarkExporter {
         val editedMediaItem = EditedMediaItem.Builder(mediaItemBuilder.build())
             .setEffects(effects)
             .build()
-
-        runTransformerExport(
-            context = context,
-            editedMediaItem = editedMediaItem,
-            outFile = outFile,
-            mainHandler = mainHandler,
-            onProgress = onProgress,
-            onSuccess = onSuccess,
-            onError = onError
-        )
-    }
-
-    /**
-     * 1-Tap Auto-Highlight Clip Exporter using hardware-accelerated Media3 ClippingConfiguration.
-     */
-    @OptIn(UnstableApi::class)
-    fun exportHighlightClip(
-        context: Context,
-        sourceVideoUri: Uri,
-        clipStartMs: Long,
-        clipEndMs: Long,
-        onProgress: (Int) -> Unit,
-        onSuccess: (File, Boolean) -> Unit,
-        onError: (String) -> Unit
-    ) {
-        val mainHandler = Handler(Looper.getMainLooper())
-        val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
-        val outFile = File(outDir, "Jumpvex_Highlight_${System.currentTimeMillis()}.mp4")
-
-        val mediaItem = MediaItem.Builder()
-            .setUri(sourceVideoUri)
-            .setClippingConfiguration(
-                MediaItem.ClippingConfiguration.Builder()
-                    .setStartPositionMs(clipStartMs.coerceAtLeast(0L))
-                    .setEndPositionMs(clipEndMs.coerceAtLeast(clipStartMs + 1000L))
-                    .build()
-            )
-            .build()
-
-        val editedMediaItem = EditedMediaItem.Builder(mediaItem).build()
 
         runTransformerExport(
             context = context,
@@ -194,10 +200,93 @@ object VideoWatermarkExporter {
     }
 
     /**
-     * Custom Media3 [BitmapOverlay] that hooks [configure] to match the exact post-rotation video
-     * frame resolution, preventing Media3's `overlaySize / backgroundSize` matrix from enlarging
-     * or shrinking the watermark on 480p / 720p / 1080p / 4K videos.
+     * Frame-accurate Dynamic Telemetry Media3 [BitmapOverlay]:
+     * Reuses a SINGLE mutable [Bitmap] across the entire video export and redraws at ~12.5 Hz (every 80ms)
+     * or immediately upon any jump timestamp. Media3's `getGenerationId()` check uploads to the GPU
+     * texture ONLY when the canvas actually redrew!
      */
+    @UnstableApi
+    private class DynamicTelemetryBitmapOverlay(
+        private val session: WorkoutSession,
+        private val events: List<VideoTelemetryEvent>,
+        private val totalDurationMs: Long,
+        private val template: WatermarkTemplate,
+        private val userOverlayScale: Float,
+        private val fallbackVideoWidth: Int,
+        private val fallbackVideoHeight: Int
+    ) : BitmapOverlay() {
+
+        private var configuredVideoSize: Size? = null
+        private var reusableBitmap: Bitmap? = null
+        private var overlaySettings: OverlaySettings = OverlaySettings.Builder()
+            .setAlphaScale(1.0f)
+            .build()
+        private var lastRenderedBucket: Long = Long.MIN_VALUE
+
+        override fun configure(videoSize: Size) {
+            super.configure(videoSize)
+            if (configuredVideoSize == videoSize && reusableBitmap != null) return
+            configuredVideoSize = videoSize
+            allocateCanvasForSize(videoSize.width, videoSize.height)
+        }
+
+        override fun getBitmap(presentationTimeUs: Long): Bitmap {
+            val bmp = reusableBitmap?.takeIf { !it.isRecycled } ?: run {
+                val w = configuredVideoSize?.width ?: fallbackVideoWidth
+                val h = configuredVideoSize?.height ?: fallbackVideoHeight
+                allocateCanvasForSize(w, h)
+            }
+
+            val timeMs = (presentationTimeUs / 1000L).coerceAtLeast(0L)
+            // Redraw at ~12.5 Hz (80ms buckets) for smooth timer & pop decay while skipping redundant 60fps draws
+            val bucket = timeMs / 80L
+            if (bucket != lastRenderedBucket) {
+                lastRenderedBucket = bucket
+                WorkoutCardRenderer.renderDynamicTelemetryFrame(
+                    targetBitmap = bmp,
+                    session = session,
+                    events = events,
+                    presentationTimeMs = timeMs,
+                    totalDurationMs = totalDurationMs,
+                    template = template,
+                    overlayScale = userOverlayScale
+                )
+            }
+            return bmp
+        }
+
+        override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = overlaySettings
+
+        override fun release() {
+            super.release()
+            reusableBitmap?.let { if (!it.isRecycled) it.recycle() }
+            reusableBitmap = null
+            lastRenderedBucket = Long.MIN_VALUE
+        }
+
+        private fun allocateCanvasForSize(videoW: Int, videoH: Int): Bitmap {
+            val effW = if (videoW > 0) videoW else 1080
+            val effH = if (videoH > 0) videoH else 1920
+            val maxSide = max(effW, effH)
+            val downscale = if (maxSide > MAX_OVERLAY_DIM) MAX_OVERLAY_DIM.toFloat() / maxSide else 1.0f
+            val canvasW = (effW * downscale).roundToInt().coerceAtLeast(1)
+            val canvasH = (effH * downscale).roundToInt().coerceAtLeast(1)
+
+            val scaleX = effW.toFloat() / canvasW.toFloat()
+            val scaleY = effH.toFloat() / canvasH.toFloat()
+            overlaySettings = OverlaySettings.Builder()
+                .setAlphaScale(1.0f)
+                .setScale(scaleX, scaleY)
+                .build()
+
+            reusableBitmap?.let { old -> if (!old.isRecycled) old.recycle() }
+            val fresh = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
+            reusableBitmap = fresh
+            lastRenderedBucket = Long.MIN_VALUE
+            return fresh
+        }
+    }
+
     @UnstableApi
     private class VideoFittedBitmapOverlay(
         private val sourceWatermark: Bitmap,
@@ -244,7 +333,6 @@ object VideoWatermarkExporter {
                 return sourceWatermark
             }
 
-            // Cap bitmap dimensions at MAX_OVERLAY_DIM for 4K memory safety; compensate in OverlaySettings
             val maxSide = max(videoW, videoH)
             val downscale = if (maxSide > MAX_OVERLAY_DIM) MAX_OVERLAY_DIM.toFloat() / maxSide else 1.0f
             val canvasW = (videoW * downscale).roundToInt().coerceAtLeast(1)
@@ -252,7 +340,6 @@ object VideoWatermarkExporter {
 
             val out = renderWatermarkIntoExactCanvas(sourceWatermark, canvasW, canvasH)
 
-            // Exact scale so (canvasW / videoW) * scaleX == 1.0f and (canvasH / videoH) * scaleY == 1.0f
             val scaleX = videoW.toFloat() / canvasW.toFloat()
             val scaleY = videoH.toFloat() / canvasH.toFloat()
             overlaySettings = OverlaySettings.Builder()
@@ -270,10 +357,6 @@ object VideoWatermarkExporter {
         }
     }
 
-    /**
-     * Draws [watermark] centered inside a transparent [canvasW] x [canvasH] bitmap with 3% safe
-     * margin on every edge so zero pixels are ever clipped.
-     */
     internal fun renderWatermarkIntoExactCanvas(
         watermark: Bitmap,
         canvasW: Int,
@@ -286,7 +369,6 @@ object VideoWatermarkExporter {
         val videoAspect = canvasW.toFloat() / canvasH.toFloat()
         val wmAspect = watermark.width.toFloat() / watermark.height.toFloat()
 
-        // Fit cleanly inside exact video canvas with 3% safe margin on every side
         val safeW = canvasW * 0.94f
         val safeH = canvasH * 0.94f
         val scale = minOf(safeW / watermark.width.toFloat(), safeH / watermark.height.toFloat())
@@ -294,7 +376,6 @@ object VideoWatermarkExporter {
         val drawH = watermark.height * scale
         val left = (canvasW - drawW) / 2f
         val top = if (videoAspect < wmAspect) {
-            // Tall portrait (e.g. 9:16): slightly lower-centered to stay balanced & avoid top notch
             (canvasH - drawH) * 0.56f
         } else {
             (canvasH - drawH) / 2f
@@ -334,7 +415,7 @@ object VideoWatermarkExporter {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "video/mp4"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_TEXT, "Jump rope workout with Jumpvex!")
+                putExtra(Intent.EXTRA_TEXT, "Jump rope workout tracked with Jumpvex AI!")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             context.startActivity(Intent.createChooser(intent, "Share Workout Video"))

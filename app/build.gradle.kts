@@ -12,14 +12,35 @@ android {
         applicationId = "com.jumpropeai"
         minSdk = 24
         targetSdk = 35
-        versionCode = 28
-        versionName = "3.3.6"
+        versionCode = 30
+        versionName = "4.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 99% Ringan: bundle only real Android phone ABIs (64-bit & 32-bit ARM), removing ~45MB of x86 emulator libraries
+        // 99% Lightweight: bundle only real Android phone ABIs (64-bit & 32-bit ARM), removing ~45MB of x86 emulator libraries
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    val keystorePath = System.getenv("SIGNING_KEYSTORE_PATH")
+    val keystorePassword = System.getenv("SIGNING_KEYSTORE_PASSWORD")
+    val keyAliasName = System.getenv("SIGNING_KEY_ALIAS")
+    val keyAliasPassword = System.getenv("SIGNING_KEY_PASSWORD")
+    val hasReleaseKeystore = !keystorePath.isNullOrBlank() &&
+        !keystorePassword.isNullOrBlank() &&
+        !keyAliasName.isNullOrBlank() &&
+        !keyAliasPassword.isNullOrBlank() &&
+        file(keystorePath).exists()
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                storeFile = file(keystorePath!!)
+                storePassword = keystorePassword
+                keyAlias = keyAliasName
+                keyPassword = keyAliasPassword
+            }
         }
     }
 
@@ -27,7 +48,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

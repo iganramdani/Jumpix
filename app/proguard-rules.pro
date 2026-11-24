@@ -9,6 +9,7 @@
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
-# Keep Jumpix data models serialized to SharedPreferences JSON
+# Keep Jumpvex data models & enums serialized to SharedPreferences / JSON
 -keep class com.jumpropeai.data.** { *; }
 -keep class com.jumpropeai.workout.** { *; }
+-keep class com.jumpropeai.metrics.RopeType { *; }

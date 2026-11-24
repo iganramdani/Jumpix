@@ -12,10 +12,12 @@ data class BeatSyncSnapshot(
 )
 
 /**
- * Zero-GC Real-Time Music BPM & Shuffle Beat-Sync Engine powered by our existing 100 Hz STFT Flux.
+ * Zero-GC Real-Time Music BPM & Shuffle Beat-Sync Engine (v14) powered by 100 Hz STFT Flux.
  *
- * Uses autocorrelation over the 80–175 BPM dance/cardio band (lags 34..75 at 100 Hz) with
- * reusable primitive arrays, requiring 0 extra dependencies and < 15 µs per update.
+ * Upgrades over v13:
+ * - Unbiased lag normalization `(n / (n - lag))` eliminates systematic octave errors on 80–115 BPM tracks.
+ * - Prioritizes the 60–250 Hz `BASS` kick-drum band when present so rope-slap transients in high
+ *   bands do not self-lock as fake music beats.
  */
 class BeatSyncEngine {
 
@@ -63,21 +65,32 @@ class BeatSyncEngine {
 
         val n = min(WINDOW_SAMPLES, audioHistory.size)
         val startOffset = audioHistory.size - n
+        var bassSum = 0f
+        for (i in 0 until n) {
+            bassSum += audioHistory[startOffset + i].bass
+        }
+        val hasBassContent = (bassSum / n) > 1e-4f
+
         var sum = 0f
         for (i in 0 until n) {
             val s = audioHistory[startOffset + i]
-            val v = s.mid * 0.7f + s.wideHigh * 0.3f
+            val v = if (hasBassContent) {
+                s.bass * 0.58f + s.mid * 0.32f + s.wideHigh * 0.10f
+            } else {
+                s.mid * 0.70f + s.wideHigh * 0.30f
+            }
             centeredFlux[i] = v
             sum += v
         }
         val mean = sum / n
-        var zeroLagEnergy = 0f
+        var varianceSum = 0f
         for (i in 0 until n) {
             val d = centeredFlux[i] - mean
             centeredFlux[i] = d
-            zeroLagEnergy += d * d
+            varianceSum += d * d
         }
-        if (zeroLagEnergy < 1e-3f) {
+        val variance = varianceSum / n
+        if (variance < 1e-6f) {
             confidence *= 0.8f
             return snapshot()
         }
@@ -92,9 +105,10 @@ class BeatSyncEngine {
                 corr += centeredFlux[i] * centeredFlux[i + lag]
                 i++
             }
-            val normCorr = corr / zeroLagEnergy
-            if (normCorr > bestCorr) {
-                bestCorr = normCorr
+            // Unbiased autocorrelation normalized by overlap count `limit`
+            val unbiasedNorm = (corr / limit.toFloat()) / variance
+            if (unbiasedNorm > bestCorr) {
+                bestCorr = unbiasedNorm
                 bestLag = lag
             }
         }
@@ -104,17 +118,18 @@ class BeatSyncEngine {
             val rawBpm = 60_000f / periodMs
             smoothedBpm = if (smoothedBpm <= 1f) rawBpm else smoothedBpm * 0.72f + rawBpm * 0.28f
             beatPeriodMs = 60_000f / smoothedBpm
-            confidence = (bestCorr * 2.2f).coerceIn(0f, 1f)
+            confidence = (bestCorr * 2.0f).coerceIn(0f, 1f)
 
-            // Anchor beat phase to strongest onset in the last 1.2s
+            // Anchor beat phase to strongest low/mid onset in the last 1.2s
             val anchorSearchStart = (audioHistory.size - 120).coerceAtLeast(0)
             var peakVal = -1f
             var peakTs = lastBeatAnchorMs
             for (i in anchorSearchStart until audioHistory.size) {
-                val v = audioHistory[i].mid
+                val s = audioHistory[i]
+                val v = if (hasBassContent) s.bass * 0.65f + s.mid * 0.35f else s.mid
                 if (v > peakVal) {
                     peakVal = v
-                    peakTs = audioHistory[i].timestampMs
+                    peakTs = s.timestampMs
                 }
             }
             if (peakTs > 0L) lastBeatAnchorMs = peakTs
@@ -126,7 +141,7 @@ class BeatSyncEngine {
     }
 
     /**
-     * Scores how closely a detected jump or Shuffle Dance step landed on the musical beat grid.
+     * Scores how closely a detected jump peak or Shuffle Dance step landed on the musical beat grid.
      */
     fun recordMoveOnBeat(moveTimestampMs: Long) {
         if (beatPeriodMs < 300f || confidence < 0.25f || lastBeatAnchorMs <= 0L) return

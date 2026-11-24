@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JumpRopeAI"
+rootProject.name = "Jumpvex"
 include(":app")
