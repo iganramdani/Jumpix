@@ -77,6 +77,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -143,6 +145,7 @@ import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
@@ -1270,7 +1273,7 @@ private fun WorkoutSettingsSheet(
                 fontWeight = FontWeight.Bold
             )
 
-            // Athlete Profile & Rope Physics Card (Accurate MET Calories & Daily Goal)
+            // Athlete Profile & Rope Setup Card (Body Weight Slider + Rope Type + Daily Goal)
             Surface(
                 shape = RoundedCornerShape(18.dp),
                 color = MidnightSurface,
@@ -1281,145 +1284,197 @@ private fun WorkoutSettingsSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Person,
-                                contentDescription = null,
-                                tint = IceMint,
-                                modifier = Modifier.size(22.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.Person,
+                            contentDescription = null,
+                            tint = IceMint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Athlete Profile & Rope",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
+                            Text(
+                                text = "Used for accurate calorie burn & daily target",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    // Body Weight (dedicated spacious row with smooth 1 kg Slider + ±1 kg fine buttons)
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Body Weight",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Surface(
+                                shape = CircleShape,
+                                color = IceMintSoft,
+                                border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
+                            ) {
                                 Text(
-                                    text = "Athlete Profile & Rope",
-                                    color = TextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    text = "Calibrates MET calories & daily goal",
-                                    color = TextSecondary,
-                                    fontSize = 12.sp
+                                    text = "${uiState.userWeightKg} kg",
+                                    color = IceMint,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
                         }
 
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Surface(
                                 onClick = {
                                     onUpdateAthleteProfile(
-                                        (uiState.userWeightKg - 2).coerceAtLeast(30),
+                                        (uiState.userWeightKg - 1).coerceAtLeast(35),
                                         uiState.ropeType,
                                         uiState.dailyGoalJumps
                                     )
                                 },
                                 shape = CircleShape,
                                 color = MidnightElevated,
-                                border = BorderStroke(1.dp, MidnightBorder)
+                                border = BorderStroke(1.dp, MidnightBorder),
+                                modifier = Modifier.size(34.dp)
                             ) {
-                                Text(
-                                    text = "−",
-                                    color = TextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "−",
+                                        color = TextPrimary,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                            Text(
-                                text = "${uiState.userWeightKg} kg",
-                                color = IceMint,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+
+                            Slider(
+                                value = uiState.userWeightKg.toFloat().coerceIn(35f, 150f),
+                                onValueChange = { raw ->
+                                    val snapped = raw.roundToInt().coerceIn(35, 150)
+                                    if (snapped != uiState.userWeightKg) {
+                                        onUpdateAthleteProfile(snapped, uiState.ropeType, uiState.dailyGoalJumps)
+                                    }
+                                },
+                                valueRange = 35f..150f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = IceMint,
+                                    activeTrackColor = IceMint,
+                                    inactiveTrackColor = MidnightElevated
+                                ),
+                                modifier = Modifier.weight(1f)
                             )
+
                             Surface(
                                 onClick = {
                                     onUpdateAthleteProfile(
-                                        (uiState.userWeightKg + 2).coerceAtMost(200),
+                                        (uiState.userWeightKg + 1).coerceAtMost(150),
                                         uiState.ropeType,
                                         uiState.dailyGoalJumps
                                     )
                                 },
                                 shape = CircleShape,
                                 color = MidnightElevated,
-                                border = BorderStroke(1.dp, MidnightBorder)
+                                border = BorderStroke(1.dp, MidnightBorder),
+                                modifier = Modifier.size(34.dp)
                             ) {
-                                Text(
-                                    text = "+",
-                                    color = TextPrimary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "+",
+                                        color = TextPrimary,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        RopeType.entries.forEach { rope ->
-                            val selected = uiState.ropeType == rope
-                            Surface(
-                                onClick = {
-                                    onUpdateAthleteProfile(uiState.userWeightKg, rope, uiState.dailyGoalJumps)
-                                },
-                                shape = CircleShape,
-                                color = if (selected) IceMint else MidnightElevated,
-                                border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder)
-                            ) {
-                                Text(
-                                    text = rope.label,
-                                    color = if (selected) DeepMidnight else TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    // Rope Type selector
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Daily Goal:",
+                            text = "Rope Type",
                             color = TextSecondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        listOf(250, 500, 1000, 2000).forEach { goal ->
-                            val selected = uiState.dailyGoalJumps == goal
-                            Surface(
-                                onClick = {
-                                    onUpdateAthleteProfile(uiState.userWeightKg, uiState.ropeType, goal)
-                                },
-                                shape = CircleShape,
-                                color = if (selected) IceMintSoft else MidnightElevated,
-                                border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = "$goal",
-                                    color = if (selected) IceMint else TextSecondary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 5.dp)
-                                )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            RopeType.entries.forEach { rope ->
+                                val selected = uiState.ropeType == rope
+                                Surface(
+                                    onClick = {
+                                        onUpdateAthleteProfile(uiState.userWeightKg, rope, uiState.dailyGoalJumps)
+                                    },
+                                    shape = CircleShape,
+                                    color = if (selected) IceMint else MidnightElevated,
+                                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder)
+                                ) {
+                                    Text(
+                                        text = rope.label,
+                                        color = if (selected) DeepMidnight else TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Daily Jump Goal selector
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Daily Jump Goal",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(250 to "250", 500 to "500", 1000 to "1,000", 2000 to "2,000").forEach { (goal, label) ->
+                                val selected = uiState.dailyGoalJumps == goal
+                                Surface(
+                                    onClick = {
+                                        onUpdateAthleteProfile(uiState.userWeightKg, uiState.ropeType, goal)
+                                    },
+                                    shape = CircleShape,
+                                    color = if (selected) IceMintSoft else MidnightElevated,
+                                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (selected) IceMint else TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }
