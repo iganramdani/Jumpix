@@ -8,7 +8,7 @@
 
 **Open-Source On-Device AI Jump Rope, Trick & Shuffle Footwork Counter for Android — Zero Cloud, Zero Subscriptions, Built-In Live Animated Video HUD & Touchless Gym Control!**
 
-[![Release](https://img.shields.io/badge/Release-v4.0.0_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.0)
+[![Release](https://img.shields.io/badge/Release-v4.0.1_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1)
 [![GitHub Downloads](https://img.shields.io/github/downloads/iganramdani/Jumpvex/total?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/iganramdani/Jumpvex?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/stargazers)
 [![Issues](https://img.shields.io/github/issues/iganramdani/Jumpvex?style=for-the-badge&color=38BDF8&labelColor=151D2E)](https://github.com/iganramdani/Jumpvex/issues)
@@ -247,11 +247,11 @@ Enable <b>AI Performance & Full CSV Log</b> in Settings (or analyze a clip in Vi
 
 <div align="center">
 
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.0/Jumpvex-v4.0.0-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.1_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-release.apk)
 &nbsp;
-[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v4.0.0_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.0/Jumpvex-v4.0.0-debug.apk)
+[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v4.0.1_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-debug.apk)
 
-<sub>Android 7.0+ (API 24+) • 100% On-Device • Free & Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.0">View Full Release Notes</a></sub>
+<sub>Android 7.0+ (API 24+) • 100% On-Device • Free & Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1">View Full Release Notes</a></sub>
 
 </div>
 
