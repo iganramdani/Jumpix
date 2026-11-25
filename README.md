@@ -1,37 +1,41 @@
 <div align="center">
 
-<img src="docs/assets/jumpvex_logo.png" alt="Jumpvex Logo" width="128" height="128" />
+<a href="https://iganramdani.github.io/Jumpvex/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero_banner_dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero_banner_light.svg" />
+    <img alt="Jumpvex — 99% Accuracy &amp; 99% Lightweight Phone-Only AI Jump Rope &amp; Shuffle Engine" src="docs/assets/hero_banner_dark.svg" width="100%" />
+  </picture>
+</a>
 
-# Jumpvex
+<br/><br/>
 
-### 🎯 **"99% Accuracy & ⚡ 99% Lightweight"**
-
-**Open-Source On-Device AI Jump Rope, Trick & Shuffle Footwork Counter for Android — Zero Cloud, Zero Subscriptions, Built-In Live Animated Video HUD & Touchless Gym Control!**
-
-[![Release](https://img.shields.io/badge/Release-v4.0.1_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1)
+[![Launch Web Telemetry Lab](https://img.shields.io/badge/🔬_Launch_Web_Telemetry_Lab-2EE59D?style=for-the-badge&logoColor=0D1321)](https://iganramdani.github.io/Jumpvex/)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.1_APK_(46_MB)-38BDF8?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-release.apk)
 [![GitHub Downloads](https://img.shields.io/github/downloads/iganramdani/Jumpvex/total?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/iganramdani/Jumpvex?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/stargazers)
-[![Issues](https://img.shields.io/github/issues/iganramdani/Jumpvex?style=for-the-badge&color=38BDF8&labelColor=151D2E)](https://github.com/iganramdani/Jumpvex/issues)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
 
 <br/>
 
+[🔬 Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/) •
 [✨ Philosophy](#-core-philosophy-99-accuracy--99-lightweight) •
-[🆚 Comparison](#-how-jumpvex-compares) •
+[🆚 Phone-Only vs \$400 Gear](#-how-jumpvex-compares-100-phone-only) •
 [📱 UI Gallery](#-modern-two-tone-ui-gallery) •
 [📊 Benchmarks](#-real-device--4-smartphone-benchmarks) •
-[🧠 AI Engine v14](#-ai-engine-v14-pro-studio-architecture) •
-[🗺️ Roadmap](#️-interactive-roadmap) •
-[❓ FAQ](#-interactive-faq) •
+[🧠 Architecture](#-ai-engine-v14-pro-studio-architecture) •
+[🗺️ Brutal Roadmap](#️-phone-only-pro-roadmap-v41--v60) •
 [🙏 Credits](#-open-source-credits--respect) •
 [📦 Download](#-download-apk-release--debug)
 
 <br/>
 
-> 💡 **Found a bug, want a new trick, or tested Jumpvex on your phone?**
-> [🐛 Report a Bug](https://github.com/iganramdani/Jumpvex/issues/new?template=bug_report.md) &nbsp;•&nbsp;
-> [✨ Request a Feature / Trick](https://github.com/iganramdani/Jumpvex/issues/new?template=feature_request.md) &nbsp;•&nbsp;
-> [🤝 Contributing Guide](CONTRIBUTING.md)
+> 💡 **Interactive Community Tools:**
+> [🔬 Inspect Your CSV in Browser](https://iganramdani.github.io/Jumpvex/#telemetry-lab) &nbsp;•&nbsp;
+> [🎯 Submit Calibration CSV](https://github.com/iganramdani/Jumpvex/issues/new?template=calibration_contribution.yml) &nbsp;•&nbsp;
+> [🐛 Report a Bug](https://github.com/iganramdani/Jumpvex/issues/new?template=bug_report.yml) &nbsp;•&nbsp;
+> [✨ Request a Trick](https://github.com/iganramdani/Jumpvex/issues/new?template=trick_request.yml) &nbsp;•&nbsp;
+> [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -39,28 +43,29 @@
 
 ## ✨ Core Philosophy: "99% Accuracy & 99% Lightweight"
 
-Every line of code, UI component, and DSP algorithm in **Jumpvex** is engineered around one strict principle:
+**Jumpvex** is built on one relentless engineering principle: **beat \$120–\$500 smartwatches and smart ropes using only the Android smartphone already in your pocket** — zero watch, zero smart rope, zero cloud, zero subscriptions.
 
 | 🎯 99% Accuracy (Competition-Grade Precision) | ⚡ 99% Lightweight (Blazing Fast on Any Phone) |
 | :--- | :--- |
-| 🧠 **AI Engine v14.0 + 100 Hz 5-Band STFT Hybrid** — fuses full-body 2D/3D + **Heel-to-Toe Foot-Triangle** kinematics with anti-aliased streaming 100 Hz acoustic rope-slap & `60–250 Hz` kick-drum beat analysis. | 🪶 **100% On-Device, Zero Cloud** — no servers, no accounts, no subscriptions, full privacy, and near-zero latency. |
-| 🕺 **Peak-Aligned Trick, Triple Under & Shuffle Coach** — detects **Regular, Boxer Step, Heel-Toe, Criss-Cross, Double Under, Triple Under, High Knees, Side Swing**, plus camera-angle-aware **Melbourne Shuffle** (*Running Man, T-Step, Charleston*), **Combo Chains**, & **3D Posture Form Coach**. | ⚡ **True Zero-GC `O(log N)` Hot Path (`64 µs` on Redmi Note 9)** — pre-allocated FFT/kinematic buffers, `O(1)` streaming video audio STFT, atomic crash-safe history, and isolated `PoseOverlay` recomposition. |
-| ✋ **Touchless Gym UX & Official IJRU Modes** — raise 1 hand for 1.2s from 2–4m to Start/Pause hands-free, guided by **Smart Foot-in-Frame Assistant**, plus **IJRU 30s Speed Sprint** & **3m Endurance**. | 🎬 **Live Animated Video HUD Exporter + 46 MB Release APK** — exports videos with real-time incrementing jump counter, live RPM & trick callouts via Media3 GPU textures while staying ~46 MB. |
+| 🧠 **AI Engine v14.0 + 100 Hz 5-Band STFT Hybrid** — fuses full-body 2D/3D + **Heel-to-Toe Foot-Triangle** kinematics with anti-aliased streaming 100 Hz acoustic rope-slap & `60–250 Hz` kick-drum beat analysis. | 🪶 **100% On-Device, Zero Cloud, Zero Watch** — no servers, no wearables, no accounts, full privacy ([`SECURITY.md`](SECURITY.md)), and near-zero latency. |
+| 🕺 **Peak-Aligned Trick, Triple Under & Shuffle Coach** — detects **Regular, Boxer Step, Heel-Toe, Criss-Cross, Double Under, Triple Under, High Knees, Side Swing**, plus camera-angle-aware **Melbourne Shuffle** (*Running Man, T-Step, Charleston*), **Combo Chains**, & **3D Posture Form Coach**. | ⚡ **True Zero-GC `O(log N)` Hot Path (`64 µs` on Redmi Note 9)** — pre-allocated FFT/kinematic circular buffers, `O(1)` streaming video audio STFT, atomic crash-safe history, and isolated `PoseOverlay` recomposition. |
+| ✋ **Touchless Gym UX & Official IJRU Modes** — raise 1 hand for `1.2s` from 2–4m to Start/Pause hands-free, guided by **Smart Foot-in-Frame Assistant**, plus **IJRU 30s Speed Sprint** & **3m Endurance**. | 🎬 **Live Animated Video HUD Exporter + 46 MB Release APK** — exports Reels/TikTok/Shorts with real-time incrementing jump counter, live RPM & trick callouts via Media3 OpenGL texture reuse while staying `~46 MB`. |
 
 ---
 
-## 🆚 How Jumpvex Compares
+## 🆚 How Jumpvex Compares (100% Phone-Only)
 
-| Capability | **Jumpvex v4.0** | YaoYao | Crossrope AMP | JRC AI | JustJump |
+| Capability | **Jumpvex (`v4.0.1` → `v6.0`)** | YaoYao | Crossrope AMP | JRC AI | JustJump |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Phone-Only (Zero Extra Hardware)** | ✅ **98.9% Avg** | ❌ Watch / AirPods | ❌ \$100+ Handles | ✅ Camera only | ❌ Manual |
+| **100% Phone-Only (Zero Watch / Zero Smart Rope)** | ✅ **98.86% Avg** | ❌ Watch / AirPods | ❌ \$119+ Handles | ✅ Camera only | ❌ Manual |
 | **Hybrid Vision + 100 Hz Audio PLL** | ✅ **Unique** | ❌ IMU only | ❌ Hall sensor | ❌ Vision only | ❌ |
-| **Budget Phone Accuracy (10–15 FPS)** | ✅ **98.3%+** | N/A | N/A | ❌ Drops fast | N/A |
+| **Budget Phone Accuracy (`10–15 FPS`)** | ✅ **98.3%+** | N/A | N/A | ❌ Drops fast | N/A |
 | **Trick & Shuffle Dance Classifier** | ✅ **11 Moves + Combos** | ⚠️ Double Under | ❌ | ❌ | ❌ Catalog only |
 | **Touchless Hand-Raise Start/Pause** | ✅ **1.2s Single Hand** | ✅ Watch/Voice | ❌ | ✅ Raise Hand | ❌ |
 | **Live Animated Counter Video Export** | ✅ **Media3 GPU HUD** | ❌ | ❌ | ❌ | ❌ |
+| **Browser CSV Telemetry Oscilloscope** | ✅ **[Web Lab](https://iganramdani.github.io/Jumpvex/)** | ❌ | ❌ | ❌ | ❌ |
 | **Official IJRU 30s / 3m Modes** | ✅ **Built-In** | ⚠️ Basic | ✅ Guided | ✅ Sprint | ✅ Drills |
-| **Price, Privacy & Open-Source** | ✅ **100% Free GPLv3** | 💰 Paid | 💰 Subscription | 💰 Freemium | 💰 Freemium |
+| **Price, Privacy & Open-Source** | ✅ **100% Free GPLv3** | 💰 Paid | 💰 \$119/yr | 💰 Freemium | 💰 Freemium |
 
 ---
 
@@ -74,17 +79,17 @@ Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)
     <td align="center" width="33%">
       <img src="docs/assets/ui_live_ring_hud.jpg" width="240" alt="Jumpvex Dynamic Ring HUD"/><br/>
       <b>🟢 Tab 1: Dynamic Ring HUD</b><br/>
-      <sub>Animated Ice Mint ring, Touchless Hand-Raise Start/Pause, Smart Framing Assistant, Live Trick & Form Coach pill</sub>
+      <sub>Animated Ice Mint ring, Touchless Hand-Raise Start/Pause, Smart Framing Assistant, Live Trick &amp; Form Coach pill</sub>
     </td>
     <td align="center" width="33%">
       <img src="docs/assets/ui_video_studio.jpg" width="240" alt="Jumpvex Video Studio"/><br/>
       <b>🎬 Tab 2: Multi-Video Studio</b><br/>
-      <sub>Jump Rope & Shuffle toggle, unlimited batch queue, Live Animated Counter Video HUD export & auto-saved CSV logs</sub>
+      <sub>Jump Rope &amp; Shuffle toggle, unlimited batch queue, Live Animated Counter Video HUD export &amp; auto-saved CSV logs</sub>
     </td>
     <td align="center" width="33%">
-      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpvex History & Weekly Stats"/><br/>
-      <b>📈 Tab 3: History, PRs & Daily Goal</b><br/>
-      <sub>Daily goal bar, active day streak, Personal Records trophy strip, 7-day chart, trick breakdown & 1-tap CSV backup</sub>
+      <img src="docs/assets/ui_history_stats.jpg" width="240" alt="Jumpvex History &amp; Weekly Stats"/><br/>
+      <b>📈 Tab 3: History, PRs &amp; Daily Goal</b><br/>
+      <sub>Daily goal bar, active day streak, Personal Records trophy strip, 7-day chart, trick breakdown &amp; 1-tap CSV backup</sub>
     </td>
   </tr>
 </table>
@@ -94,21 +99,16 @@ Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)
 
 ## 📊 Real-Device & 4-Smartphone Benchmarks
 
-### 1. Ground-Truth Jump Counter Benchmark (46 Videos • 2,212 Verified Jumps)
-Continuously verified using the production Kotlin engine ([`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt)) across **46 real-world jump rope videos** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv)) simulated across 4 hardware tiers:
+Continuously verified by [`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt) across **46 real-world jump rope videos** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), `2,212` verified jumps) and real budget hardware (**Xiaomi Redmi Note 9, Android 12**, `21` consecutive batch videos / `11,042` frames):
 
-| 📱 Smartphone Tier | 🎯 Detected / Ground Truth | 📏 Volume Accuracy | Visual Bar | Status |
-| :--- | :---: | :---: | :--- | :---: |
-| **1. Flagship** `(30 FPS, 0px, 0% drop)` | `2,179 / 2,212` | **98.51%** | `██████████` | ✅ Pass |
-| **2. Mid-Range** `(20 FPS, ±2px, 2% drop)` | `2,197 / 2,212` | **99.32%** | `██████████` | ✅ Pass |
-| **3. Budget** `(15 FPS, ±4px, 5% drop)` | `2,227 / 2,212` | **99.32%** | `██████████` | ✅ Pass |
-| **4. Low-End** `(10 FPS, ±6px, 10% drop)` | `2,174 / 2,212` | **98.28%** | `██████████` | ✅ Pass |
+<div align="center">
+  <img src="docs/assets/benchmark_tiers_chart.svg" alt="Jumpvex 4-Smartphone Accuracy and Redmi Note 9 CPU Frame Budget Chart" width="100%" />
+</div>
 
-### 2. Real Budget-Phone Stress Test (`Xiaomi Redmi Note 9`, Android 12)
-Measured directly from 21 consecutive batch videos (`11,042 frames`) using Jumpvex's built-in **Unlimited CSV Diagnostic Logger**:
-- **AI Engine CPU Time:** `64 µs` median (`0.064 ms/frame`), `195 µs` p95
-- **JVM Heap Memory:** `26 MB` median (`60 MB` peak across 21 consecutive videos, zero OOM)
-- **Release APK Size:** `46 MB` (R8 minified + ARM-only native libraries)
+<p align="center">
+  🔬 <b>Want to inspect a real Redmi Note 9 session frame-by-frame?</b>
+  <a href="https://iganramdani.github.io/Jumpvex/#telemetry-lab">Open it live in the Jumpvex Web Telemetry Lab →</a>
+</p>
 
 ---
 
@@ -135,10 +135,10 @@ flowchart LR
 ## 🎛️ Interactive Feature Explorer (Click to Expand)
 
 <details>
-<summary><b>🚀 Quick Start & Best Setup Guide (60 Seconds)</b></summary>
+<summary><b>🚀 Quick Start &amp; Best Setup Guide (60 Seconds)</b></summary>
 <br/>
 
-1. **Prop your phone** 2–3 meters away so both your head and feet fit inside the frame.
+1. **Prop your phone** 2–3 meters away so both your head and feet fit inside the frame *(check your exact room distance in the [Web Framing Calculator](https://iganramdani.github.io/Jumpvex/#physics-calc))*.
 2. Check the **Smart Framing pill** at the top of the screen — once it turns Ice Mint (`Full body locked • Raise 1 hand to start`), you're perfectly aligned.
 3. **Hands-Free Start:** Raise **one hand** clearly above your head for `1.2 seconds` to start the countdown without walking back to your phone.
 4. **Calibrate Your Profile:** Open **Settings (⚙️)** to slide your exact **Body Weight (`35–150 kg`)**, pick your **Rope Type** (*Speed Cable, PVC, Beaded, Weighted 0.5/1.0 lb, Cordless*), and set your **Daily Jump Goal**.
@@ -146,7 +146,7 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>🏋️ 7 Workout & Official IJRU Competition Modes</b></summary>
+<summary><b>🏋️ 7 Workout &amp; Official IJRU Competition Modes</b></summary>
 <br/>
 
 - **🔥 Free Mode:** Custom session name + custom audio milestone interval (`5 – 1,000` jumps).
@@ -160,17 +160,17 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>🎬 Multi-Video Batch Studio & Live Animated Counter Video HUD</b></summary>
+<summary><b>🎬 Multi-Video Batch Studio &amp; Live Animated Counter Video HUD</b></summary>
 <br/>
 
 - **Dynamic Animated Video HUD Exporter:** Burn a live, frame-accurate jump counter, real-time RPM, streak, calories, and active trick callout onto your workout video via Media3 OpenGL texture reuse — ready for Reels, Shorts & TikTok!
 - **Jump Rope & Shuffle Modes + Multi-Video Queue:** Select 1 or unlimited videos at once (`OpenMultipleDocuments`) with O(1)-RAM streaming anti-aliased audio STFT so even multi-hour videos never OOM.
-- **Unlimited Auto-Save Debug Telemetry:** Streams frame-by-frame CSV telemetry in background IO directly to **`Documents/Jumpvex/DebugLogs/`**.
+- **Unlimited Auto-Save Debug Telemetry:** Streams frame-by-frame CSV telemetry in background IO directly to **`Documents/Jumpvex/DebugLogs/`** — inspectable instantly in the [Jumpvex Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/#telemetry-lab).
 
 </details>
 
 <details>
-<summary><b>🛠️ Build from Source & Run Unit Tests</b></summary>
+<summary><b>🛠️ Build from Source &amp; Run Unit Tests</b></summary>
 <br/>
 
 ```bash
@@ -192,36 +192,39 @@ cd Jumpvex
 
 ---
 
-## 🗺️ Interactive Roadmap
+## 🗺️ Phone-Only Pro Roadmap (`v4.1` → `v6.0`)
 
-Want to help build one of the upcoming items? [Open an Issue or PR](CONTRIBUTING.md)!
+**100% Smartphone-Native** — every upcoming milestone is engineered to run on a budget Android phone (`< 50 MB` APK, Zero-GC) with **zero smartwatch and zero smart rope required**. Want to build one with us? [Open an Issue or PR](CONTRIBUTING.md)!
 
 - [x] **v3.0–v3.3:** Zero-GC `O(log N)` Vision + 100 Hz STFT Fusion, Heel-to-Toe Foot-Triangle, Shuffle Dance & Batch Video Studio
-- [x] **v4.0 (Current):** AI Engine v14 Pro Studio — Touchless Hand-Raise Start/Pause, Smart Camera Framing, Peak-Aligned Trick Window (`±110 ms`), Triple Under, Dynamic Live Animated Video HUD, Official IJRU 30s/3m Modes, Athlete Profile & Rope Physics, Atomic Rich History + PRs + CSV Backup
-- [ ] **v4.1:** Direct Live Workout Video Recording (`CameraX VideoCapture` + Live HUD Overlay)
-- [ ] **v4.2:** Built-In Target RPM Audio Pacemaker Metronome (`120–220 BPM`) & Expanded Tricks (*EB Cross, Toad, Backward Skipping*)
-- [ ] **v5.0:** Android Health Connect Sync, Direct BLE Heart Rate Strap (`GATT 0x180D`) & AI-Verified Interactive Skill Academy
+- [x] **v4.0 (`v4.0.1` Current):** AI Engine v14 Pro Studio — Touchless Hand-Raise Start/Pause, Smart Camera Framing, Peak-Aligned Trick Window (`±110 ms`), Triple Under, Dynamic Live Animated Video HUD, Official IJRU 30s/3m Modes, Athlete Profile & Rope Physics, Atomic Rich History + PRs + CSV Backup
+- [x] **Interactive Repo & Web Lab:** Animated Dark/Light SVG Hero, Vector Benchmark Charts, YAML Issue Forms & **[Browser CSV Telemetry Oscilloscope](https://iganramdani.github.io/Jumpvex/)**
+- [ ] **v4.1 — Live Creator Broadcast Studio:** 1-Pass Direct Live Camera Recording + GPU HUD (`CameraX StreamSharing`), X-Ray Neon Skeleton Burn-In & `0.25x` Slow-Mo Frame-by-Frame Trip/Trick Inspector
+- [ ] **v4.2 — Phone-Only Sensor Mastery (Zero Watch!):** **Pocket / Waistband 100 Hz IMU Mode** (screen-off workouts without camera), **Camera-Lens Contact rPPG Heart Rate & 60s Recovery (HRR-60)**, Double-Clap & Earbud `MediaSession` Control, plus Built-In Target RPM Audio Pacemaker (`100–240 RPM`)
+- [ ] **v4.5 — AI Engine v15 Force-Plate & Optical Rope Lab:** Flight Height (`cm`), Ground Contact Time (`ms`), Reactive Strength Index (`RSI`), Sub-Toe Optical Rope-Pass Tracker, **20 Freestyle & Shuffle Moves** (*EB Cross, Toad, Backward Skip, DU-Cross, Skiers, Polly Pocket*), and **AI Trip Root-Cause Autopsy**
+- [ ] **v5.0 — Ghost Rival, 2-Player Arena & Skill Academy:** Live Personal-Best Ghost Pacer, **1-Phone 2-Player Interleaved Split-Screen Battle Mode**, AI-Verified Interactive Skill Tree, Zero-Bloat Native SQLite WAL + 365-Day Heatmap
+- [ ] **v6.0 — Extreme Silicon Sympathy:** Jetpack Baseline Profiles (`-40%` cold start), `< 50 µs` hot path & Pre-Throttling Thermal Governor
 
 ---
 
 ## ❓ Interactive FAQ
 
 <details>
-<summary><b>Does Jumpvex upload my camera feed or videos to the internet?</b></summary>
+<summary><b>Do I need a smartwatch, AirPods, or a smart jump rope?</b></summary>
 <br/>
-<b>Never.</b> 100% of pose detection, STFT audio DSP, trick classification, and video rendering runs strictly on your Android device. Internet permission is used <i>only</i> for the optional GitHub Releases update check.
+<b>No!</b> Jumpvex is <b>100% Phone-Only</b>. Your smartphone's built-in camera, microphone, IMU sensors, and speaker do everything — zero wearables or paid hardware required.
+</details>
+
+<details>
+<summary><b>Does Jumpvex upload my camera feed, videos, or CSV logs to the internet?</b></summary>
+<br/>
+<b>Never.</b> 100% of pose detection, STFT audio DSP, trick classification, video rendering, and even our <a href="https://iganramdani.github.io/Jumpvex/">Web Telemetry Lab</a> runs strictly on your own device. Internet permission is used <i>only</i> for the optional GitHub Releases update check.
 </details>
 
 <details>
 <summary><b>Will Jumpvex run smoothly on older / budget Android phones?</b></summary>
 <br/>
-Yes! Jumpvex is specifically calibrated and stress-tested on a <b>Xiaomi Redmi Note 9 (Android 12)</b>, averaging <code>64 µs/frame</code> CPU time and <code>26 MB</code> heap memory. Even at 10–15 FPS, our Nyquist-aware Audio PLL maintains <b>98.3%+</b> accuracy.
-</details>
-
-<details>
-<summary><b>How do I help improve Trick or Shuffle accuracy on my device?</b></summary>
-<br/>
-Enable <b>AI Performance & Full CSV Log</b> in Settings (or analyze a clip in Video Studio). Jumpvex automatically saves a lightweight telemetry CSV to <code>Documents/Jumpvex/DebugLogs/</code> — attach it to a <a href="https://github.com/iganramdani/Jumpvex/issues/new?template=bug_report.md">GitHub Bug Report</a> and we can calibrate the exact kinematics!
+Yes! Jumpvex is specifically calibrated and stress-tested on a <b>Xiaomi Redmi Note 9 (Android 12)</b>, averaging <code>64 µs/frame</code> CPU time (<code>0.19%</code> of a 30 FPS frame) and <code>26 MB</code> heap memory. Even at 10–15 FPS, our Nyquist-aware Audio PLL maintains <b>98.3%+</b> accuracy.
 </details>
 
 ---
@@ -251,7 +254,7 @@ Enable <b>AI Performance & Full CSV Log</b> in Settings (or analyze a clip in Vi
 &nbsp;
 [![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v4.0.1_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-debug.apk)
 
-<sub>Android 7.0+ (API 24+) • 100% On-Device • Free & Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1">View Full Release Notes</a></sub>
+<sub>Android 7.0+ (API 24+) • 100% On-Device • Free &amp; Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1">View Full Release Notes &amp; SHA-256 Checksums</a></sub>
 
 </div>
 

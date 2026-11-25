@@ -1,0 +1,37 @@
+name: "✨ Request a Phone-Only Feature or New Trick"
+description: "Suggest a new jump rope trick, shuffle move, workout mode, or creator HUD upgrade (100% phone-only!)"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Jumpvex Philosophy:** Every feature must run **100% on a standard Android smartphone** (zero smartwatch, zero smart rope, zero cloud) while keeping the APK **under 50 MB**.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - "New Jump Rope Trick (e.g., EB Cross, Toad, Backward Skip, Skiers)"
+        - "New Shuffle / Footwork Move"
+        - "Live Camera / Video Studio HUD"
+        - "Phone-Only Sensors (Pocket IMU, Camera rPPG, Audio Pacemaker)"
+        - "Training Plans / Gamification / Analytics"
+        - "Web Telemetry Lab / Docs"
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature or Trick Description
+      description: Explain what you want Jumpvex to detect or do, and how it helps your training.
+    validations:
+      required: true
+
+  - type: textarea
+    id: biomechanics
+    attributes:
+      label: Biomechanics / Visual / Audio Cues (Optional)
+      description: For new tricks, describe the wrist/foot/acoustic signature or link a public reference clip.

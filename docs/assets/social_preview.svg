@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-label="Jumpvex OpenGraph Social Preview">
+  <defs>
+    <linearGradient id="ogBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070B14"/>
+      <stop offset="55%" stop-color="#0D1321"/>
+      <stop offset="100%" stop-color="#14233C"/>
+    </linearGradient>
+    <pattern id="ogGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="0.8" stroke-opacity="0.5"/>
+    </pattern>
+    <style>
+      .h { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; }
+      .b { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 600; }
+    </style>
+  </defs>
+  <rect width="1280" height="640" fill="url(#ogBg)"/>
+  <rect width="1280" height="640" fill="url(#ogGrid)"/>
+  <rect x="28" y="28" width="1224" height="584" rx="28" fill="none" stroke="#2EE59D" stroke-opacity="0.28" stroke-width="2"/>
+
+  <!-- Left Golden Ratio JV Emblem -->
+  <circle cx="240" cy="320" r="142" fill="none" stroke="#1E293B" stroke-width="10"/>
+  <circle cx="240" cy="320" r="142" fill="none" stroke="#2EE59D" stroke-width="10" stroke-dasharray="680 220" stroke-linecap="round"/>
+  <circle cx="240" cy="320" r="122" fill="#0D1321"/>
+  <g transform="translate(154, 234) scale(0.336)">
+    <path d="M236.25,143.21 L263.63,204.42 L163.97,427.26 L91.64,265.54 L146.39,265.54 L163.97,304.85 Z" fill="#F8FAFC"/>
+    <path d="M244.83,115.62 L299.57,115.62 L325.69,174.02 L365.61,84.74 L420.36,84.74 L325.69,296.43 Z" fill="#2EE59D"/>
+  </g>
+
+  <!-- Right Copy -->
+  <rect x="440" y="110" width="445" height="40" rx="20" fill="#132238" stroke="#2EE59D" stroke-opacity="0.5"/>
+  <text x="464" y="135" fill="#2EE59D" font-size="16" class="m">OPEN-SOURCE ANDROID AI • 100% PHONE-ONLY</text>
+
+  <text x="440" y="246" fill="#F8FAFC" font-size="92" class="h" letter-spacing="-2">JUMPVEX</text>
+  <text x="440" y="304" fill="#2EE59D" font-size="30" class="h">99% Accuracy &amp; 99% Lightweight</text>
+  <text x="440" y="352" fill="#CBD5E1" font-size="22" class="b">Hybrid 2D/3D Vision + 100 Hz Audio STFT Jump Rope, Trick &amp; Shuffle Engine</text>
+  <text x="440" y="388" fill="#94A3B8" font-size="19" class="b">Zero Smartwatch • Zero Smart Rope • Zero Cloud • Live Animated Video HUD</text>
+
+  <!-- Metric Pills -->
+  <g transform="translate(440, 444)">
+    <rect x="0" y="0" width="180" height="84" rx="14" fill="#111B2E" stroke="#2EE59D" stroke-opacity="0.35"/>
+    <text x="18" y="30" fill="#94A3B8" font-size="13" class="m">4-PHONE AVG</text>
+    <text x="18" y="64" fill="#2EE59D" font-size="30" class="h">98.86%</text>
+
+    <rect x="198" y="0" width="175" height="84" rx="14" fill="#111B2E" stroke="#38BDF8" stroke-opacity="0.35"/>
+    <text x="216" y="30" fill="#94A3B8" font-size="13" class="m">CPU MEDIAN</text>
+    <text x="216" y="64" fill="#38BDF8" font-size="30" class="h">64 µs</text>
+
+    <rect x="391" y="0" width="175" height="84" rx="14" fill="#111B2E" stroke="#1E293B"/>
+    <text x="409" y="30" fill="#94A3B8" font-size="13" class="m">JVM HEAP</text>
+    <text x="409" y="64" fill="#F8FAFC" font-size="30" class="h">26 MB</text>
+
+    <rect x="584" y="0" width="175" height="84" rx="14" fill="#111B2E" stroke="#2EE59D" stroke-opacity="0.35"/>
+    <text x="602" y="30" fill="#94A3B8" font-size="13" class="m">RELEASE APK</text>
+    <text x="602" y="64" fill="#2EE59D" font-size="30" class="h">46 MB</text>
+  </g>
+</svg>

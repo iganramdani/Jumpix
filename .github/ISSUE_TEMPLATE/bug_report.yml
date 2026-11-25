@@ -1,0 +1,57 @@
+name: "🐛 Bug Report / Accuracy Issue"
+description: "Report a bug, crash, or jump/trick counting mismatch on your Android phone"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping keep **Jumpvex 99% Accurate & 99% Lightweight**!
+        💡 **Pro Tip:** Before submitting, you can drop your CSV log into the **[Jumpvex Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/#telemetry-lab)** and click **"Copy Summary for GitHub Issue"**!
+
+  - type: input
+    id: device
+    attributes:
+      label: Smartphone Model & Android Version
+      description: Jumpvex is 100% phone-only — knowing your exact device helps us tune FPS/audio thresholds.
+      placeholder: "e.g., Xiaomi Redmi Note 9 (Android 12), Samsung Galaxy A54 (Android 14)"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Jumpvex Version
+      placeholder: "e.g., v4.0.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode & Sensor Used
+      options:
+        - "Live Camera — Fusion AI (Vision + 100Hz STFT)"
+        - "Live Camera — Audio-Only Eco"
+        - "Video Studio — Single / Batch Analysis"
+        - "Video Studio — Live Animated HUD Export"
+        - "Shuffle & Footwork Mode"
+        - "IJRU 30s Sprint / 3m Endurance"
+        - "History / Settings / In-App Update"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What Happened?
+      description: Describe the issue clearly (e.g., expected 50 jumps, counted 46; or crash steps).
+    validations:
+      required: true
+
+  - type: textarea
+    id: telemetry
+    attributes:
+      label: Diagnostic Telemetry Summary or CSV Log (Optional, Super Helpful!)
+      description: Paste the Markdown summary from the Web Telemetry Lab or drag-and-drop your CSV from `Documents/Jumpvex/DebugLogs/` below.
+      placeholder: "Paste summary or drag .csv file here..."

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "🔬 Open Jumpvex Web Telemetry Lab"
+    url: https://iganramdani.github.io/Jumpvex/
+    about: Inspect your DebugLogs/*.csv jump peaks, CPU latency, and trick kinematics directly in your browser (100% private, zero uploads).
+  - name: "📦 Download Latest Release APK"
+    url: https://github.com/iganramdani/Jumpvex/releases/latest
+    about: Grab the newest R8-minified ~46 MB Release APK with SHA-256 verification.
+  - name: "🙏 Open-Source Credits & Contributing Guide"
+    url: https://github.com/iganramdani/Jumpvex/blob/main/CONTRIBUTING.md
+    about: Read our Zero-GC engineering standards and how to run the 46-video benchmark suite.

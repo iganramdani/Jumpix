@@ -1,0 +1,49 @@
+name: "🎯 Submit Calibration CSV (Help Train Jumpvex!)"
+description: "Contribute real-world diagnostic CSV telemetry from your smartphone to improve 4-tier accuracy"
+title: "[Calibration]: "
+labels: ["calibration", "community"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Welcome to the Jumpvex Community Calibration Program!
+        By sharing a lightweight CSV from `Documents/Jumpvex/DebugLogs/` (zero video needed!), you help calibrate Jumpvex for more Android devices and get credited in **`CREDITS.md`**.
+
+  - type: input
+    id: device
+    attributes:
+      label: Smartphone Model & Android Version
+      placeholder: "e.g., Poco X3 Pro (Android 13)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: skill_type
+    attributes:
+      label: Primary Movement in Session
+      options:
+        - "Regular / High-Speed Sprint (200+ RPM)"
+        - "Boxer Step / Heel-Toe"
+        - "Criss-Cross / Side Swing"
+        - "Double Under / Triple Under"
+        - "Melbourne Shuffle (Running Man / T-Step / Charleston)"
+        - "Mixed Freestyle Combos"
+    validations:
+      required: true
+
+  - type: input
+    id: ground_truth
+    attributes:
+      label: Verified Ground-Truth Jump / Step Count
+      description: Manual count (if known) vs what Jumpvex counted.
+      placeholder: "e.g., Actual: 120 jumps | Jumpvex: 118 jumps"
+    validations:
+      required: true
+
+  - type: textarea
+    id: csv_attach
+    attributes:
+      label: Attach CSV File & Notes
+      description: Drag and drop your `Jumpvex_*.csv` file here (or paste Web Telemetry Lab summary).
+    validations:
+      required: true
