@@ -122,9 +122,11 @@ import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.metrics.RopeType
 import com.jumpropeai.ui.components.CameraPreview
 import com.jumpropeai.ui.components.HistoryTabScreen
+import com.jumpropeai.ui.components.OpticalHeartRateDialog
 import com.jumpropeai.ui.components.PoseOverlay
 import com.jumpropeai.ui.components.SessionSummaryDialog
 import com.jumpropeai.ui.components.ShareCardDialog
+import com.jumpropeai.ui.components.SkillAcademyDialog
 import com.jumpropeai.ui.components.VideoAnalyzerScreen
 import com.jumpropeai.ui.components.WorkoutModeSheet
 import com.jumpropeai.ui.theme.DeepMidnight
@@ -360,7 +362,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         sessions = uiState.historySessions,
                         onShareSession = { session -> shareCardTarget = ShareCardRequest(session = session) },
                         onDeleteSession = viewModel::deleteHistorySession,
-                        onExportHistoryCsv = { viewModel.exportHistoryBackup(context) }
+                        onExportHistoryCsv = { viewModel.exportHistoryBackup(context) },
+                        onOpenSkillAcademy = { viewModel.setSkillAcademyDialogVisible(true) }
                     )
                 }
             }
@@ -394,7 +397,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         )
     }
 
-    // Clean Settings Bottom Sheet (Countdown + Touchless Gesture + Athlete Profile + Diagnostics + Updates)
+    // Clean Settings Bottom Sheet (Countdown + Touchless Gesture + Athlete Profile + Phone-Only Pro Suite)
     if (showSettingsSheet) {
         WorkoutSettingsSheet(
             uiState = uiState,
@@ -402,6 +405,17 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             onSelectCountdown = viewModel::setStartCountdownDuration,
             onToggleGestureControl = viewModel::toggleGestureControl,
             onUpdateAthleteProfile = viewModel::updateAthleteProfile,
+            onCyclePacemakerMode = viewModel::cyclePacemakerMode,
+            onSetPacemakerRpm = viewModel::setPacemakerRpm,
+            onCycleGhostProfile = viewModel::cycleGhostProfile,
+            onOpenHeartRateScanner = {
+                showSettingsSheet = false
+                viewModel.setHeartRateDialogVisible(true)
+            },
+            onOpenSkillAcademy = {
+                showSettingsSheet = false
+                viewModel.setSkillAcademyDialogVisible(true)
+            },
             onToggleSkeleton = viewModel::toggleSkeletonOverlay,
             onToggleAudio = viewModel::toggleAudio,
             onToggleEcoMode = {
@@ -422,6 +436,21 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                 }
             },
             onDismiss = { showSettingsSheet = false }
+        )
+    }
+
+    if (uiState.showHeartRateDialog) {
+        OpticalHeartRateDialog(
+            snapshot = uiState.heartRateSnapshot,
+            onDismiss = { viewModel.setHeartRateDialogVisible(false) }
+        )
+    }
+
+    if (uiState.showSkillAcademyDialog) {
+        SkillAcademyDialog(
+            skillNodes = uiState.skillNodes,
+            adaptivePlan = uiState.adaptivePlan,
+            onDismiss = { viewModel.setSkillAcademyDialogVisible(false) }
         )
     }
 
@@ -1231,6 +1260,11 @@ private fun WorkoutSettingsSheet(
     onSelectCountdown: (Int) -> Unit,
     onToggleGestureControl: () -> Unit,
     onUpdateAthleteProfile: (Int, RopeType, Int) -> Unit,
+    onCyclePacemakerMode: () -> Unit,
+    onSetPacemakerRpm: (Int) -> Unit,
+    onCycleGhostProfile: () -> Unit,
+    onOpenHeartRateScanner: () -> Unit,
+    onOpenSkillAcademy: () -> Unit,
     onToggleSkeleton: () -> Unit,
     onToggleAudio: () -> Unit,
     onToggleEcoMode: () -> Unit,
@@ -1600,6 +1634,118 @@ private fun WorkoutSettingsSheet(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                         )
+                    }
+                }
+            }
+
+            // Phone-Only Pro Suite (v4.2 – v6.0): Audio Pacemaker, Ghost Rival, Camera rPPG & Skill Academy
+            Surface(
+                shape = RoundedCornerShape(18.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, IceMint.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Phone-Only Pro Suite",
+                            color = IceMint,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Thermal: ${uiState.thermalTier.label}",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            onClick = onCyclePacemakerMode,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MidnightElevated,
+                            border = BorderStroke(1.dp, MidnightBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("Audio Pacemaker", color = TextSecondary, fontSize = 10.5.sp)
+                                Text(
+                                    text = "${uiState.pacemakerMode.label} (${uiState.pacemakerRpm})",
+                                    color = IceMint,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+
+                        Surface(
+                            onClick = onCycleGhostProfile,
+                            shape = RoundedCornerShape(12.dp),
+                            color = MidnightElevated,
+                            border = BorderStroke(1.dp, MidnightBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text("Ghost Rival Pacer", color = TextSecondary, fontSize = 10.5.sp)
+                                Text(
+                                    text = uiState.ghostProfile.label,
+                                    color = IceMint,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Slider(
+                        value = uiState.pacemakerRpm.toFloat(),
+                        onValueChange = { onSetPacemakerRpm(it.roundToInt()) },
+                        valueRange = 100f..240f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = IceMint,
+                            activeTrackColor = IceMint,
+                            inactiveTrackColor = MidnightElevated
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onOpenHeartRateScanner,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Camera rPPG HR", color = IceMint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = onOpenSkillAcademy,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, MidnightBorder),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("AI Skill Tree", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }

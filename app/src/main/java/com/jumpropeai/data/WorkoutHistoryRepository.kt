@@ -18,7 +18,10 @@ import java.util.Locale
  * Uses atomic write-temp-then-rename (`workout_history.json.tmp` -> `workout_history.json`) plus automatic
  * `.bak` recovery so unexpected battery loss or process termination NEVER corrupts athlete history.
  */
-class WorkoutHistoryRepository(private val storageFile: File) {
+class WorkoutHistoryRepository(
+    private val storageFile: File,
+    private val sqliteStore: WorkoutSqliteStore? = null
+) {
 
     private val lock = Any()
     private var memoryCache: List<WorkoutSession>? = null
@@ -30,9 +33,18 @@ class WorkoutHistoryRepository(private val storageFile: File) {
 
     fun loadSessions(): List<WorkoutSession> = synchronized(lock) {
         memoryCache?.let { return it }
-        val loaded = readFromFileOrNull(storageFile)
+        val jsonLoaded = readFromFileOrNull(storageFile)
             ?: readFromFileOrNull(backupFile)
             ?: emptyList()
+        val store = sqliteStore
+        val loaded = if (store != null) {
+            runCatching {
+                store.migrateIfEmpty(jsonLoaded)
+                store.loadAllSessions(MAX_SESSIONS)
+            }.getOrDefault(jsonLoaded)
+        } else {
+            jsonLoaded
+        }
         memoryCache = loaded
         loaded
     }
@@ -45,6 +57,7 @@ class WorkoutHistoryRepository(private val storageFile: File) {
             .sortedByDescending { it.timestampMillis }
             .take(MAX_SESSIONS)
         memoryCache = updated
+        runCatching { sqliteStore?.upsertSession(session) }
         writeSessionsAtomically(updated)
         updated
     }
@@ -52,6 +65,7 @@ class WorkoutHistoryRepository(private val storageFile: File) {
     fun deleteSession(sessionId: String): List<WorkoutSession> = synchronized(lock) {
         val updated = loadSessions().filterNot { it.id == sessionId }
         memoryCache = updated
+        runCatching { sqliteStore?.deleteSession(sessionId) }
         writeSessionsAtomically(updated)
         updated
     }
@@ -273,7 +287,8 @@ class WorkoutHistoryRepository(private val storageFile: File) {
                 fastestPeakRpm = sessions.maxOf { it.peakRpm },
                 bestFormScore = sessions.maxOf { it.formScore },
                 best30sSprintJumps = best30s,
-                totalDoubleUnders = totalDoubleUnders
+                totalDoubleUnders = totalDoubleUnders,
+                gearWearRopeRevs = sessions.sumOf { it.jumpCount } + totalDoubleUnders
             )
         }
     }

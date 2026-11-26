@@ -77,6 +77,7 @@ fun HistoryTabScreen(
     onShareSession: (WorkoutSession) -> Unit,
     onDeleteSession: (String) -> Unit,
     onExportHistoryCsv: () -> Unit,
+    onOpenSkillAcademy: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val numberFmt = remember { NumberFormat.getIntegerInstance(Locale.US) }
@@ -174,6 +175,15 @@ fun HistoryTabScreen(
                     }
                 }
             }
+        }
+
+        // v5.0 12-Week Consistency Heatmap, Rope Gear Wear & AI Skill Academy
+        item {
+            ConsistencyHeatmapAndGearCard(
+                sessions = sessions,
+                gearWearRopeRevs = stats.gearWearRopeRevs,
+                onOpenSkillAcademy = onOpenSkillAcademy
+            )
         }
 
         // Daily Goal Progress Card

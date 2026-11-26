@@ -550,7 +550,7 @@ fun VideoAnalyzerScreen(
                                     Surface(
                                         shape = CircleShape,
                                         color = IceMintSoft,
-                                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
+                                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.5f))
                                     ) {
                                         Text(
                                             text = "${result.comboCount} Combos",
@@ -564,6 +564,10 @@ fun VideoAnalyzerScreen(
                             }
                         }
                     }
+                }
+                if (result.telemetryEvents.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    VideoSlowMoInspectorCard(events = result.telemetryEvents)
                 }
             }
 

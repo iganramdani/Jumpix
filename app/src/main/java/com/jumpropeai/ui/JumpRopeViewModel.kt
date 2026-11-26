@@ -9,6 +9,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jumpropeai.BuildConfig
 import com.jumpropeai.ai.AcousticFingerprint
+import com.jumpropeai.ai.BattleArenaState
+import com.jumpropeai.ai.BattleMode
 import com.jumpropeai.ai.FormCoachSnapshot
 import com.jumpropeai.ai.FramingStatus
 import com.jumpropeai.ai.FusionEngine
@@ -17,27 +19,45 @@ import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.JumpStyle
 import com.jumpropeai.ai.KineticMove
 import com.jumpropeai.ai.KineticTrickCoach
+import com.jumpropeai.ai.PlyometricAnalyzer
+import com.jumpropeai.ai.PlyometricSnapshot
 import com.jumpropeai.ai.PoseFrame
+import com.jumpropeai.ai.SplitBattleArenaEngine
 import com.jumpropeai.ai.TouchlessGestureController
+import com.jumpropeai.ai.TripAutopsyResult
 import com.jumpropeai.audio.AudioCue
 import com.jumpropeai.audio.BeatSyncEngine
 import com.jumpropeai.audio.BeatSyncSnapshot
+import com.jumpropeai.audio.PacemakerMode
+import com.jumpropeai.audio.PacemakerSynthesizer
 import com.jumpropeai.audio.StftAudioEngine
 import com.jumpropeai.data.CumulativeStats
 import com.jumpropeai.data.WorkoutHistoryRepository
 import com.jumpropeai.data.WorkoutSession
+import com.jumpropeai.data.WorkoutSqliteStore
 import com.jumpropeai.debug.PerfStats
 import com.jumpropeai.debug.SessionDiagnosticLogger
 import com.jumpropeai.metrics.MetricsTracker
 import com.jumpropeai.metrics.RopeType
 import com.jumpropeai.metrics.WorkoutMetrics
+import com.jumpropeai.sensors.HeartRateScanSnapshot
+import com.jumpropeai.sensors.OpticalHeartRateScanner
+import com.jumpropeai.sensors.PocketImuEngine
+import com.jumpropeai.system.ThermalGovernor
+import com.jumpropeai.system.ThermalTier
 import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.update.AppUpdateChecker
 import com.jumpropeai.update.UpdateCheckResult
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
 import com.jumpropeai.video.VideoJumpAnalyzer
+import com.jumpropeai.workout.AdaptiveWeekPlan
+import com.jumpropeai.workout.GhostPacerEngine
+import com.jumpropeai.workout.GhostPacerSnapshot
+import com.jumpropeai.workout.GhostProfile
 import com.jumpropeai.workout.HiitPhase
+import com.jumpropeai.workout.SkillAcademyEngine
+import com.jumpropeai.workout.SkillNode
 import com.jumpropeai.workout.WorkoutConfig
 import com.jumpropeai.workout.WorkoutModeEvaluator
 import com.jumpropeai.workout.WorkoutModeType
@@ -63,6 +83,7 @@ import kotlin.math.roundToInt
 
 enum class SensorMode(val label: String) {
     FUSION("Fusion AI"),
+    POCKET_IMU("Pocket IMU"),
     AUDIO_ONLY("Audio Eco"),
     CAMERA_ONLY("Camera")
 }
@@ -87,6 +108,20 @@ data class JumpRopeUiState(
     val userWeightKg: Int = 65,
     val ropeType: RopeType = RopeType.SPEED_CABLE,
     val dailyGoalJumps: Int = 500,
+    // v4.2 - v6.0 Phone-Only Pro Suite (Zero Watch!)
+    val pacemakerMode: PacemakerMode = PacemakerMode.OFF,
+    val pacemakerRpm: Int = 150,
+    val ghostProfile: GhostProfile = GhostProfile.OFF,
+    val ghostSnapshot: GhostPacerSnapshot = GhostPacerSnapshot(),
+    val plyometrics: PlyometricSnapshot = PlyometricSnapshot(),
+    val tripAutopsy: TripAutopsyResult? = null,
+    val heartRateSnapshot: HeartRateScanSnapshot = HeartRateScanSnapshot(),
+    val showHeartRateDialog: Boolean = false,
+    val showSkillAcademyDialog: Boolean = false,
+    val skillNodes: List<SkillNode> = emptyList(),
+    val adaptivePlan: List<AdaptiveWeekPlan> = emptyList(),
+    val battleState: BattleArenaState = BattleArenaState(),
+    val thermalTier: ThermalTier = ThermalTier.COOL,
     // Diagnostics & Performance
     val isDiagnosticsEnabled: Boolean = false,
     val perfStats: PerfStats = PerfStats(),
@@ -125,7 +160,7 @@ data class JumpRopeUiState(
     val updateStatusMessage: String? = null
 ) {
     val isCameraActive: Boolean
-        get() = sensorMode != SensorMode.AUDIO_ONLY && !showVideoSheet
+        get() = sensorMode != SensorMode.AUDIO_ONLY && sensorMode != SensorMode.POCKET_IMU && !showVideoSheet
 
     val hasActiveProgress: Boolean
         get() = metrics.jumpCount > 0 || metrics.elapsedMs >= 1000L
@@ -146,8 +181,24 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private val metricsTracker = MetricsTracker()
     private val diagnosticLogger = SessionDiagnosticLogger()
     private val videoAnalyzer = VideoJumpAnalyzer(application.applicationContext)
+    private val plyometricAnalyzer = PlyometricAnalyzer()
+    private val ghostPacerEngine = GhostPacerEngine()
+    private val pocketImuEngine = PocketImuEngine()
+    private val opticalHrScanner = OpticalHeartRateScanner()
+    private val splitBattleArena = SplitBattleArenaEngine()
+    private val thermalGovernor = ThermalGovernor(application.applicationContext)
+    private val pacemakerSynthesizer = PacemakerSynthesizer(
+        onTickPlayed = { durationMs -> notifySpeakerPlayed(durationMs) }
+    )
+    private val pocketImuHost = PocketImuEngine.AndroidSensorHost(
+        context = application.applicationContext,
+        engine = pocketImuEngine,
+        onJump = { ev -> onPocketImuJumpFromSensor(ev.timestampMs, ev.isDoubleUnder) }
+    )
+    private val sqliteStore = WorkoutSqliteStore(application.applicationContext)
     private val historyRepository = WorkoutHistoryRepository(
-        File(application.filesDir, "workout_history.json")
+        storageFile = File(application.filesDir, "workout_history.json"),
+        sqliteStore = sqliteStore
     )
 
     private val initialWeightKg = prefs.getInt(KEY_USER_WEIGHT_KG, 65).coerceIn(30, 200)
@@ -199,10 +250,22 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             SessionDiagnosticLogger.pruneStaleSharedCache(application.applicationContext)
             val loaded = historyRepository.loadSessions()
             val stats = WorkoutHistoryRepository.computeStats(loaded)
+            val skills = SkillAcademyEngine.evaluateSkillTree(loaded)
+            val plan = SkillAcademyEngine.buildAdaptivePlan(loaded)
             _uiState.update {
                 it.copy(
                     historySessions = loaded,
-                    cumulativeStats = stats
+                    cumulativeStats = stats,
+                    skillNodes = skills,
+                    adaptivePlan = plan
+                )
+            }
+        }
+        thermalGovernor.start { tier ->
+            _uiState.update {
+                it.copy(
+                    thermalTier = tier,
+                    recommendEcoLowFps = it.recommendEcoLowFps || tier.recommendEcoFps
                 )
             }
         }
@@ -230,18 +293,133 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
     fun cycleSensorMode() {
         val next = when (_uiState.value.sensorMode) {
-            SensorMode.FUSION -> SensorMode.AUDIO_ONLY
+            SensorMode.FUSION -> SensorMode.POCKET_IMU
+            SensorMode.POCKET_IMU -> SensorMode.AUDIO_ONLY
             SensorMode.AUDIO_ONLY -> SensorMode.CAMERA_ONLY
             SensorMode.CAMERA_ONLY -> SensorMode.FUSION
         }
-        if (next == SensorMode.AUDIO_ONLY) _latestPose.value = null
+        if (next == SensorMode.AUDIO_ONLY || next == SensorMode.POCKET_IMU) {
+            _latestPose.value = null
+        }
+        if (next != SensorMode.POCKET_IMU) {
+            pocketImuHost.stop()
+        }
         _uiState.update {
             it.copy(
                 sensorMode = next,
-                isEcoMode = if (next == SensorMode.AUDIO_ONLY) false else it.isEcoMode
+                isEcoMode = if (next == SensorMode.AUDIO_ONLY || next == SensorMode.POCKET_IMU) false else it.isEcoMode
             )
         }
         syncAudioCapture()
+    }
+
+    fun cyclePacemakerMode() {
+        val modes = PacemakerMode.entries
+        val next = modes[(_uiState.value.pacemakerMode.ordinal + 1) % modes.size]
+        pacemakerSynthesizer.configure(next, _uiState.value.pacemakerRpm)
+        if (_uiState.value.isSessionRunning && next != PacemakerMode.OFF) {
+            pacemakerSynthesizer.start()
+        } else {
+            pacemakerSynthesizer.stop()
+        }
+        _uiState.update { it.copy(pacemakerMode = next) }
+    }
+
+    fun setPacemakerRpm(rpm: Int) {
+        val clean = rpm.coerceIn(100, 240)
+        pacemakerSynthesizer.configure(_uiState.value.pacemakerMode, clean)
+        _uiState.update { it.copy(pacemakerRpm = clean) }
+    }
+
+    fun cycleGhostProfile() {
+        val profiles = GhostProfile.entries
+        val next = profiles[(_uiState.value.ghostProfile.ordinal + 1) % profiles.size]
+        val pbRpm = _uiState.value.cumulativeStats.fastestPeakRpm.coerceIn(110, 260)
+        ghostPacerEngine.configure(next, pbRpm)
+        _uiState.update {
+            it.copy(
+                ghostProfile = next,
+                ghostSnapshot = ghostPacerEngine.evaluate(it.metrics.elapsedMs, it.metrics.jumpCount)
+            )
+        }
+    }
+
+    fun setHeartRateDialogVisible(visible: Boolean) {
+        if (visible) {
+            opticalHrScanner.reset()
+        }
+        _uiState.update {
+            it.copy(
+                showHeartRateDialog = visible,
+                heartRateSnapshot = if (visible) HeartRateScanSnapshot() else it.heartRateSnapshot
+            )
+        }
+    }
+
+    fun feedOpticalHrSample(meanRed: Float, meanGreen: Float, timestampMs: Long = SystemClock.elapsedRealtime()) {
+        val snap = opticalHrScanner.processOpticalSample(meanRed, meanGreen, timestampMs)
+        _uiState.update { it.copy(heartRateSnapshot = snap) }
+    }
+
+    fun setSkillAcademyDialogVisible(visible: Boolean) {
+        val sessions = _uiState.value.historySessions
+        _uiState.update {
+            it.copy(
+                showSkillAcademyDialog = visible,
+                skillNodes = SkillAcademyEngine.evaluateSkillTree(sessions),
+                adaptivePlan = SkillAcademyEngine.buildAdaptivePlan(sessions)
+            )
+        }
+    }
+
+    fun toggleBattleArena(mode: BattleMode = BattleMode.SPEED_DUEL_30S) {
+        if (_uiState.value.battleState.isActive) {
+            splitBattleArena.stop()
+            _uiState.update { it.copy(battleState = BattleArenaState()) }
+        } else {
+            splitBattleArena.start(mode)
+            _uiState.update { it.copy(battleState = BattleArenaState(isActive = true, mode = mode)) }
+        }
+    }
+
+    private fun onPocketImuJumpFromSensor(timestampMs: Long, isDoubleUnder: Boolean) {
+        viewModelScope.launch(Dispatchers.Main.immediate) {
+            val currentState = _uiState.value
+            if (currentState.sensorMode != SensorMode.POCKET_IMU) return@launch
+            val isCountingAllowed = currentState.isSessionRunning && currentState.workoutProgress.isCountingAllowed
+            if (!isCountingAllowed) return@launch
+
+            lastLiveMoveAcceptedMs = timestampMs
+            metricsTracker.recordJump(timestampMs)
+            emitJumpCue(metricsTracker.jumpCount)
+
+            val elapsedMs = metricsTracker.getElapsedMs(timestampMs)
+            val progress = WorkoutModeEvaluator.evaluate(
+                config = currentState.workoutConfig,
+                jumpCount = metricsTracker.jumpCount,
+                elapsedMs = elapsedMs
+            )
+            val ghostSnap = ghostPacerEngine.evaluate(elapsedMs, metricsTracker.jumpCount)
+            _uiState.update { state ->
+                state.copy(
+                    workoutProgress = progress,
+                    ghostSnapshot = ghostSnap,
+                    currentMove = if (isDoubleUnder) KineticMove.DOUBLE_UNDER else KineticMove.REGULAR,
+                    metrics = state.metrics.copy(
+                        jumpCount = metricsTracker.jumpCount,
+                        elapsedMs = elapsedMs,
+                        currentRpm = metricsTracker.getCurrentRpm(timestampMs),
+                        peakRpm = metricsTracker.peakRpm,
+                        estimatedCalories = metricsTracker.estimatedCalories,
+                        currentStreak = metricsTracker.getActiveStreak(timestampMs),
+                        bestStreak = metricsTracker.bestStreak
+                    )
+                )
+            }
+            if (progress.isCompleted) {
+                finishAndSaveSession(completedByTarget = true)
+            }
+        }
     }
 
     fun updateAthleteProfile(weightKg: Int, ropeType: RopeType, dailyGoalJumps: Int) {
@@ -475,6 +653,23 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             elapsedMs = elapsedMs
         )
 
+        val prevTrips = currentState.tripsCount
+        val currTrips = fusionEngine.totalTrips
+        val autopsy = if (currTrips > prevTrips) {
+            kineticTrickCoach.diagnoseTrip(nowMs)
+        } else {
+            currentState.tripAutopsy
+        }
+        val plyoSnap = if (isCountingAllowed) {
+            plyometricAnalyzer.processFrame(
+                timestampMs = nowMs,
+                isAirborne = result.isAirborne
+            )
+        } else {
+            currentState.plyometrics
+        }
+        val ghostSnap = ghostPacerEngine.evaluate(elapsedMs, metricsTracker.jumpCount)
+
         val justCompleted = currentState.isSessionRunning && progress.isCompleted
 
         _uiState.update { state ->
@@ -487,11 +682,14 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 moveCounts = kineticRes?.moveCounts ?: state.moveCounts,
                 comboCount = kineticRes?.comboCount ?: state.comboCount,
                 formCoach = kineticRes?.formSnapshot ?: state.formCoach,
+                plyometrics = plyoSnap,
+                ghostSnapshot = ghostSnap,
+                tripAutopsy = autopsy,
                 beatSync = beatSnapshot,
                 perfStats = updatedPerf ?: state.perfStats,
                 fingerprint = latestFingerprint,
-                tripsCount = fusionEngine.totalTrips,
-                recommendEcoLowFps = recommendLowFps,
+                tripsCount = currTrips,
+                recommendEcoLowFps = recommendLowFps || state.thermalTier.recommendEcoFps,
                 metrics = state.metrics.copy(
                     jumpCount = metricsTracker.jumpCount,
                     elapsedMs = elapsedMs,
@@ -653,6 +851,12 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             )
         }
         syncAudioCapture()
+        if (_uiState.value.sensorMode == SensorMode.POCKET_IMU) {
+            pocketImuHost.start()
+        }
+        if (_uiState.value.pacemakerMode != PacemakerMode.OFF) {
+            pacemakerSynthesizer.start()
+        }
         startTicker()
     }
 
@@ -675,6 +879,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
         val formSnap = kineticTrickCoach.currentFormSnapshot()
         val beatSnap = beatSyncEngine.snapshot()
+        val plyoSnap = plyometricAnalyzer.snapshot()
         return WorkoutSession(
             id = sessionId,
             timestampMillis = if (activeSessionStartEpochMs > 0L) activeSessionStartEpochMs else System.currentTimeMillis(),
@@ -692,7 +897,13 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             detectedBpm = beatSnap.detectedBpm,
             comboCount = kineticTrickCoach.comboCount,
             ropeTypeLabel = state.ropeType.label,
-            moveBreakdown = moveStrMap
+            moveBreakdown = moveStrMap,
+            avgJumpHeightCm = plyoSnap.avgJumpHeightCm,
+            avgGctMs = plyoSnap.avgGctMs,
+            avgRsi = plyoSnap.reactiveStrengthIndex,
+            postWorkoutBpm = state.heartRateSnapshot.peakBpm,
+            hrr60DropBpm = state.heartRateSnapshot.hrr60DropBpm,
+            topTripCause = state.tripAutopsy?.headline ?: ""
         )
     }
 
@@ -706,10 +917,14 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             val updated = historyRepository.upsertSession(session)
             val stats = WorkoutHistoryRepository.computeStats(updated)
+            val skills = SkillAcademyEngine.evaluateSkillTree(updated)
+            val plan = SkillAcademyEngine.buildAdaptivePlan(updated)
             _uiState.update {
                 it.copy(
                     historySessions = updated,
-                    cumulativeStats = stats
+                    cumulativeStats = stats,
+                    skillNodes = skills,
+                    adaptivePlan = plan
                 )
             }
         }
@@ -727,6 +942,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         tickerJob?.cancel()
         tickerJob = null
         stftAudioEngine.stopLiveCapture()
+        pocketImuHost.stop()
+        pacemakerSynthesizer.stop()
         autoSaveIfNeeded(nowMs)
         _uiState.update { state ->
             state.copy(
@@ -1278,5 +1495,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         videoJob?.cancel()
         updateCheckJob?.cancel()
         stftAudioEngine.stopLiveCapture()
+        pocketImuHost.stop()
+        pacemakerSynthesizer.stop()
+        thermalGovernor.stop()
     }
 }

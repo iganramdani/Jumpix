@@ -19,7 +19,14 @@ data class WorkoutSession(
     val detectedBpm: Int = 0,
     val comboCount: Int = 0,
     val ropeTypeLabel: String = "Speed Cable",
-    val moveBreakdown: Map<String, Int> = emptyMap()
+    val moveBreakdown: Map<String, Int> = emptyMap(),
+    // v4.2 - v5.0 Phone-Only Sports-Science & Recovery metrics
+    val avgJumpHeightCm: Float = 0f,
+    val avgGctMs: Int = 0,
+    val avgRsi: Float = 0f,
+    val postWorkoutBpm: Int = 0,
+    val hrr60DropBpm: Int = 0,
+    val topTripCause: String = ""
 )
 
 data class CumulativeStats(
@@ -34,5 +41,6 @@ data class CumulativeStats(
     val fastestPeakRpm: Int = 0,
     val bestFormScore: Int = 0,
     val best30sSprintJumps: Int = 0,
-    val totalDoubleUnders: Int = 0
+    val totalDoubleUnders: Int = 0,
+    val gearWearRopeRevs: Int = 0
 )

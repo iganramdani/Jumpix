@@ -17,10 +17,25 @@ enum class KineticMove(val label: String, val isShuffle: Boolean = false) {
     TRIPLE_UNDER("Triple Under"),
     HIGH_KNEES("High Knees"),
     SIDE_SWING("Side Swing"),
+    EB_CROSS("EB Cross"),
+    TOAD("Toad"),
+    BACKWARD_SKIP("Backward Skip"),
+    DOUBLE_UNDER_CROSS("DU Criss-Cross"),
+    SKIERS("Skiers"),
+    BELL_JUMP("Bell Jump"),
+    SPIN_360("360° Spin"),
     SHUFFLE_RUNNING_MAN("Running Man", isShuffle = true),
     SHUFFLE_T_STEP("T-Step", isShuffle = true),
-    SHUFFLE_CHARLESTON("Charleston", isShuffle = true)
+    SHUFFLE_CHARLESTON("Charleston", isShuffle = true),
+    SHUFFLE_POLLY_POCKET("Polly Pocket", isShuffle = true),
+    SHUFFLE_KICK_BALL_CHANGE("Kick-Ball-Change", isShuffle = true)
 }
+
+data class TripAutopsyResult(
+    val causeCode: String,
+    val headline: String,
+    val coachingFix: String
+)
 
 data class FormCoachSnapshot(
     val overallScore: Int = 0,
@@ -115,6 +130,14 @@ class KineticTrickCoach {
     // Combo chain tracker
     private var prevNonRegularMove: KineticMove? = null
     var comboCount: Int = 0
+        private set
+
+    // AI Engine v15 Trip Root-Cause Autopsy telemetry (Zero-GC)
+    private var lastWristDyNorm: Float = 0f
+    private var lastWristSpanRatio: Float = 1.0f
+    private var lastJumpClearanceRatio: Float = 1.0f
+    private var lastCrossFrameMs: Long = -10_000L
+    var lastTripAutopsy: TripAutopsyResult? = null
         private set
 
     // Form coach running averages
@@ -534,14 +557,33 @@ class KineticTrickCoach {
                 )
 
             val recentShuffleHold = (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
+            val isDoubleUnderCross = isDoubleUnder && isCrissCross
+            val isToad = isCrissCross && isHighKnees
+            val isEbCross = isCrissCross && lWrist != null && rWrist != null &&
+                abs(lWrist.z - rWrist.z) > 0.25f
+            val isSkiers = hasAnkles && !isBoxerStep &&
+                abs(hipVx) > 0.45f && ankleSep < 0.22f &&
+                computeRecentHipShiftX(torsoH) >= 0.16f
+
+            if (lWrist != null && rWrist != null) {
+                lastWristDyNorm = (lWrist.y - rWrist.y) / torsoH
+                lastWristSpanRatio = abs(lWrist.x - rWrist.x) / shoulderSpan.coerceAtLeast(0.05f)
+            }
+            if (isCrissCross) lastCrossFrameMs = nowMs
+            lastJumpClearanceRatio = jumpAmplitude / rollingJumpAmp.coerceAtLeast(0.04f)
+
             val classifiedJump = when {
                 isTripleUnder -> KineticMove.TRIPLE_UNDER
+                isDoubleUnderCross -> KineticMove.DOUBLE_UNDER_CROSS
                 isDoubleUnder -> KineticMove.DOUBLE_UNDER
+                isToad -> KineticMove.TOAD
+                isEbCross -> KineticMove.EB_CROSS
                 isCrissCross -> KineticMove.CRISS_CROSS
                 isHighKnees -> KineticMove.HIGH_KNEES
                 isHeelToe -> KineticMove.HEEL_TOE
                 detectedShuffleMove != null -> detectedShuffleMove
                 recentShuffleHold -> pendingShuffleMove!!
+                isSkiers -> KineticMove.SKIERS
                 isBoxerStep -> KineticMove.BOXER_STEP
                 else -> KineticMove.REGULAR
             }
@@ -854,5 +896,45 @@ class KineticTrickCoach {
             i++
         }
         return peak
+    }
+
+    /**
+     * AI Engine v15 — Trip Root-Cause Autopsy.
+     * Inspects the last 1,500 ms of wrist symmetry, wrist width, jump clearance, and cross timing
+     * to explain *why* the rope caught on the athlete's shoes.
+     */
+    fun diagnoseTrip(nowMs: Long): TripAutopsyResult {
+        val result = when {
+            (nowMs - lastCrossFrameMs) in 0L..900L -> TripAutopsyResult(
+                causeCode = "EARLY_UNCROSS",
+                headline = "Uncrossed Too Early",
+                coachingFix = "Hold wrists past opposite hips 60ms longer until rope clears toes"
+            )
+            abs(lastWristDyNorm) > 0.16f -> {
+                val higherSide = if (lastWristDyNorm < 0f) "Left" else "Right"
+                TripAutopsyResult(
+                    causeCode = "HAND_DRIFT",
+                    headline = "$higherSide Hand Drifted High",
+                    coachingFix = "Keep both hands level at hip height to prevent a tilted rope arc"
+                )
+            }
+            lastWristSpanRatio > 1.65f -> TripAutopsyResult(
+                causeCode = "HANDS_WIDE",
+                headline = "Hands Widened Too Far",
+                coachingFix = "Tuck elbows closer to ribs so the rope arc stays full length"
+            )
+            lastJumpClearanceRatio < 0.72f -> TripAutopsyResult(
+                causeCode = "LOW_CLEARANCE",
+                headline = "Jump Clearance Dropped",
+                coachingFix = "Calf fatigue detected — bounce crisply 2–4 cm on the balls of your feet"
+            )
+            else -> TripAutopsyResult(
+                causeCode = "TIMING_DRIFT",
+                headline = "Rhythm Timing Drift",
+                coachingFix = "Lock wrist flicks to your landing cadence using the Audio Pacemaker"
+            )
+        }
+        lastTripAutopsy = result
+        return result
     }
 }

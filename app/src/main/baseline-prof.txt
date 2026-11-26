@@ -1,0 +1,11 @@
+# Jumpvex v6.0 ART Baseline Profile Rules — Pre-compile Zero-GC Hot Paths AOT on Install
+HSPLcom/jumpropeai/ai/JumpDetector;->processFrame(Lcom/jumpropeai/ai/PoseFrame;)Lcom/jumpropeai/ai/JumpDetectionResult;
+HSPLcom/jumpropeai/ai/FusionEngine;->processVisionFrame(Lcom/jumpropeai/ai/JumpDetectionResult;Ljava/util/List;)Lcom/jumpropeai/ai/FusionResult;
+HSPLcom/jumpropeai/ai/KineticTrickCoach;->processFrame(Lcom/jumpropeai/ai/PoseFrame;ZZFJJLjava/util/List;Z)Lcom/jumpropeai/ai/KineticFrameResult;
+HSPLcom/jumpropeai/ai/PlyometricAnalyzer;->processFrame(JZFFF)Lcom/jumpropeai/ai/PlyometricSnapshot;
+HSPLcom/jumpropeai/ai/OpticalRopeTracker;->processSubToeLumaRoi([BJZ)Lcom/jumpropeai/ai/OpticalRopeSignal;
+HSPLcom/jumpropeai/audio/StftAudioEngine;->computeFrameFlux([FIJ)Lcom/jumpropeai/audio/FluxSample;
+HSPLcom/jumpropeai/audio/BeatSyncEngine;->processAudioFlux(Lcom/jumpropeai/audio/FluxSample;)Lcom/jumpropeai/audio/BeatSyncSnapshot;
+HSPLcom/jumpropeai/sensors/PocketImuEngine;->processLinearAcceleration(FFFJ)Lcom/jumpropeai/sensors/PocketJumpEvent;
+HSPLcom/jumpropeai/sensors/OpticalHeartRateScanner;->processOpticalSample(FFJ)Lcom/jumpropeai/sensors/HeartRateScanSnapshot;
+HSPLcom/jumpropeai/ui/JumpRopeScreenKt;->JumpRopeScreen(Lcom/jumpropeai/ui/JumpRopeViewModel;Landroidx/compose/runtime/Composer;I)V

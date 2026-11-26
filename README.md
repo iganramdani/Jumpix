@@ -11,7 +11,7 @@
 <br/><br/>
 
 [![Launch Web Telemetry Lab](https://img.shields.io/badge/🔬_Launch_Web_Telemetry_Lab-2EE59D?style=for-the-badge&logoColor=0D1321)](https://iganramdani.github.io/Jumpvex/)
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.1_APK_(46_MB)-38BDF8?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v6.0.0_APK_(46_MB)-38BDF8?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v6.0.0/Jumpvex-v6.0.0-release.apk)
 [![GitHub Downloads](https://img.shields.io/github/downloads/iganramdani/Jumpvex/total?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/iganramdani/Jumpvex?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/stargazers)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
@@ -197,13 +197,13 @@ cd Jumpvex
 **100% Smartphone-Native** — every upcoming milestone is engineered to run on a budget Android phone (`< 50 MB` APK, Zero-GC) with **zero smartwatch and zero smart rope required**. Want to build one with us? [Open an Issue or PR](CONTRIBUTING.md)!
 
 - [x] **v3.0–v3.3:** Zero-GC `O(log N)` Vision + 100 Hz STFT Fusion, Heel-to-Toe Foot-Triangle, Shuffle Dance & Batch Video Studio
-- [x] **v4.0 (`v4.0.1` Current):** AI Engine v14 Pro Studio — Touchless Hand-Raise Start/Pause, Smart Camera Framing, Peak-Aligned Trick Window (`±110 ms`), Triple Under, Dynamic Live Animated Video HUD, Official IJRU 30s/3m Modes, Athlete Profile & Rope Physics, Atomic Rich History + PRs + CSV Backup
+- [x] **v4.0 (`v4.0.1`):** AI Engine v14 Pro Studio — Touchless Hand-Raise Start/Pause, Smart Camera Framing, Peak-Aligned Trick Window (`±110 ms`), Triple Under, Dynamic Live Animated Video HUD, Official IJRU 30s/3m Modes, Athlete Profile & Rope Physics, Atomic Rich History + PRs + CSV Backup
 - [x] **Interactive Repo & Web Lab:** Animated Dark/Light SVG Hero, Vector Benchmark Charts, YAML Issue Forms & **[Browser CSV Telemetry Oscilloscope](https://iganramdani.github.io/Jumpvex/)**
-- [ ] **v4.1 — Live Creator Broadcast Studio:** 1-Pass Direct Live Camera Recording + GPU HUD (`CameraX StreamSharing`), X-Ray Neon Skeleton Burn-In & `0.25x` Slow-Mo Frame-by-Frame Trip/Trick Inspector
-- [ ] **v4.2 — Phone-Only Sensor Mastery (Zero Watch!):** **Pocket / Waistband 100 Hz IMU Mode** (screen-off workouts without camera), **Camera-Lens Contact rPPG Heart Rate & 60s Recovery (HRR-60)**, Double-Clap & Earbud `MediaSession` Control, plus Built-In Target RPM Audio Pacemaker (`100–240 RPM`)
-- [ ] **v4.5 — AI Engine v15 Force-Plate & Optical Rope Lab:** Flight Height (`cm`), Ground Contact Time (`ms`), Reactive Strength Index (`RSI`), Sub-Toe Optical Rope-Pass Tracker, **20 Freestyle & Shuffle Moves** (*EB Cross, Toad, Backward Skip, DU-Cross, Skiers, Polly Pocket*), and **AI Trip Root-Cause Autopsy**
-- [ ] **v5.0 — Ghost Rival, 2-Player Arena & Skill Academy:** Live Personal-Best Ghost Pacer, **1-Phone 2-Player Interleaved Split-Screen Battle Mode**, AI-Verified Interactive Skill Tree, Zero-Bloat Native SQLite WAL + 365-Day Heatmap
-- [ ] **v6.0 — Extreme Silicon Sympathy:** Jetpack Baseline Profiles (`-40%` cold start), `< 50 µs` hot path & Pre-Throttling Thermal Governor
+- [x] **v4.1 — Video Biomechanics Inspector:** Synced Telemetry Event Inspector (`0.25x` / `0.5x` / `1.0x`) + Live Animated Counter Video HUD
+- [x] **v4.2 — Phone-Only Sensor Mastery (Zero Watch!):** **Pocket / Waistband 100 Hz IMU Mode** (`PocketImuEngine`), **Camera-Lens Contact rPPG Heart Rate & 60s Recovery (HRR-60)** (`OpticalHeartRateScanner`), Acoustic Double-Clap Trigger (`DoubleClapDetector`), plus Zero-KB Procedural Target RPM Audio Pacemaker (`100–240 RPM`, Speed Ladder & Double-Under Polyrhythm Drill)
+- [x] **v4.5 — AI Engine v15 Force-Plate & Optical Rope Lab:** Virtual Force-Plate (`PlyometricAnalyzer`: Flight Height `cm`, GCT `ms`, `RSI`, L/R Symmetry), Sub-Toe `24×80` Optical Rope-Pass Tracker (`OpticalRopeTracker`), **20 Freestyle & Shuffle Moves**, and **AI Trip Root-Cause Autopsy** (`diagnoseTrip`)
+- [x] **v5.0 — Ghost Rival, 2-Player Arena & Skill Academy:** Live Personal-Best & IJRU Pro Ghost Pacer (`GhostPacerEngine`), **1-Phone 2-Player Interleaved Split-Screen Battle Arena** (`SplitBattleArenaEngine`), AI-Verified 5-Tier Skill Tree & 6-Week Adaptive Plan (`SkillAcademyEngine`), Zero-Bloat Native SQLite WAL (`WorkoutSqliteStore`), 12-Week Consistency Heatmap & Rope Gear Wear Tracker
+- [x] **v6.0 (`v6.0.0` Current) — Extreme Silicon Sympathy:** ART Baseline Profile Rules (`baseline-prof.txt`) & Pre-Throttling Thermal Governor (`ThermalGovernor`) — all in `~46 MB`!
 
 ---
 
@@ -250,11 +250,11 @@ Yes! Jumpvex is specifically calibrated and stress-tested on a <b>Xiaomi Redmi N
 
 <div align="center">
 
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v4.0.1_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v6.0.0_Release_APK_(46_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v6.0.0/Jumpvex-v6.0.0-release.apk)
 &nbsp;
-[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v4.0.1_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v4.0.1/Jumpvex-v4.0.1-debug.apk)
+[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v6.0.0_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v6.0.0/Jumpvex-v6.0.0-debug.apk)
 
-<sub>Android 7.0+ (API 24+) • 100% On-Device • Free &amp; Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v4.0.1">View Full Release Notes &amp; SHA-256 Checksums</a></sub>
+<sub>Android 7.0+ (API 24+) • 100% On-Device • Free &amp; Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v6.0.0">View Full Release Notes &amp; SHA-256 Checksums</a></sub>
 
 </div>
 

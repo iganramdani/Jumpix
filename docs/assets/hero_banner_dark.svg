@@ -82,12 +82,12 @@
   <g transform="translate(335, 50)">
     <rect width="340" height="30" rx="15" fill="#132238" stroke="#2EE59D" stroke-opacity="0.45" stroke-width="1"/>
     <circle cx="18" cy="15" r="4.5" fill="#2EE59D" class="dot-live"/>
-    <text x="32" y="19.5" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.6">AI ENGINE v14 PRO STUDIO • 100% PHONE-ONLY</text>
+    <text x="32" y="19.5" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.6">AI ENGINE v15 OMNI-SENSOR • 100% PHONE-ONLY</text>
   </g>
 
   <!-- Main Brand Title & Tagline -->
   <text x="335" y="138" fill="#F8FAFC" font-size="60" class="title" letter-spacing="-1.2">JUMPVEX</text>
-  <text x="646" y="138" fill="#2EE59D" font-size="22" class="mono">v4.0.1</text>
+  <text x="646" y="138" fill="#2EE59D" font-size="22" class="mono">v6.0.0</text>
 
   <text x="335" y="175" fill="#CBD5E1" font-size="20" class="body" font-weight="600">
     99% Accuracy &amp; 99% Lightweight — On-Device AI Jump Rope &amp; Shuffle Engine
