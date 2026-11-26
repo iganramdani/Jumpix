@@ -1,6 +1,14 @@
 package com.jumpropeai.ui.components
 
+import android.util.Size
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,28 +33,42 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.jumpropeai.ai.BattleArenaState
+import com.jumpropeai.ai.BattleMode
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.sensors.HeartRateScanSnapshot
 import com.jumpropeai.ui.theme.DeepMidnight
@@ -62,15 +84,87 @@ import com.jumpropeai.workout.AdaptiveWeekPlan
 import com.jumpropeai.workout.SkillNode
 import java.util.Calendar
 import java.util.Locale
+import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.min
 
 /**
- * v4.2 — Zero-Watch Contact Camera-Lens rPPG Heart Rate & 60s Recovery Dialog.
+ * v6.1 — Hardware-Bound Contact Camera-Lens rPPG Heart Rate, Live PPG Waveform & 60s Recovery Dialog.
+ *
+ * Automatically binds Rear Camera + Torch LED at `176×144` while open, extracts Zero-GC YUV capillary
+ * red/green mean intensity at ~30 FPS, and plots a live scrolling photoplethysmogram (PPG) pulse trace.
  */
 @Composable
 fun OpticalHeartRateDialog(
     snapshot: HeartRateScanSnapshot,
+    onOpticalSample: (Float, Float) -> Unit = { _, _ -> },
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentCallback by rememberUpdatedState(onOpticalSample)
+
+    // Ring buffer for live scrolling PPG oscilloscope
+    val waveRing = remember { FloatArray(90) }
+    var waveHead by remember { mutableIntStateOf(0) }
+    var waveTick by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(snapshot.elapsedSec, snapshot.latestWaveSample, snapshot.isFingerDetected) {
+        waveRing[waveHead] = if (snapshot.isFingerDetected) snapshot.latestWaveSample else 0f
+        waveHead = (waveHead + 1) % waveRing.size
+        waveTick++
+    }
+
+    // Bind Rear Camera + Torch LED strictly while this dialog is open
+    DisposableEffect(lifecycleOwner) {
+        val executor = Executors.newSingleThreadExecutor()
+        val providerFuture = ProcessCameraProvider.getInstance(context)
+        var boundProvider: ProcessCameraProvider? = null
+        val mainExecutor = ContextCompat.getMainExecutor(context)
+
+        providerFuture.addListener({
+            runCatching {
+                val provider = providerFuture.get()
+                boundProvider = provider
+                provider.unbindAll()
+
+                val resSelector = ResolutionSelector.Builder()
+                    .setResolutionStrategy(
+                        ResolutionStrategy(
+                            Size(176, 144),
+                            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+                        )
+                    )
+                    .build()
+
+                val analysis = ImageAnalysis.Builder()
+                    .setResolutionSelector(resSelector)
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+
+                analysis.setAnalyzer(executor) { imageProxy ->
+                    val (meanR, meanG) = extractYuvCenterRedGreen(imageProxy)
+                    imageProxy.close()
+                    mainExecutor.execute {
+                        currentCallback(meanR, meanG)
+                    }
+                }
+
+                val cam = provider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_BACK_CAMERA,
+                    analysis
+                )
+                cam.cameraControl.enableTorch(true)
+            }
+        }, mainExecutor)
+
+        onDispose {
+            runCatching { boundProvider?.unbindAll() }
+            executor.shutdown()
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -108,14 +202,14 @@ fun OpticalHeartRateDialog(
                     }
                 }
 
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "100% Phone-Only • Zero Smartwatch Needed",
+                    text = "Rear Lens + Torch Active • 100% Phone-Only",
                     color = IceMint,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(14.dp))
 
                 Surface(
                     shape = CircleShape,
@@ -124,7 +218,7 @@ fun OpticalHeartRateDialog(
                         width = 2.dp,
                         color = if (snapshot.isFingerDetected) IceMint else MidnightBorder
                     ),
-                    modifier = Modifier.size(132.dp)
+                    modifier = Modifier.size(124.dp)
                 ) {
                     Column(
                         verticalArrangement = Arrangement.Center,
@@ -133,7 +227,7 @@ fun OpticalHeartRateDialog(
                         Text(
                             text = if (snapshot.currentBpm > 0) "${snapshot.currentBpm}" else "--",
                             color = if (snapshot.isFingerDetected) IceMint else TextPrimary,
-                            fontSize = 42.sp,
+                            fontSize = 40.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
                         Text(
@@ -145,13 +239,55 @@ fun OpticalHeartRateDialog(
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
+
+                // Live Scrolling Capillary PPG Pulse Waveform Chart
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = DeepMidnight,
+                    border = BorderStroke(1.dp, MidnightBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(68.dp)
+                ) {
+                    val triggerRedraw = waveTick
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 8.dp)
+                    ) {
+                        if (triggerRedraw >= 0) {
+                            val midY = size.height * 0.5f
+                            drawLine(
+                                color = MidnightBorder,
+                                start = Offset(0f, midY),
+                                end = Offset(size.width, midY),
+                                strokeWidth = 1.dp.toPx()
+                            )
+                            val path = Path()
+                            val n = waveRing.size
+                            for (i in 0 until n) {
+                                val v = waveRing[(waveHead + i) % n]
+                                val px = (i.toFloat() / (n - 1).toFloat()) * size.width
+                                val py = (midY - v * midY * 0.82f).coerceIn(2f, size.height - 2f)
+                                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                            }
+                            drawPath(
+                                path = path,
+                                color = if (snapshot.isFingerDetected) IceMint else TextSecondary.copy(alpha = 0.45f),
+                                style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = snapshot.statusMessage,
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -186,6 +322,128 @@ fun OpticalHeartRateDialog(
                 ) {
                     Text("Done", fontWeight = FontWeight.Bold)
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Zero-GC YUV_420_888 center-crop Red & Green mean extractor (`0..255`).
+ */
+private fun extractYuvCenterRedGreen(image: ImageProxy): Pair<Float, Float> {
+    val planes = image.planes
+    if (planes.size < 3) return 0f to 0f
+    val yBuf = planes[0].buffer
+    val uBuf = planes[1].buffer
+    val vBuf = planes[2].buffer
+    val yRowStride = planes[0].rowStride
+    val uvRowStride = planes[1].rowStride
+    val uvPixStride = planes[1].pixelStride
+
+    val w = image.width
+    val h = image.height
+    val x0 = max(0, w / 2 - 20)
+    val x1 = min(w - 1, w / 2 + 20)
+    val y0 = max(0, h / 2 - 20)
+    val y1 = min(h - 1, h / 2 + 20)
+
+    var sumR = 0f
+    var sumG = 0f
+    var count = 0
+
+    var py = y0
+    while (py <= y1) {
+        var px = x0
+        while (px <= x1) {
+            val yIdx = py * yRowStride + px
+            val uvIdx = (py / 2) * uvRowStride + (px / 2) * uvPixStride
+            if (yIdx < yBuf.limit() && uvIdx < uBuf.limit() && uvIdx < vBuf.limit()) {
+                val yVal = (yBuf.get(yIdx).toInt() and 0xFF).toFloat()
+                val uVal = (uBuf.get(uvIdx).toInt() and 0xFF) - 128f
+                val vVal = (vBuf.get(uvIdx).toInt() and 0xFF) - 128f
+                val r = (yVal + 1.402f * vVal).coerceIn(0f, 255f)
+                val g = (yVal - 0.344f * uVal - 0.714f * vVal).coerceIn(0f, 255f)
+                sumR += r
+                sumG += g
+                count++
+            }
+            px += 2
+        }
+        py += 2
+    }
+    return if (count > 0) (sumR / count) to (sumG / count) else 0f to 0f
+}
+
+/**
+ * v6.1 — 1-Phone 2-Player Split-Screen Battle HUD Card for Live Arena Duels.
+ */
+@Composable
+fun SplitBattleArenaBanner(
+    battleState: BattleArenaState,
+    onCycleMode: () -> Unit,
+    onResetBattle: () -> Unit,
+    onCloseBattle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = DeepMidnight.copy(alpha = 0.88f),
+        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.65f)),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = onCycleMode,
+                    shape = CircleShape,
+                    color = IceMintSoft
+                ) {
+                    Text(
+                        text = "2P BATTLE • ${battleState.mode.label}",
+                        color = IceMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Row {
+                    IconButton(onClick = onResetBattle, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = "Restart Duel", tint = IceMint, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onCloseBattle, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Close Duel", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MiniMetricTile(
+                    label = if (battleState.player1Alive) "Player 1 (Left)" else "Player 1 (OUT)",
+                    value = "${battleState.player1Jumps}",
+                    modifier = Modifier.weight(1f)
+                )
+                MiniMetricTile(
+                    label = if (battleState.player2Alive) "Player 2 (Right)" else "Player 2 (OUT)",
+                    value = "${battleState.player2Jumps}",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            battleState.winnerLabel?.let { win ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = win,
+                    color = IceMint,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
             }
         }
     }
@@ -325,6 +583,16 @@ fun SkillAcademyDialog(
                         }
                     }
                 }
+
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, MidnightBorder)
+                ) {
+                    Text("Close", color = TextPrimary, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -424,7 +692,6 @@ fun ConsistencyHeatmapAndGearCard(
 
             Spacer(Modifier.height(12.dp))
 
-            // 12 columns x 7 rows compact Ice Mint grid
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -486,18 +753,20 @@ fun ConsistencyHeatmapAndGearCard(
 
 /**
  * v4.1 — Slow-Mo Biomechanical Telemetry Event Inspector Strip for VideoAnalyzerScreen.
+ * Clicking any trick chip jumps the SyncedSlowMoVideoPlayer + Telemetry Charts directly to that timestamp!
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VideoSlowMoInspectorCard(
     events: List<VideoTelemetryEvent>,
+    onJumpToTimestampMs: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (events.isEmpty()) return
-    var selectedSpeed by remember { mutableStateOf("0.25x") }
     val trickEvents = remember(events) {
-        events.filter { !it.move.label.equals("Regular", ignoreCase = true) }.take(12)
+        events.filter { !it.move.label.equals("Regular", ignoreCase = true) }.take(16)
     }
+    if (trickEvents.isEmpty()) return
 
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -506,84 +775,52 @@ fun VideoSlowMoInspectorCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.Speed,
-                        contentDescription = null,
-                        tint = IceMint,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "Biomechanics Event Inspector",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf("0.25x", "0.5x", "1.0x").forEach { sp ->
-                        val active = sp == selectedSpeed
-                        Surface(
-                            onClick = { selectedSpeed = sp },
-                            shape = CircleShape,
-                            color = if (active) IceMint else MidnightElevated
-                        ) {
-                            Text(
-                                text = sp,
-                                color = if (active) DeepMidnight else TextSecondary,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Speed,
+                    contentDescription = null,
+                    tint = IceMint,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "Trick & Footwork Jump Bookmarks (Tap to Scrub)",
+                    color = TextPrimary,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Captured ${events.size} jump timestamps • Inspection scale: $selectedSpeed slow-motion",
-                color = TextSecondary,
-                fontSize = 11.5.sp
-            )
-
-            if (trickEvents.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    trickEvents.forEach { ev ->
-                        val sec = String.format(Locale.US, "%.1fs", ev.timestampMs / 1000.0)
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = IceMintSoft,
-                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
+            Spacer(Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                trickEvents.forEach { ev ->
+                    val sec = String.format(Locale.US, "%.1fs", ev.timestampMs / 1000.0)
+                    Surface(
+                        onClick = { onJumpToTimestampMs?.invoke(ev.timestampMs) },
+                        shape = RoundedCornerShape(10.dp),
+                        color = IceMintSoft,
+                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Bolt,
-                                    contentDescription = null,
-                                    tint = IceMint,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(Modifier.width(3.dp))
-                                Text(
-                                    text = "${ev.move.label} @ $sec",
-                                    color = IceMint,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Rounded.Bolt,
+                                contentDescription = null,
+                                tint = IceMint,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = "${ev.move.label} @ $sec",
+                                color = IceMint,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }

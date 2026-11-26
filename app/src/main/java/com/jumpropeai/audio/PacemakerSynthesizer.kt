@@ -7,51 +7,55 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.exp
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 enum class PacemakerMode(val label: String) {
     OFF("Off"),
     CADENCE_LOCK("Cadence Lock"),
-    SPEED_LADDER("Speed Ladder (+10/30s)"),
-    DOUBLE_UNDER_DRILL("Double-Under 1-2-3-4-WHIP")
+    SPEED_LADDER("Speed Ladder (+15/30s)"),
+    DOUBLE_UNDER_DRILL("DU Drill 1-2-3-4-WHIP"),
+    IJRC_SPRINT("IJRC Sprint Pacer (360+)")
 }
 
 /**
- * Jumpvex v4.2 — Zero-KB Procedural PCM Audio Pacemaker Synthesizer.
+ * Jumpvex v6.1 — Sample-Accurate Procedural PCM Audio Pacemaker (`±0.05 ms` precision, 0 KB assets!).
  *
- * Synthesizes crisp woodblock & metallic whip-accent clicks mathematically in RAM (0 KB audio assets)
- * for Target RPM Lock (100–240 RPM), Progressive Speed Ladder, and Double-Under Polyrhythm Drills.
+ * Eliminates coroutine `delay()` jitter by writing exact silent PCM sample spans directly into the
+ * hardware `AudioTrack` ring stream — supporting `100` up to `420 SPM` for IJRC Speed Sprint training!
  */
 class PacemakerSynthesizer(
     private val onTickPlayed: (Long) -> Unit = {}
 ) {
     private companion object {
         const val SAMPLE_RATE = 22_050
-        const val CLICK_SAMPLES = 520 // ~23.5 ms percussive click
+        const val CLICK_SAMPLES = 440 // ~20 ms crisp percussive woodblock
+        const val CHUNK_SILENCE_MAX = 2048
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var loopJob: Job? = null
-    private var normalClickPcm: ShortArray = synthesizeClick(freqHz = 1180.0, decay = 9.5)
-    private var accentClickPcm: ShortArray = synthesizeClick(freqHz = 1920.0, decay = 7.0)
+    private val normalClickPcm: ShortArray = synthesizeClick(freqHz = 1180.0, decay = 9.5)
+    private val accentClickPcm: ShortArray = synthesizeClick(freqHz = 1960.0, decay = 7.0)
+    private val zeroPcm = ShortArray(CHUNK_SILENCE_MAX)
 
     @Volatile
     var mode: PacemakerMode = PacemakerMode.OFF
         private set
 
     @Volatile
-    var targetRpm: Int = 150
+    var targetRpm: Int = 160
         private set
 
     fun configure(newMode: PacemakerMode, newRpm: Int) {
         mode = newMode
-        targetRpm = newRpm.coerceIn(100, 240)
+        targetRpm = newRpm.coerceIn(100, 420)
     }
 
     fun start() {
@@ -59,34 +63,42 @@ class PacemakerSynthesizer(
         if (mode == PacemakerMode.OFF) return
         loopJob = scope.launch {
             var beatIndex = 0
-            val startMs = System.currentTimeMillis()
+            var totalFramesWritten = 0L
             val track = buildAudioTrack() ?: return@launch
             try {
                 track.play()
                 while (isActive && mode != PacemakerMode.OFF) {
-                    val elapsedSec = (System.currentTimeMillis() - startMs) / 1000L
+                    val elapsedSec = totalFramesWritten / SAMPLE_RATE.toLong()
                     val effectiveRpm = when (mode) {
                         PacemakerMode.SPEED_LADDER ->
-                            (targetRpm + (elapsedSec / 30L).toInt() * 10).coerceAtMost(240)
+                            (targetRpm + (elapsedSec / 30L).toInt() * 15).coerceAtMost(420)
+                        PacemakerMode.IJRC_SPRINT ->
+                            max(320, targetRpm)
                         else -> targetRpm
                     }
-                    val intervalMs = (60_000L / effectiveRpm.coerceAtLeast(100)).coerceAtLeast(250L)
+                    val periodSamples = max(CLICK_SAMPLES + 64, (SAMPLE_RATE * 60.0 / effectiveRpm).roundToInt())
                     val isAccent = when (mode) {
                         PacemakerMode.DOUBLE_UNDER_DRILL -> (beatIndex % 5 == 4)
+                        PacemakerMode.IJRC_SPRINT -> (beatIndex % 2 == 0) // Right-foot IJRC accent!
                         else -> (beatIndex % 8 == 0)
                     }
                     val pcm = if (isAccent) accentClickPcm else normalClickPcm
-                    onTickPlayed(35L)
+                    onTickPlayed(30L)
                     track.write(pcm, 0, pcm.size)
+
+                    var remSilence = periodSamples - pcm.size
+                    while (remSilence > 0 && isActive && mode != PacemakerMode.OFF) {
+                        val n = min(remSilence, CHUNK_SILENCE_MAX)
+                        track.write(zeroPcm, 0, n)
+                        remSilence -= n
+                    }
+                    totalFramesWritten += periodSamples
                     beatIndex++
-                    delay(intervalMs)
                 }
             } catch (_: Exception) {
             } finally {
-                runCatching {
-                    track.stop()
-                    track.release()
-                }
+                runCatching { track.stop() }
+                runCatching { track.release() }
             }
         }
     }
@@ -101,7 +113,7 @@ class PacemakerSynthesizer(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
-        ).coerceAtLeast(CLICK_SAMPLES * 4)
+        ).coerceAtLeast(SAMPLE_RATE / 4)
         AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()

@@ -127,6 +127,7 @@ import com.jumpropeai.ui.components.PoseOverlay
 import com.jumpropeai.ui.components.SessionSummaryDialog
 import com.jumpropeai.ui.components.ShareCardDialog
 import com.jumpropeai.ui.components.SkillAcademyDialog
+import com.jumpropeai.ui.components.SplitBattleArenaBanner
 import com.jumpropeai.ui.components.VideoAnalyzerScreen
 import com.jumpropeai.ui.components.WorkoutModeSheet
 import com.jumpropeai.ui.theme.DeepMidnight
@@ -141,6 +142,7 @@ import com.jumpropeai.ui.theme.TextPrimary
 import com.jumpropeai.ui.theme.TextSecondary
 import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.video.VideoTelemetryEvent
+import com.jumpropeai.workout.GhostProfile
 import com.jumpropeai.workout.HiitPhase
 import com.jumpropeai.workout.WorkoutModeType
 import kotlinx.coroutines.flow.StateFlow
@@ -296,7 +298,10 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         onToggleEcoMode = viewModel::toggleEcoMode,
                         onToggleControls = viewModel::toggleControlsVisibility,
                         onOpenModeSheet = { viewModel.setShowModeSheet(true) },
-                        onOpenSettings = { showSettingsSheet = true }
+                        onOpenSettings = { showSettingsSheet = true },
+                        onCycleBattleMode = viewModel::cycleBattleArenaMode,
+                        onResetBattle = viewModel::resetBattleArena,
+                        onCloseBattle = { viewModel.toggleBattleArena() }
                     )
                 }
 
@@ -305,6 +310,8 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         isAnalyzing = uiState.isAnalyzingVideo,
                         isShuffleMode = uiState.isVideoShuffleMode,
                         onToggleShuffleMode = viewModel::toggleVideoShuffleMode,
+                        studioMode = uiState.videoStudioMode,
+                        onSelectStudioMode = viewModel::setVideoStudioMode,
                         progress = uiState.videoProgress,
                         result = uiState.videoResult,
                         errorMessage = uiState.videoError,
@@ -317,11 +324,20 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                             for ((m, c) in res.moveCounts) {
                                 if (c > 0) moveStrMap[m.label] = c
                             }
+                            val ijrc = res.ijrcSummary
                             val session = WorkoutSession(
                                 id = "video_share",
                                 timestampMillis = System.currentTimeMillis(),
-                                modeLabel = if (uiState.isVideoShuffleMode) "Video • Shuffle" else "Video",
-                                modeType = if (uiState.isVideoShuffleMode) WorkoutModeType.FREESTYLE_SHUFFLE else WorkoutModeType.FREE,
+                                modeLabel = when {
+                                    ijrc?.isCompetitionSprintDetected == true -> "Video • IJRC (${ijrc.rightFootJudgeScore} R-Foot)"
+                                    uiState.isVideoShuffleMode -> "Video • Shuffle"
+                                    else -> "Video"
+                                },
+                                modeType = when {
+                                    ijrc?.isCompetitionSprintDetected == true -> WorkoutModeType.IJRU_SPEED_30S
+                                    uiState.isVideoShuffleMode -> WorkoutModeType.FREESTYLE_SHUFFLE
+                                    else -> WorkoutModeType.FREE
+                                },
                                 jumpCount = res.jumpCount,
                                 durationMs = res.durationMs,
                                 averageRpm = res.averageRpm,
@@ -404,6 +420,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             onCycleSensorMode = viewModel::cycleSensorMode,
             onSelectCountdown = viewModel::setStartCountdownDuration,
             onToggleGestureControl = viewModel::toggleGestureControl,
+            onToggleDoubleClap = viewModel::toggleDoubleClapControl,
             onUpdateAthleteProfile = viewModel::updateAthleteProfile,
             onCyclePacemakerMode = viewModel::cyclePacemakerMode,
             onSetPacemakerRpm = viewModel::setPacemakerRpm,
@@ -415,6 +432,10 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
             onOpenSkillAcademy = {
                 showSettingsSheet = false
                 viewModel.setSkillAcademyDialogVisible(true)
+            },
+            onStartSplitBattle = {
+                showSettingsSheet = false
+                viewModel.toggleBattleArena()
             },
             onToggleSkeleton = viewModel::toggleSkeletonOverlay,
             onToggleAudio = viewModel::toggleAudio,
@@ -442,6 +463,7 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
     if (uiState.showHeartRateDialog) {
         OpticalHeartRateDialog(
             snapshot = uiState.heartRateSnapshot,
+            onOpticalSample = { r, g -> viewModel.feedOpticalHrSample(r, g) },
             onDismiss = { viewModel.setHeartRateDialogVisible(false) }
         )
     }
@@ -513,7 +535,10 @@ private fun DynamicRingLiveHud(
     onToggleEcoMode: () -> Unit,
     onToggleControls: () -> Unit,
     onOpenModeSheet: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onCycleBattleMode: () -> Unit = {},
+    onResetBattle: () -> Unit = {},
+    onCloseBattle: () -> Unit = {}
 ) {
     val metrics = uiState.metrics
     val config = uiState.workoutConfig
@@ -685,7 +710,7 @@ private fun DynamicRingLiveHud(
                                 )
                             }
                         }
-                        if (uiState.sensorMode != SensorMode.AUDIO_ONLY) {
+                        if (uiState.sensorMode != SensorMode.AUDIO_ONLY && uiState.sensorMode != SensorMode.POCKET_IMU) {
                             CircularHudIconButton(
                                 icon = Icons.Rounded.Cameraswitch,
                                 contentDescription = "Switch Camera",
@@ -694,6 +719,17 @@ private fun DynamicRingLiveHud(
                         }
                     }
                 }
+            }
+
+            // 2-Player Split-Screen Battle Scoreboard (when active)
+            if (uiState.battleState.isActive || uiState.battleState.winnerLabel != null) {
+                Spacer(Modifier.height(8.dp))
+                SplitBattleArenaBanner(
+                    battleState = uiState.battleState,
+                    onCycleMode = onCycleBattleMode,
+                    onResetBattle = onResetBattle,
+                    onCloseBattle = onCloseBattle
+                )
             }
 
             // Optional Live AI Performance Monitor Pill (FPS • CPU µs • RAM • Logged Rows)
@@ -717,8 +753,30 @@ private fun DynamicRingLiveHud(
                 }
             }
 
+            // Pocket IMU Camera-Free Cockpit Badge
+            if (uiState.sensorMode == SensorMode.POCKET_IMU && !uiState.isCountingDown) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    shape = CircleShape,
+                    color = DeepMidnight.copy(alpha = 0.85f),
+                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.55f))
+                ) {
+                    Text(
+                        text = if (uiState.isSessionRunning) {
+                            "POCKET IMU ACTIVE • 100 Hz Gyro-Gravity Locked"
+                        } else {
+                            "Pocket IMU Ready • Press Play & slide phone into pocket"
+                        },
+                        color = IceMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 13.dp, vertical = 5.dp)
+                    )
+                }
+            }
+
             // Smart Camera Framing Assistant & Touchless Hand-Gesture Hold Indicator
-            if (uiState.sensorMode != SensorMode.AUDIO_ONLY && !uiState.isCountingDown) {
+            if (uiState.sensorMode != SensorMode.AUDIO_ONLY && uiState.sensorMode != SensorMode.POCKET_IMU && !uiState.isCountingDown) {
                 if (uiState.gestureHoldProgress > 0.02f) {
                     Spacer(Modifier.height(10.dp))
                     Surface(
@@ -786,14 +844,16 @@ private fun DynamicRingLiveHud(
 
             // UPPER-CENTER: Glowing Dynamic Circular Progress Ring + Giant Jump/Move Counter
             val isShuffleMode = config.mode == WorkoutModeType.FREESTYLE_SHUFFLE
+            val isCameraSensor = uiState.sensorMode != SensorMode.AUDIO_ONLY && uiState.sensorMode != SensorMode.POCKET_IMU
             val ringSubLabel = when {
                 config.mode == WorkoutModeType.HIIT && uiState.isSessionRunning -> {
                     val phaseTxt = if (progress.hiitPhase == HiitPhase.WORK) "WORK" else "REST"
                     "$phaseTxt • R${progress.currentRound}/${progress.totalRounds}"
                 }
-                metrics.detectorStatus == DetectorStatus.NO_PERSON && uiState.sensorMode != SensorMode.AUDIO_ONLY ->
+                uiState.sensorMode == SensorMode.POCKET_IMU && !uiState.isSessionRunning -> "POCKET IMU"
+                metrics.detectorStatus == DetectorStatus.NO_PERSON && isCameraSensor ->
                     "STEP INTO FRAME"
-                metrics.detectorStatus == DetectorStatus.CALIBRATING -> "CALIBRATING..."
+                metrics.detectorStatus == DetectorStatus.CALIBRATING && isCameraSensor -> "CALIBRATING..."
                 isShuffleMode -> "MOVES"
                 else -> "JUMPS"
             }
@@ -808,7 +868,7 @@ private fun DynamicRingLiveHud(
 
             // Clean Two-Tone Live AI Trick, Form Coach & Beat-Sync Pill (visible once moving)
             if (uiState.isSessionRunning && (metrics.jumpCount > 0 || uiState.beatSync.detectedBpm > 0)) {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
                 val formScore = uiState.formCoach.overallScore
                 val bpm = uiState.beatSync.detectedBpm
                 val syncScore = uiState.beatSync.beatSyncScore
@@ -836,6 +896,50 @@ private fun DynamicRingLiveHud(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     )
                 }
+
+                // Live Ghost Rival Split & Plyometrics Force-Plate Strip
+                val showGhost = uiState.ghostProfile != GhostProfile.OFF && uiState.ghostSnapshot.statusText.isNotBlank()
+                val showPlyo = uiState.plyometrics.avgJumpHeightCm > 0.2f && uiState.plyometrics.avgGctMs > 0
+                if (showGhost || showPlyo) {
+                    Spacer(Modifier.height(6.dp))
+                    val proHudText = buildString {
+                        if (showGhost) append(uiState.ghostSnapshot.statusText)
+                        if (showGhost && showPlyo) append("  •  ")
+                        if (showPlyo) {
+                            append(
+                                String.format(
+                                    Locale.US,
+                                    "%.1fcm • %dms GCT • RSI %.2f",
+                                    uiState.plyometrics.avgJumpHeightCm,
+                                    uiState.plyometrics.avgGctMs,
+                                    uiState.plyometrics.reactiveStrengthIndex
+                                )
+                            )
+                        }
+                    }
+                    Text(
+                        text = proHudText,
+                        color = if (showGhost && uiState.ghostSnapshot.deltaJumps < 0) Color(0xFFFB7185) else IceMint,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Live Trip Root-Cause Autopsy Callout
+                uiState.tripAutopsy?.let { trip ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Trip Autopsy: ${trip.headline}",
+                        color = Color(0xFFFB7185),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
                 if (formScore in 1..79) {
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -1259,12 +1363,14 @@ private fun WorkoutSettingsSheet(
     onCycleSensorMode: () -> Unit,
     onSelectCountdown: (Int) -> Unit,
     onToggleGestureControl: () -> Unit,
+    onToggleDoubleClap: () -> Unit = {},
     onUpdateAthleteProfile: (Int, RopeType, Int) -> Unit,
     onCyclePacemakerMode: () -> Unit,
     onSetPacemakerRpm: (Int) -> Unit,
     onCycleGhostProfile: () -> Unit,
     onOpenHeartRateScanner: () -> Unit,
     onOpenSkillAcademy: () -> Unit,
+    onStartSplitBattle: () -> Unit = {},
     onToggleSkeleton: () -> Unit,
     onToggleAudio: () -> Unit,
     onToggleEcoMode: () -> Unit,
@@ -1523,6 +1629,14 @@ private fun WorkoutSettingsSheet(
                 onCheckedChange = { onToggleGestureControl() }
             )
 
+            SettingsSwitchCard(
+                icon = Icons.Rounded.GraphicEq,
+                title = "Double-Clap Start / Pause (5m+)",
+                subtitle = "Clap twice crisply from across the gym to Start or Pause hands-free",
+                checked = uiState.isDoubleClapEnabled,
+                onCheckedChange = { onToggleDoubleClap() }
+            )
+
             // Pre-Start Countdown Selector (Off / 3s / 5s / 8s)
             Surface(
                 shape = RoundedCornerShape(18.dp),
@@ -1718,7 +1832,7 @@ private fun WorkoutSettingsSheet(
                     Slider(
                         value = uiState.pacemakerRpm.toFloat(),
                         onValueChange = { onSetPacemakerRpm(it.roundToInt()) },
-                        valueRange = 100f..240f,
+                        valueRange = 100f..420f,
                         colors = SliderDefaults.colors(
                             thumbColor = IceMint,
                             activeTrackColor = IceMint,
@@ -1736,7 +1850,7 @@ private fun WorkoutSettingsSheet(
                             border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Camera rPPG HR", color = IceMint, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Camera rPPG HR", color = IceMint, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
                         OutlinedButton(
                             onClick = onOpenSkillAcademy,
@@ -1744,8 +1858,22 @@ private fun WorkoutSettingsSheet(
                             border = BorderStroke(1.dp, MidnightBorder),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("AI Skill Tree", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("AI Skill Tree", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    OutlinedButton(
+                        onClick = onStartSplitBattle,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (uiState.battleState.isActive) "Close 2-Player Split Battle" else "Start 2-Player Split-Screen Battle",
+                            color = IceMint,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

@@ -1,47 +1,65 @@
 no,drive_id,filename,duration_s,ground_truth_jumps,method,notes
-1,1CNgHd06UzqUcnbv-1mpcOQeU5IFs5_5P,VID_20260812_164851.mp4,24.4,24,User Manual + Visual,User manual count (test2.mp4): single-unders + Double-Unders (6.2-19.1s); walking excluded
-2,1dP5jUABvEDYPcGvUAPnvQya8F9OON3lP,VID_20260812_165337.mp4,59.6,109,User Manual + Visual,User manual count: continuous outdoor skipping; walking start/end excluded
-3,16uGhVh4H-Hr7brAnBfsqRTzUx8t3hQk9,VID_20260821_164409.mp4,69.1,56,Visual + Raw Curve,User outdoor video: 3 sets in 26.0-58.0s; walking 0-26s & 59-69s excluded
-4,1PTsptYGEv3k5-rV5_qNR711XvA6GPj38,VID_20261105_163148.mp4,41.0,63,Visual + Raw Curve,User outdoor video: 63 crisp jumps (4.1-35.6s); trip & walk 36-41s excluded
-5,1aLroTBTGcVFb-Hr2EvxHOMGbkqmHnxqj,VID_20261105_163701.mp4,42.4,62,Visual + Raw Curve,User outdoor video: 62 crisp jumps (6.4-35.7s); walk start/end excluded
-6,18JNXb1fNbX13gVdY1teKmlbS-A9PxpI-,VID_20261122_043947_870.mp4,11.0,13,Visual + Raw Curve,Gym single-unders + Double-Unders (0.2-6.5s); IG outro 7.5-11s excluded
-7,1aB1Hrbz6e4AYKgAY5PHZWYQC3_32Yl09,VID_20261122_044018_254.mp4,10.2,11,Visual + Raw Curve,"5 single-unders (0.7-3.7s) + 6 high jumps (4.5-9.7s, continues under dimmed IG overlay)"
-8,1aiG6yFw65dWTMn-wR5JbvZuoGDJG0z4I,VID_20261122_044029_086.mp4,12.6,22,Visual + Raw Curve,10 rapid high-knee/boxer hops (0.2-2.5s) + 7 single-unders (2.9-5.5s) + 5 high Double-Unders (6.0-8.6s); IG outro 9.0-12.6s
-9,1Zr3bOnNXPax320dorzMJdN5jE600mMIA,VID_20261122_044130_024.mp4,11.8,15,Visual + Raw Curve,4 single-unders + 7 high Double-Unders + 4 single-unders (0.4-7.7s); IG outro 8.0-11.8s
-10,1anpiHGGaRHJAJEvu1YuEI-3tiKoLjJYJ,VID_20261122_044136_077.mp4,19.2,41,Visual + Raw Curve,4 warm-up + 25 rhythmic single-unders (3.2-10.1s) + 12 high Double-Unders (10.4-15.1s); IG outro 15.5-19.2s
-11,1GbigEsbTzHbs5xRJdvnL1i2wZbr4MTCZ,VID_20261122_051817_914.mp4,42.1,164,Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (6.5-36.5s, ~328 RPM bent-over ankle sprint)"
-12,1vaMarzxQB1KdQ-8_wbV2YncVUeY-jgDt,VID_20261122_051924_969.mp4,55.3,136,Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (20.5-50.5s, ~272 RPM bent-over ankle sprint)"
-13,1uCbHmZ0VvmLhaZLmKSQFpevdj9AsJJGj,VID_20261122_051943_160.mp4,47.4,145,Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (11.0-41.0s, ~290 RPM bent-over ankle sprint)"
-14,1dGA3P62_DiBgif9DVA50KGdZ09-qJHwh,VID_20261122_052607_947.mp4,17.2,41,Visual + Raw Curve,Outdoor continuous skipping (0.3-15.4s); stop at 16s excluded
-15,1boFhVkbUVxdDUMnJHfjhzZmZN25-LNPL,VID_20261122_052613_168.mp4,18.6,30,Visual + Raw Curve,Verified frame-by-frame: 15 cycles of (2 real jumps + 2 feet-planted side swings) = 30 real jumps (29 side swings excluded)
-16,1gRA73g493gvytj6N01FigaFbWiqRlToc,VID_20261122_052613_168.mp4,18.6,30,Visual + Raw Curve,Duplicate of 168: 30 real jumps + 29 feet-planted side swings excluded
-17,1Aklu0NicKSK9FU4Te9acFInifDKB7aA-,VID_20261122_052624_470.mp4,16.0,36,Visual + Raw Curve,36 clean rhythmic jumps (0.2-14.1s); stops & walks toward camera at 14.5-16.0s (peak 37 excluded)
-18,1CO3y5Cnv4BOojvYXCj89a3K4p_6ohGwY,VID_20261122_052629_070.mp4,12.8,13,Visual + Raw Curve,Outdoor skipping (0.4-5.7s); headphones drop & bend 6-12.8s excluded
-19,17jxmBSNwt2W22tGzVkaaxhqPBv_9RIdj,VID_20261122_052646_683.mp4,15.5,40,Visual + Raw Curve,Outdoor continuous skipping (0.4-14.9s)
-20,1vABspCMpkIZ8vInOLdrrtrsuB4vvCA9Y,VID_20261122_052648_939.mp4,14.4,36,Visual + Raw Curve,Outdoor rhythmic skipping (0.2-14.0s)
-21,1J8sT9QDwW6aGPvxdEr2-5lR9oo-LW5pt,VID_20261122_054122_000.mp4,40.7,98,Visual + Raw Curve,Gym weighted-ankle skipping + 12 Double-Unders (0.2-36.7s); IG outro excluded
-22,1HbhI5Qp9Ot6oA7BWCTkubQIB-NClBOF9,VID_20261122_054258_297.mp4,14.8,25,Visual + Raw Curve,Gym rhythmic skipping (0.5-10.4s); black IG outro 11-14.8s excluded
-23,1WHnQqE9OLuNowwLRifUQVxxFR8f6aufI,VID_20261122_054319_730.mp4,26.6,39,Visual + Raw Curve,2-clip gym video: 20 jumps clip 1 (0-11.1s) + 19 jumps clip 2 (11.6-22.2s); IG outro excluded
-24,1QZo--MGYMBa1BFcO5pGwJ__3u1ATsemZ,VID_20261122_054403_520.mp4,53.6,144,Visual + Raw Curve,Gym continuous fast skipping + high knees (0.2-49.3s); IG outro excluded
-25,10lwgqmItV3HdFFRPXfhyxrpdYojnYjtK,VID_20261122_054519_197.mp4,18.1,10,Visual + Raw Curve,"6 warm-up hops (1.2-2.8s) + 3 setup/trick jumps (3.1, 4.1, 6.1s) + 1 slow-mo multi-under (8.2-13.1s); IG outro 14.8-18.1s"
-26,1AGihF2sljWMy0-M9ZxscHbeXyNJi55pq,VID_20261122_054959_748.mp4,17.3,28,Visual + Raw Curve,Indoor footwork/cross skipping (0.2-10.9s); bow & IG outro 12-17.3s excluded
-27,1-jOnFYxhYjHp1vULy053uenzDYQfRrBM,VID_20261122_055036_328.mp4,27.2,71,Visual + Raw Curve,Indoor continuous skipping with 1 brief pause at 14.5s (0.7-23.4s); IG outro excluded
-28,1_iA5ccTqKcawkh9KUuQdnXNwtbZYTQLz,VID_20261122_055038_529.mp4,17.3,23,Visual + Raw Curve,Outdoor skipping (1.2-10.4s); trip & walk 10.8-17.3s excluded
-29,1tK7Ov83HkZj0s9UDj0U1WG98G-vI-Rnl,VID_20261122_055205_353.mp4,39.4,41,Visual + Raw Curve,Tutorial: 15 demo hops (0.7-15.7s) + 26 continuous skips (20.0-32.0s); walk/outro excluded
-30,1xFbDeTWcfnhbhN_FaC5Cz9RaYvDts4rk,VID_20261122_055318_178.mp4,25.8,37,Visual + Raw Curve,2-clip gym combo: regular + Double-Unders + footwork (0.3-21.3s); IG outro excluded
-31,1KgXUpQ6oGNviKaYsm_Ek9NVCPU-DAF8g,VID_20261122_055324_085.mp4,22.6,28,Visual + Raw Curve,7 high jumps in clip 1 (0.5-4.7s) + 21 jumps in clip 2 (5.5-18.7s); IG outro 19.5-22.6s excluded
-32,1uQ6tXDofGlIWW_RhXp2xTev3zfAwlFyE,VID_20261122_055328_443.mp4,19.2,19,Visual + Raw Curve,Gym combo: 19 real jumps (5+6+8); 5 wide-stance side swings & IG outro excluded
-33,1jWJWFtZspj3GHZdSRggnYzQTSykYViFW,VID_20261122_055354_868.mp4,20.2,26,Visual + Raw Curve,Gym alternating high/low jumps (0.6-15.6s); IG outro excluded
-34,1QARs__pKiZG-DqQucF_Fxj6exJ348EoQ,VID_20261122_055415_506.mp4,23.7,37,Visual + Raw Curve,Gym high-knee warm-up (22 hops 0.5-9.8s) + 15 Double-Unders (10.1-19.0s); IG outro excluded
-35,1qaZUVpUmvTJslY01i6EQ_8EpS3tTEyZa,VID_20261122_055429_412.mp4,24.9,46,Visual + Raw Curve,15 alternating high/low jumps (0.4-10.0s) + 31 rapid footwork hops (10.5-21.4s); black IG outro 22.0-24.9s excluded
-36,14uYXAA8q9bSiQ3AGtjs0-IPjQfzfAEwr,VID_20261122_055507_107.mp4,16.4,26,Visual + Raw Curve,Indoor side-view footwork skipping (0.2-11.8s); IG outro excluded
-37,1AkHwFCk2sB2z9AZF3njRx07GaU76LX47,VID_20261122_055532_306.mp4,20.9,27,Visual + Raw Curve,Indoor mat skipping (0.3-14.6s); IG outro excluded
-38,1M4U1P5dzMzfjtiNp01EI5wRtLHQrgvYi,VID_20261122_055703_487.mp4,18.2,42,Visual + Raw Curve,Outdoor night rope-flow/footwork skipping (0.1-14.0s); black IG outro excluded
-39,1dCPF7MJKVFNUJfMawmn1a4Ki7E5usW73,VID_20261122_060059_822.mp4,15.1,26,Visual + Raw Curve,26 footwork/dance skipping jumps (0.3-10.9s); IG outro 11.5-15.1s
-40,1FJFd14W7GypbLA3JemHFhhD63_KHDOKc,VID_20261122_060059_822.mp4,15.1,26,Visual + Raw Curve,Duplicate of 822: 26 dance footwork skips (0.3-10.9s); IG outro excluded
-41,1WDHi7HyMcbWYrTJ3zJQlNLuH06eM0ZiW,VID_20261122_111157_360.mp4,26.4,54,Visual + Raw Curve,"Boxing footwork Level 1-3 @alwaysghadi (13+19+22 = 54 jumps, 0.2-21.1s); bow & IG outro excluded"
-42,1AajvSVhcKfCz-xu6iOq9HDoTUb96TW7j,VID_20261122_111219_148.mp4,15.9,22,Visual + Raw Curve,"Boxing footwork tutorial @alwaysghadi (0.6-10.6s, 22 jumps); IG outro excluded"
-43,1jTzxLQNWc8fU5mY9zEMg5VVXqH3keve0,VID_20261122_111720_184.mp4,28.8,41,Visual + Raw Curve,Outdoor single-unders + 11 Double-Unders + footwork (1.0-20.5s); walk & IG outro excluded
-44,1_-3nLhqicN7zyxqvI92fYFhBkdlkPVvE,VID_20261122_111819_109.mp4,20.0,38,Visual + Raw Curve,Outdoor park mat skipping (1.3-15.1s); IG outro excluded
-45,1yQucuVq4s3BrTByAp0AyTIk8q4S8x_gH,VID_20261122_112203_489.mp4,20.0,42,Visual + Raw Curve,2-person synchronized skipping (1.0-14.0s); IG outro excluded
-46,1544W5-UaTz3cDOv0O8f7vY7ykS3Opk3D,watermark video test 1.mp4,59.6,109,Visual + Raw Curve,Watermarked copy of VID_20260812_165337.mp4 (user manual = 109)
+1,1gLWDGBFPHaBfdxov6MvZ4DV-8DNu5wAs,VID_20261122_051817_914.mp4,42.1,164,Human Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (6.5-36.5s, ~328 RPM bent-over ankle sprint)"
+2,1rjHNmg0EmonnoSjcJ1-iv8GerSONP9sT,VID_20261122_051924_969.mp4,55.3,136,Human Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (20.5-50.5s, ~272 RPM bent-over ankle sprint)"
+3,1n4D1PhlrzvxxvKF2iaIdellGBIFw_hnl,VID_20261122_051943_160.mp4,47.4,145,Human Visual + Raw Curve,"30s competition speed-sprint @cenxiaolin1 (11.0-41.0s, ~290 RPM bent-over ankle sprint)"
+4,1CSZss158fltS-fM8twrDxmwAy_VPTsGg,VID_20261122_052607_947.mp4,17.2,41,Human Visual + Raw Curve,Outdoor continuous skipping (0.3-15.4s); stop at 16s excluded
+5,1HldgzdvOJUyQSbtT0kHnhFExcF_1SxPQ,VID_20261122_052613_168.mp4,18.6,30,Human Visual + Raw Curve,Duplicate of 168: 30 real jumps + 29 feet-planted side swings excluded
+6,1HgyfLgmUb8KeVX1-byk5k9z01lfRRjQ2,VID_20261122_052624_470.mp4,16.0,36,Human Visual + Raw Curve,36 clean rhythmic jumps (0.2-14.1s); stops & walks toward camera at 14.5-16.0s (peak 37 excluded)
+7,1k2j_plAr_hM2LzNGaLtsj525VwUq6jcb,VID_20261122_052629_070.mp4,12.8,13,Human Visual + Raw Curve,Outdoor skipping (0.4-5.7s); headphones drop & bend 6-12.8s excluded
+8,11vbvHEqKfrSYpLcYL1pR81UDYVNoLGdO,VID_20261122_052646_683.mp4,15.5,40,Human Visual + Raw Curve,Outdoor continuous skipping (0.4-14.9s)
+9,1ZWwvqLG5kbOoPXQRdU600rpTbPTzARDG,VID_20261122_052648_939.mp4,14.4,36,Human Visual + Raw Curve,Outdoor rhythmic skipping (0.2-14.0s)
+10,1X9OOUvjtqSlc3qy1JgU_kAbvQ9G7fo5l,VID_20261122_054122_000.mp4,40.7,98,Human Visual + Raw Curve,Gym weighted-ankle skipping + 12 Double-Unders (0.2-36.7s); IG outro excluded
+11,1ZMTRrCuU7bU7Vl7KEh-lruN8_ANmMKAB,VID_20261122_054258_297.mp4,14.8,25,Human Visual + Raw Curve,Gym rhythmic skipping (0.5-10.4s); black IG outro 11-14.8s excluded
+12,16pyYYUxSnouemJMO37CpFaz8519E9seo,VID_20261122_054319_730.mp4,26.6,39,Human Visual + Raw Curve,2-clip gym video: 20 jumps clip 1 (0-11.1s) + 19 jumps clip 2 (11.6-22.2s); IG outro excluded
+13,1uLSiwemd05vQHknS-I6ULRYi-VEB6SIH,VID_20261122_054403_520.mp4,53.6,144,Human Visual + Raw Curve,Gym continuous fast skipping + high knees (0.2-49.3s); IG outro excluded
+14,1z_d0-u0BAJS-718Tt9R1C1BVfDOBEEar,VID_20261122_054519_197.mp4,18.1,10,Human Visual + Raw Curve,"6 warm-up hops (1.2-2.8s) + 3 setup/trick jumps (3.1, 4.1, 6.1s) + 1 slow-mo multi-under (8.2-13.1s); IG outro 14.8-18.1s"
+15,150O8BGhXdW1ZU-RLXNGkC_rq4O9BY8Aj,VID_20261122_054959_748.mp4,17.3,28,Human Visual + Raw Curve,Indoor footwork/cross skipping (0.2-10.9s); bow & IG outro 12-17.3s excluded
+16,1XFI6wfGcMNEECJYNPBS1BeQM87cOVKGj,VID_20261122_055036_328.mp4,27.2,71,Human Visual + Raw Curve,Indoor continuous skipping with 1 brief pause at 14.5s (0.7-23.4s); IG outro excluded
+17,1mSWk6cw-rSim-1y3cadMiDAF0w9XQFMK,VID_20261122_055038_529.mp4,17.3,23,Human Visual + Raw Curve,Outdoor skipping (1.2-10.4s); trip & walk 10.8-17.3s excluded
+18,1eIXIvZbnEG6MRGkwAlXIAY3g6l23u3AY,VID_20261122_055205_353.mp4,39.4,41,Human Visual + Raw Curve,Tutorial: 15 demo hops (0.7-15.7s) + 26 continuous skips (20.0-32.0s); walk/outro excluded
+19,1nnVJjGnKF4bZz-YOc05xaGee0Wsp29r9,VID_20261122_055318_178.mp4,25.8,37,Human Visual + Raw Curve,2-clip gym combo: regular + Double-Unders + footwork (0.3-21.3s); IG outro excluded
+20,1ELGCpEzx7GyVX5ERUOySRdK_82Knjna7,VID_20261122_055324_085.mp4,22.6,28,Human Visual + Raw Curve,7 high jumps in clip 1 (0.5-4.7s) + 21 jumps in clip 2 (5.5-18.7s); IG outro 19.5-22.6s excluded
+21,14IxWLG49FWfZsRL5W0eKBpPDcB96wWOr,VID_20261122_055328_443.mp4,19.2,19,Human Visual + Raw Curve,Gym combo: 19 real jumps (5+6+8); 5 wide-stance side swings & IG outro excluded
+22,1zeaOI-OGfoHgHmOLwSpgUsFjYklxwsvb,VID_20261122_055354_868.mp4,20.2,26,Human Visual + Raw Curve,Gym alternating high/low jumps (0.6-15.6s); IG outro excluded
+23,1Sblw21gL5mjN1QqcFuFZxNGsAKTaekQp,VID_20261122_055415_506.mp4,23.7,37,Human Visual + Raw Curve,Gym high-knee warm-up (22 hops 0.5-9.8s) + 15 Double-Unders (10.1-19.0s); IG outro excluded
+24,1OdfLYIrK6NUJ0D9ZFvzyUdm0cG7yF4cb,VID_20261122_055429_412.mp4,24.9,46,Human Visual + Raw Curve,15 alternating high/low jumps (0.4-10.0s) + 31 rapid footwork hops (10.5-21.4s); black IG outro 22.0-24.9s excluded
+25,1S2v12XNgkj-9kFXRhKGUShNrar1V4BbF,VID_20261122_055507_107.mp4,16.4,26,Human Visual + Raw Curve,Indoor side-view footwork skipping (0.2-11.8s); IG outro excluded
+26,1kRj0Z7RFm1NQsrrMMg8brZvRkggm-zZo,VID_20261122_055532_306.mp4,20.9,27,Human Visual + Raw Curve,Indoor mat skipping (0.3-14.6s); IG outro excluded
+27,17O5GpaeeQrMG6QGm7GQJtGUMnligDtg9,VID_20261122_055703_487.mp4,18.2,42,Human Visual + Raw Curve,Outdoor night rope-flow/footwork skipping (0.1-14.0s); black IG outro excluded
+28,1cF2fHVgSX0fYE9LtavN8ZWWmFep0Soha,VID_20261122_060059_822.mp4,15.1,26,Human Visual + Raw Curve,Duplicate of 822: 26 dance footwork skips (0.3-10.9s); IG outro excluded
+29,1ZtpGSHpQJ3TTelFfOws3iyS3ekEAelDG,VID_20261122_111157_360.mp4,26.4,54,Human Visual + Raw Curve,"Boxing footwork Level 1-3 @alwaysghadi (13+19+22 = 54 jumps, 0.2-21.1s); bow & IG outro excluded"
+30,1z7nTxR7Ey7KwboqY7KvKAyHNi78HjqC1,VID_20261122_111219_148.mp4,15.9,22,Human Visual + Raw Curve,"Boxing footwork tutorial @alwaysghadi (0.6-10.6s, 22 jumps); IG outro excluded"
+31,1IaR8f81g39_vsDkVIjI810Vw6y4W0RmV,VID_20261122_111720_184.mp4,28.8,41,Human Visual + Raw Curve,Outdoor single-unders + 11 Double-Unders + footwork (1.0-20.5s); walk & IG outro excluded
+32,1UsFPEsZGVdxzra3pjU5wHheEyuyOcZg6,VID_20261122_111819_109.mp4,20.0,38,Human Visual + Raw Curve,Outdoor park mat skipping (1.3-15.1s); IG outro excluded
+33,1ejkb73OX2LWhyuaRNuhDzmpx_jQAzzGg,VID_20261122_112203_489.mp4,20.0,42,Human Visual + Raw Curve,2-person synchronized skipping (1.0-14.0s); IG outro excluded
+34,17HSn2ERkOyWFpUEgsThH03qjaFHoiUG9,VID_20261123_034736_786.mp4,30.9,72,Human Visual + Raw Curve,LED rope shuffle-dance skipping @violetta.konarevtseva (0.2-26.8s); IG outro 26.9-30.9s excluded
+35,1KeA_P02UQQAXhR20yq22iXRdcfQJqdMo,VID_20261123_034742_675.mp4,13.9,20,Human Visual + Raw Curve,2-person synchronized gym skipping (0.2-9.8s); IG outro 10.0-13.9s excluded
+36,15pun-YUmYDsyHCXz_faZ4uABXXiYoRRx,VID_20261123_034752_989.mp4,19.7,37,Human Visual + Raw Curve,Indoor side-profile skipping (0.2-15.4s); IG outro 15.7-19.7s excluded
+37,1wnfclB__yittJqRl_D7xCAkcZ2EzlymQ,VID_20261123_035306_912.mp4,23.8,59,Human Visual + Raw Curve,Outdoor mat skipping (0.2-19.5s); IG outro 19.7-23.8s excluded
+38,1du4QWnGqA2q_jUkMwlz3lH6GJLc2kC_F,VID_20261123_035446_000.mp4,21.1,26,Human Visual + Raw Curve,Side Cross + Swing Open tutorial @pulsesequel (1.0-16.5s); planted side swings & IG outro excluded
+39,11UCTOCFi1x4o6-ijO6-G1ZvlaRxVriDP,VID_20261123_035703_026.mp4,25.9,38,Human Visual + Raw Curve,Combo 1 indoor skipping (0.3-20.6s); IG outro 21.1-25.9s excluded
+40,1VQ0gkdoMEVbkaXuCLv9Nku54DtV78Bib,VID_20261123_040113_716.mp4,26.8,58,Human Visual + Raw Curve,Night yellow-rope dance skipping @violetta.konarevtseva (0.4-22.6s); IG outro 22.9-26.8s excluded
+41,1TrUFNdW6T_wCR2bW_NJ9wotSezYdm0Kp,VID_20261123_040134_878.mp4,20.8,39,Human Visual + Raw Curve,Outdoor side-profile skipping @gautam_sharmaz (0.5-16.2s); IG outro 16.3-20.8s excluded
+42,18QsI4SW6-4eTYrz1uco1_5yhTyAF7XKg,VID_20261123_040328_280.mp4,35.6,92,Human Visual + Raw Curve,"Courtyard shuffle-dance skipping @dnevniknastii (0.3-31.5s, RN9=92); IG outro 31.6-35.6s excluded"
+43,18vb9JJ1IK5nzWE7w0fogeTasXfabYwNT,VID_20261123_040339_484.mp4,43.7,95,Human Visual + Raw Curve,Level 3 rooftop high-knee skipping @gautam_sharmaz (0.2-38.0s); IG outro 38.3-43.7s excluded
+44,1oj-29Q6nKRi8h-1qk4kwnLlDv1XjeUYc,VID_20261123_040449_013.mp4,41.0,108,Human Visual + Raw Curve,Boxer's footwork round-mat skipping (0.3-36.8s); IG outro 37.0-41.0s excluded
+45,1DUMVsJ6W_L_b6EvUazphjcmfLN4alU0R,VID_20261123_040453_610.mp4,34.3,76,Human Visual + Raw Curve,Level 6 heavy-rope gym skipping @alwaysghadi (0.4-30.1s); IG outro 30.3-34.3s excluded
+46,1x47FU5tecnIPg6XR2ecPBVC2hEYZmVdo,VID_20261123_040631_603.mp4,63.9,139,Human Visual + Raw Curve,Green beaded-rope continuous skipping @svenkristoper (0.3-59.6s); IG outro 59.9-63.9s excluded
+47,1cUcpfs3X24IE6oRpmk5fQfpQa_aXjpGv,VID_20261123_040633_539.mp4,31.9,61,Human Visual + Raw Curve,Side-profile feather-hop outdoor skipping @adeleleleeeee (0.6-27.5s); IG outro 27.9-31.9s excluded
+48,1LQa4zMl69m2P9YPb8luC6eepst0KeIgO,VID_20261123_040730_979.mp4,56.3,108,Human Visual + Raw Curve,3-set gym combo skipping @alwaysghadi (0.2-52.0s); IG outro 52.3-56.3s excluded
+49,1Mdzx_kVwFa-Ax2tc5yBu7kxILjsLpBzY,VID_20261123_040824_167.mp4,26.7,43,Human Visual + Raw Curve,Yellow heavy-rope gym skipping @alwaysghadi (0.3-22.3s); IG outro 22.7-26.7s excluded
+50,1nvbrTevHcg8p6-z70PugtYxSWbzAmhN5,VID_20261123_040935_458.mp4,18.4,27,Human Visual + Raw Curve,Ropeless Boxing / Footwork Drill — Uzbekistan pendulum hops (0.3-13.8s); IG outro excluded
+51,1u77y7ijnsvqQTyVDluCXn28nG2qlidXc,VID_20261123_040943_357.mp4,17.5,29,Human Visual + Raw Curve,Ropeless Boxing / Footwork Drill — agility ladder hops @boxercoachye (0.6-13.3s); IG outro excluded
+52,1VLPyayoJF8CPH4_0mbm-Bz2f0ey2ZLyT,VID_20261123_041057_815.mp4,17.3,32,Human Visual + Raw Curve,Ropeless Boxing / Footwork Drill — Uzbekistan ladder footwork (0.1-13.2s); IG outro excluded
+53,1xj-we1WoYtNcIhvooG3G0s-PJ_jy65dn,VID_20261123_041108_722.mp4,45.6,96,Human Visual + Raw Curve,Ropeless Boxing / Footwork Drill — outdoor boxing pendulum hops (0.2-41.4s); IG outro excluded
+54,1LtTb-qclDf9PhQwIV9TC4akjIdTgZKeo,VID_20261123_041309_140.mp4,14.0,26,Human Visual + Raw Curve,Yellow-rope trick tutorial @alwaysghadi (0.2-9.8s); IG outro 10.0-14.0s excluded
+55,1jLeM0rU6k-RgISMJe4vMaBlxzfyg9xdL,VID_20261123_041415_375.mp4,35.9,86,Human Visual + Raw Curve,Ropeless Boxing / Footwork Drill — studio footwork drill @alwaysghadi (0.3-31.4s); IG outro excluded
+56,1nsv1CAVdGsQHxLoX1WqMYZ-M8oCzV-6T,VID_20261123_041423_990.mp4,47.8,90,Human Visual + Raw Curve,Side Splits boxing footwork skipping @alwaysghadi (0.2-43.2s); IG outro 43.8-47.8s excluded
+57,1UIR-_W0CJYOCWTkvHtx6sUklb5wVvoyb,VID_20261123_041533_326.mp4,46.5,105,Human Visual + Raw Curve,Level 8 boxing footwork skipping @alwaysghadi (0.4-42.3s); IG outro 42.5-46.5s excluded
+58,13X9j_VlMUVZ_PTOaIxrg_oRhBvQmn3os,VID_20261123_041631_919.mp4,40.4,96,Human Visual + Raw Curve,Studio boxing footwork skipping @alwaysghadi (0.2-36.0s); IG outro 36.4-40.4s excluded
+59,14z3KXtYIcWUbctyGgeml456kjvEfn_Nm,VID_20261123_041635_192.mp4,38.5,83,Human Visual + Raw Curve,Level 4 Toe-to-Toe skipping @alwaysghadi (0.4-33.8s); IG outro 34.2-38.5s excluded
+60,1ADVKLJREy8apGdp9G3IhsPy2yO7RpNCA,VID_20261123_041650_213.mp4,44.9,92,Human Visual + Raw Curve,Studio rhythmic footwork skipping @alwaysghadi (0.1-40.5s); IG outro 40.9-44.9s excluded
+61,1LA_99SOqOrlFC21hEpR4AmkQtpLPaT9d,VID_20261123_041653_767.mp4,19.5,32,Human Visual + Raw Curve,Studio footwork skipping @alwaysghadi (0.3-15.1s); IG outro 15.5-19.5s excluded
+62,1Erzyy8popEs27Ho9wHN0UN9Gj3EWlBiE,VID_20261123_041828_251.mp4,15.9,26,Human Visual + Raw Curve,Heel-Toe boxing footwork tutorial @alwaysghadi (0.6-11.4s); IG outro 11.7-15.9s excluded
+63,1-AHgLx3mD0YZMl_v7WlPVZM_kwHBPAnz,VID_20261123_080907_287.mp4,25.6,51,Human Visual + Raw Curve,Side-profile shuffle skipping @sami.jumps (1.6-21.3s); IG outro 21.6-25.6s excluded
+64,15yjnEEtEndyc4hN2K6dNC3Xsc3H8p9gJ,VID_20261125_163053_520.mp4,36.0,194,Human Visual + Raw Curve,IJRC 30s Stage Speed Sprint @D.LEE___1 (96 steps pre-trip + 98 steps post-trip = 194 steps / 97 Right-Foot Judge Score)

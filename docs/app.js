@@ -141,31 +141,51 @@
     const plotW = W - padL - padR;
     const xAt = idx => padL + (idx / Math.max(1, slice.length - 1)) * plotW;
 
+    // Compute rolling 1.5s Step/Rope Speed (SPM) across parsedRows
+    for (let i = 0; i < parsedRows.length; i++) {
+      let j0 = i;
+      while (j0 > 0 && (parsedRows[i].ts - parsedRows[j0].ts) < 1500) j0--;
+      const dtSec = (parsedRows[i].ts - parsedRows[j0].ts) / 1000;
+      const dJumps = parsedRows[i].jumps - parsedRows[j0].jumps;
+      parsedRows[i].spm = dtSec >= 0.35 && dJumps > 0 ? Math.round((dJumps / dtSec) * 60) : 0;
+    }
+
     // Band Labels
     oscCtx.font = '700 11px ui-monospace, monospace';
     oscCtx.textAlign = 'left';
     oscCtx.fillStyle = '#2ee59d';
-    oscCtx.fillText('TRACK 1: AIRBORNE PEAKS & FORM SCORE (%)', 12, 18);
+    oscCtx.fillText('TRACK 1: STEP / ROPE SPEED (SPM) & FORM SCORE (%)', 12, 18);
     oscCtx.fillStyle = '#f59e0b';
     oscCtx.fillText('TRACK 2: FOOT-TRIANGLE (ANKLE SEP & FOOT PITCH)', 12, 163);
     oscCtx.fillStyle = '#fb7185';
     oscCtx.fillText('TRACK 3: ENGINE LATENCY (µs) & HEAP (MB)', 12, 308);
 
-    // Track 1 (y: 28..136): Airborne highlight bars + Form curve + Jump markers
+    // Track 1 (y: 28..136): Airborne highlight bars + Step/Rope Speed curve + Form curve
+    const maxSpm = Math.max(220, ...slice.map(r => r.spm || 0));
     for (let i = 0; i < slice.length; i++) {
       const r = slice[i];
       const x = xAt(i);
       if (r.airborne) {
-        oscCtx.fillStyle = 'rgba(46, 229, 157, 0.16)';
+        oscCtx.fillStyle = 'rgba(46, 229, 157, 0.14)';
         oscCtx.fillRect(x - 2, 28, Math.max(4, plotW / slice.length), 108);
       }
       if (i > 0 && r.jumps > slice[i - 1].jumps) {
         oscCtx.fillStyle = '#2ee59d';
-        oscCtx.beginPath(); oscCtx.arc(x, 38, 4.5, 0, Math.PI * 2); oscCtx.fill();
+        oscCtx.beginPath(); oscCtx.arc(x, 36, 3.8, 0, Math.PI * 2); oscCtx.fill();
       }
     }
+    oscCtx.strokeStyle = '#2ee59d';
+    oscCtx.lineWidth = 2.2;
+    oscCtx.beginPath();
+    slice.forEach((r, i) => {
+      const x = xAt(i);
+      const y = 134 - (Math.min(maxSpm, Math.max(0, r.spm || 0)) / maxSpm) * 94;
+      if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
+    });
+    oscCtx.stroke();
+
     oscCtx.strokeStyle = '#38bdf8';
-    oscCtx.lineWidth = 2;
+    oscCtx.lineWidth = 1.7;
     oscCtx.beginPath();
     slice.forEach((r, i) => {
       const x = xAt(i);
@@ -216,7 +236,7 @@
       oscCtx.beginPath(); oscCtx.moveTo(x, 0); oscCtx.lineTo(x, H); oscCtx.stroke();
       oscCtx.setLineDash([]);
       hoverReadout.textContent =
-        `t=${(r.ts / 1000).toFixed(2)}s | Jumps:${r.jumps} | ${r.move} | Form:${r.form}% | CPU:${r.aiUs}µs | Heap:${r.heapMb}MB`;
+        `t=${(r.ts / 1000).toFixed(2)}s | Jumps:${r.jumps} | Speed:${r.spm || 0} SPM | ${r.move} | Form:${r.form}% | CPU:${r.aiUs}µs`;
     }
   }
 

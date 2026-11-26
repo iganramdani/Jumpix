@@ -30,7 +30,8 @@ data class FluxSample(
     val high1: Float,
     val high2: Float,
     val wideHigh: Float,
-    val bass: Float = 0f
+    val bass: Float = 0f,
+    val tonalBuzzer: Float = 0f
 ) {
     fun valueFor(band: AcousticBand): Float = when (band) {
         AcousticBand.BASS -> bass
@@ -42,14 +43,12 @@ data class FluxSample(
 }
 
 /**
- * Lightweight pure-Kotlin 256-point Radix-2 STFT Spectral Flux engine (16 kHz, 10ms hop = 100 Hz).
+ * Lightweight pure-Kotlin 256-point Radix-2 STFT Spectral Flux engine (16 kHz, 10ms/5ms hop = 100/200 Hz).
  *
- * v14 Upgrades:
- * - True Zero-GC hot path: pre-allocated FFT work buffers (`fftRe`, `fftIm`) + primitive median/MAD
- *   scratch buffers in Audio-Only Eco mode (eliminating ~30,000 boxed Floats/sec).
- * - Dedicated `BASS` (62.5–250 Hz) kick-drum band for clean music Beat-Sync separation.
- * - Anti-aliased low-pass FIR decimation & streaming PCM consumer (`StreamingSession`) so multi-hour
- *   48 kHz videos process in O(1) RAM (~16 KB) with zero high-frequency folding distortion.
+ * v16 Upgrades:
+ * - Supports High-Resolution `200 Hz` (`5ms` hop = 80 samples) offline mode for IJRC Competition Speed Wire Whips.
+ * - Extracts `tonalBuzzer` (`800–1450 Hz` narrowband tone excess) for automatic IJRU Start/Finish Horn detection.
+ * - Integrates Zero-GC `DoubleClapDetector` in live capture for hands-free Start/Pause from 5+ meters.
  */
 class StftAudioEngine(
     private val sampleRate: Int = 16_000,
@@ -61,11 +60,12 @@ class StftAudioEngine(
         (0.5 * (1.0 - cos(2.0 * PI * i / (fftSize - 1)))).toFloat()
     }
 
-    // Pre-allocated FFT buffers (Zero-GC at 100 Hz)
+    // Pre-allocated FFT buffers (Zero-GC at 100/200 Hz)
     private val fftRe = FloatArray(fftSize)
     private val fftIm = FloatArray(fftSize)
     private val prevLogMag = FloatArray(fftSize / 2 + 1)
     private var hasPrevSpectrum = false
+    private val doubleClapDetector = DoubleClapDetector()
 
     private val lock = Any()
     private val ringBuffer = ArrayDeque<FluxSample>(maxHistoryFrames + 16)
@@ -91,6 +91,7 @@ class StftAudioEngine(
             ringBuffer.clear()
             prevLogMag.fill(0f)
             hasPrevSpectrum = false
+            doubleClapDetector.reset()
             audioOnlyLastJumpMs = -10_000L
             audioOnlyPendingFirstMs = null
             audioOnlyIntervalHead = 0
@@ -108,7 +109,10 @@ class StftAudioEngine(
     }
 
     @SuppressLint("MissingPermission")
-    fun startLiveCapture(onAudioOnlyJump: ((Long) -> Unit)? = null) {
+    fun startLiveCapture(
+        onAudioOnlyJump: ((Long) -> Unit)? = null,
+        onDoubleClap: (() -> Unit)? = null
+    ) {
         if (!isRecording.compareAndSet(false, true)) return
 
         val minBuf = AudioRecord.getMinBufferSize(
@@ -156,6 +160,7 @@ class StftAudioEngine(
                     if (filled >= fftSize) {
                         val sample = processFftFrame(frameRing, nowMs)
                         var jumpTime: Long? = null
+                        var clapTriggered = false
                         synchronized(lock) {
                             ringBuffer.addLast(sample)
                             while (ringBuffer.size > maxHistoryFrames) {
@@ -164,9 +169,15 @@ class StftAudioEngine(
                             if (onAudioOnlyJump != null) {
                                 jumpTime = evaluateAudioOnlyStepLocked(sample)
                             }
+                            if (!muted && onDoubleClap != null && doubleClapDetector.processFlux(sample)) {
+                                clapTriggered = true
+                            }
                         }
                         if (jumpTime != null && onAudioOnlyJump != null) {
                             onAudioOnlyJump(jumpTime!!)
+                        }
+                        if (clapTriggered && onDoubleClap != null) {
+                            onDoubleClap()
                         }
                     }
                 }
@@ -189,42 +200,53 @@ class StftAudioEngine(
     }
 
     /**
-     * Offline batch processor for decoded mono PCM (with anti-aliased low-pass decimation when needed).
+     * Offline batch processor for decoded mono PCM (supports 100 Hz standard or 200 Hz high-res 5ms hop).
      */
-    fun processOfflinePcm(pcm: FloatArray, pcmSampleRate: Int = 16_000): List<FluxSample> {
+    fun processOfflinePcm(
+        pcm: FloatArray,
+        pcmSampleRate: Int = 16_000,
+        highRes200Hz: Boolean = false
+    ): List<FluxSample> {
         reset()
         val resampled = if (pcmSampleRate == sampleRate) {
             pcm
         } else {
             resampleAntiAliased(pcm, pcmSampleRate, sampleRate)
         }
-        val results = ArrayList<FluxSample>(max(1, resampled.size / hopSize))
+        val stepHop = if (highRes200Hz) hopSize / 2 else hopSize // 80 samples (5ms) vs 160 samples (10ms)
+        val dtMs = if (highRes200Hz) 5L else 10L
+        val results = ArrayList<FluxSample>(max(1, resampled.size / stepHop))
         val windowBuf = FloatArray(fftSize)
         var offset = 0
-        var frameIdx = 0
+        var frameIdx = 0L
         while (offset + fftSize <= resampled.size) {
             System.arraycopy(resampled, offset, windowBuf, 0, fftSize)
-            val tsMs = frameIdx * 10L
+            val tsMs = frameIdx * dtMs
             results.add(processFftFrame(windowBuf, tsMs))
-            offset += hopSize
+            offset += stepHop
             frameIdx++
         }
         return results
     }
 
     /**
-     * O(1)-memory streaming offline PCM -> 100 Hz STFT consumer for long videos (zero full-audio RAM buffer!).
+     * O(1)-memory streaming offline PCM -> 100 Hz / 200 Hz STFT consumer for long videos.
      */
-    inner class StreamingOfflineSession(inputSampleRate: Int) {
+    inner class StreamingOfflineSession(
+        inputSampleRate: Int,
+        highRes200Hz: Boolean = false
+    ) {
         private val inSr = inputSampleRate.coerceAtLeast(8_000)
         private val step = inSr.toDouble() / sampleRate.toDouble()
         private val filterRadius = max(1, (step * 0.5).toInt())
+        private val effHop = if (highRes200Hz) hopSize / 2 else hopSize
+        private val dtMs = if (highRes200Hz) 5L else 10L
         private var srcPos = 0.0
         private val ring16k = FloatArray(fftSize)
         private var ringCount = 0
         private var hopAccum = 0
         private var frameIdx = 0L
-        private val outFlux = ArrayList<FluxSample>(4096)
+        private val outFlux = ArrayList<FluxSample>(8192)
 
         init {
             reset()
@@ -240,7 +262,6 @@ class StftAudioEngine(
             }
             while (srcPos < length) {
                 val center = srcPos.toInt().coerceIn(0, length - 1)
-                // Anti-aliasing boxcar/triangular low-pass kernel across decimation span
                 var acc = 0f
                 var wSum = 0f
                 val startK = (center - filterRadius).coerceAtLeast(0)
@@ -262,7 +283,7 @@ class StftAudioEngine(
             if (ringCount < fftSize) {
                 ring16k[ringCount++] = s
                 if (ringCount == fftSize) {
-                    outFlux.add(processFftFrame(ring16k, frameIdx * 10L))
+                    outFlux.add(processFftFrame(ring16k, frameIdx * dtMs))
                     frameIdx++
                     hopAccum = 0
                 }
@@ -270,9 +291,9 @@ class StftAudioEngine(
                 System.arraycopy(ring16k, 1, ring16k, 0, fftSize - 1)
                 ring16k[fftSize - 1] = s
                 hopAccum++
-                if (hopAccum >= hopSize) {
+                if (hopAccum >= effHop) {
                     hopAccum = 0
-                    outFlux.add(processFftFrame(ring16k, frameIdx * 10L))
+                    outFlux.add(processFftFrame(ring16k, frameIdx * dtMs))
                     frameIdx++
                 }
             }
@@ -284,8 +305,8 @@ class StftAudioEngine(
     fun snapshotHistory(): List<FluxSample> = synchronized(lock) { ringBuffer.toList() }
 
     /**
-     * Pure Kotlin 256-point Radix-2 FFT computing positive log-magnitude spectral flux across 5 bands.
-     * Uses pre-allocated [fftRe] and [fftIm] for Zero-GC execution at 100 Hz.
+     * Pure Kotlin 256-point Radix-2 FFT computing positive log-magnitude spectral flux across 5 bands
+     * plus narrowband IJRU competition buzzer tone prominence (`800–1450 Hz`).
      */
     internal fun processFftFrame(samples: FloatArray, timestampMs: Long): FluxSample {
         for (i in 0 until fftSize) {
@@ -300,6 +321,8 @@ class StftAudioEngine(
         var sumHi1 = 0f; var cntHi1 = 0
         var sumHi2 = 0f; var cntHi2 = 0
         var sumWide = 0f; var cntWide = 0
+        var peakToneLinear = 0f
+        var sumBroadLinear = 0f; var cntBroadLinear = 0
 
         val half = fftSize / 2
         for (k in 1..half) {
@@ -314,8 +337,13 @@ class StftAudioEngine(
             if (freq in 2500f..4500f) { sumHi1 += diff; cntHi1++ }
             if (freq in 4500f..7000f) { sumHi2 += diff; cntHi2++ }
             if (freq in 2500f..6500f) { sumWide += diff; cntWide++ }
+            if (freq in 750f..1500f && mag > peakToneLinear) { peakToneLinear = mag }
+            if (freq in 250f..5000f) { sumBroadLinear += mag; cntBroadLinear++ }
         }
         hasPrevSpectrum = true
+
+        val broadFloor = if (cntBroadLinear > 0) sumBroadLinear / cntBroadLinear else 0f
+        val buzzerScore = if (peakToneLinear > 0.0012f) peakToneLinear / (broadFloor + 1e-4f) else 0f
 
         return FluxSample(
             timestampMs = timestampMs,
@@ -323,7 +351,8 @@ class StftAudioEngine(
             high1 = if (cntHi1 > 0) sumHi1 / cntHi1 else 0f,
             high2 = if (cntHi2 > 0) sumHi2 / cntHi2 else 0f,
             wideHigh = if (cntWide > 0) sumWide / cntWide else 0f,
-            bass = if (cntBass > 0) sumBass / cntBass else 0f
+            bass = if (cntBass > 0) sumBass / cntBass else 0f,
+            tonalBuzzer = buzzerScore
         )
     }
 

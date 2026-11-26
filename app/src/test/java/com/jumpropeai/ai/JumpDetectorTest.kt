@@ -67,6 +67,12 @@ class JumpDetectorTest {
                 t += 33L
             }
         }
+        // Trailing standing frames so the 265ms symmetric landing lookahead flushes the 10th jump
+        repeat(3) {
+            val res = detector.processFrame(createFrame(0f, t, baseShoulderY = 340f), isCountingActive = true)
+            if (res.jumpDetected) totalJumps++
+            t += 33L
+        }
 
         assertEquals(10, totalJumps)
     }

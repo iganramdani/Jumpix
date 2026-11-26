@@ -518,12 +518,12 @@ class KineticTrickCoach {
             }
 
             val audioBursts = countHighAudioBursts(audioHistory, jumpPeakTimeMs)
-            val isTripleUnder = baselineJumpCount >= 3 && (
+            val isTripleUnder = baselineJumpCount >= 3 && activeFlightMs >= 290L && (
                 (jumpAmplitude >= max(0.15f, rollingJumpAmp * 1.75f) && activeFlightMs >= 370L) ||
                     (jumpAmplitude >= max(0.13f, rollingJumpAmp * 1.55f) && audioBursts >= 3)
                 )
 
-            val isDoubleUnder = !isTripleUnder && baselineJumpCount >= 3 && (
+            val isDoubleUnder = !isTripleUnder && baselineJumpCount >= 3 && activeFlightMs >= 205L && (
                 (jumpAmplitude >= max(0.11f, rollingJumpAmp * 1.48f) && activeFlightMs >= 250L) ||
                     (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && audioBursts >= 2)
                 )
@@ -556,7 +556,7 @@ class KineticTrickCoach {
                     ((absAnkleDelta > 0.15f || abs(pitchDelta) > 0.12f) && boxerFlipConfirmCount >= 1)
                 )
 
-            val recentShuffleHold = (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
+            val recentShuffleHold = isShuffleMode && (nowMs - lastShuffleStepMs) <= 650L && pendingShuffleMove != null
             val isDoubleUnderCross = isDoubleUnder && isCrissCross
             val isToad = isCrissCross && isHighKnees
             val isEbCross = isCrissCross && lWrist != null && rWrist != null &&
@@ -581,7 +581,7 @@ class KineticTrickCoach {
                 isCrissCross -> KineticMove.CRISS_CROSS
                 isHighKnees -> KineticMove.HIGH_KNEES
                 isHeelToe -> KineticMove.HEEL_TOE
-                detectedShuffleMove != null -> detectedShuffleMove
+                isShuffleMode && detectedShuffleMove != null -> detectedShuffleMove
                 recentShuffleHold -> pendingShuffleMove!!
                 isSkiers -> KineticMove.SKIERS
                 isBoxerStep -> KineticMove.BOXER_STEP

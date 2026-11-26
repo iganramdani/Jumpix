@@ -12,6 +12,7 @@ data class HeartRateScanSnapshot(
     val signalQualityPct: Int = 0,
     val elapsedSec: Int = 0,
     val isFingerDetected: Boolean = false,
+    val latestWaveSample: Float = 0f,
     val statusMessage: String = "Place fingertip gently over rear camera lens"
 )
 
@@ -140,6 +141,7 @@ class OpticalHeartRateScanner {
             else -> "60s Recovery Complete! HRR-60 Drop: ${computeHrr60()} BPM"
         }
 
+        val normWave = (smoothSignal / (std * 2.4f)).coerceIn(-1f, 1f)
         return HeartRateScanSnapshot(
             currentBpm = latestBpm,
             peakBpm = peakBpm,
@@ -148,6 +150,7 @@ class OpticalHeartRateScanner {
             signalQualityPct = quality,
             elapsedSec = elapsedSec,
             isFingerDetected = true,
+            latestWaveSample = normWave,
             statusMessage = msg
         )
     }

@@ -2,606 +2,299 @@ package com.jumpropeai.benchmark
 
 import com.jumpropeai.ai.BodyLandmark
 import com.jumpropeai.ai.FusionEngine
+import com.jumpropeai.ai.IjrcSpeedSprintEngine
 import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.LandmarkPoint
 import com.jumpropeai.ai.PoseFrame
+import com.jumpropeai.ai.RopeAngularVelocityEngine
 import com.jumpropeai.audio.FluxSample
 import com.jumpropeai.audio.StftAudioEngine
 import com.jumpropeai.metrics.MetricsTracker
+import org.junit.Assert.assertTrue
 import org.junit.Assume
 import org.junit.Test
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.EnumMap
 import java.util.Locale
+import kotlin.math.abs
 
 /**
- * Benchmarks the ACTUAL production Kotlin engines (JumpDetector, StftAudioEngine, FusionEngine,
- * MetricsTracker) directly on all 19 real-world jump rope videos (poses + 16 kHz WAV audio).
+ * Official Jumpvex v6.1 Real-Video Benchmark Suite (64 Real Videos • 3,767 Verified Jumps/Steps).
  *
- * Automatically skipped on machines where the local scratch dataset is not present.
+ * Benchmarks the ACTUAL production Kotlin AI Engine v16 pipeline (`StftAudioEngine` 200Hz/100Hz,
+ * `JumpDetector`, `FusionEngine`, `IjrcSpeedSprintEngine`, and `RopeAngularVelocityEngine`) directly
+ * across all 63 videos in the `JumpRope Test` Google Drive benchmark folder plus the official IJRC
+ * 30s Stage Speed Sprint (`VID_20261125_163053_520.mp4`).
+ *
+ * Automatically skipped on CI runners where the local multi-GB video pose/WAV cache is absent
+ * (configurable via `JUMPVEX_BENCH64_DIR`), while `groundTruthDatasetHasAll64VerifiedRealVideos`
+ * verifies dataset integrity on every CI run.
  */
 class RealVideosBenchmarkTest {
 
-    private val scratchDir = File(
-        "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/9a6e143a-ce20-4a18-892b-302fad4c8ceb/scratch"
+    private val benchDir = File(
+        System.getenv("JUMPVEX_BENCH64_DIR")
+            ?: "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/a9acf617-00c7-452f-811e-aaad9722aa19/scratch/bench64"
     )
 
     @Test
-    fun benchmarkProductionKotlinEngineOn19RealVideos() {
-        val tracesFile = File(scratchDir, "pose_traces_all19.json")
-        val vidDir = File(scratchDir, "videos_all")
-        Assume.assumeTrue("Local 19-video dataset not present; skipping benchmark", tracesFile.exists())
+    fun groundTruthDatasetHasAll64VerifiedRealVideos() {
+        val gtCsv = listOf(
+            File("../ground_truth_all_videos.csv"),
+            File("ground_truth_all_videos.csv")
+        ).firstOrNull { it.exists() }
+        assertTrue("ground_truth_all_videos.csv must exist in repository root", gtCsv != null)
 
-        val jsonText = tracesFile.readText()
-        // Lightweight manual parsing of top-level keys using org.json? No, Android unit tests stub org.json,
-        // so let's parse the clean structured JSON with a tiny zero-dependency helper or pre-dumped TSV!
-        val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
-        Assume.assumeTrue("Run export helper first", manifestFile.exists())
+        val rows = gtCsv!!.readLines().drop(1).filter { it.isNotBlank() }
+        assertTrue("Expected exactly 64 real benchmark videos, got ${rows.size}", rows.size == 64)
 
-        var totalVideoMs = 0L
-        var totalStftNs = 0L
-        var totalVisionNs = 0L
-        var totalFusionNs = 0L
+        val totalJumps = rows.sumOf { line ->
+            val cols = parseCsvLine(line)
+            cols.getOrNull(4)?.toIntOrNull() ?: 0
+        }
+        assertTrue("Expected 3,767 total human-verified jumps/steps across 64 videos, got $totalJumps", totalJumps == 3767)
+    }
+
+    @Test
+    fun benchmarkAll64RealJumpRopeTestVideos() {
+        val manifestFile = File(benchDir, "manifest64.tsv")
+        Assume.assumeTrue("Local 64-video benchmark cache not present; skipping", manifestFile.exists())
+
+        val gtFile = listOf(
+            File("../ground_truth_all_videos.csv"),
+            File("ground_truth_all_videos.csv")
+        ).firstOrNull { it.exists() }
+        Assume.assumeTrue("ground_truth_all_videos.csv not found", gtFile != null)
+
+        val gtMap = LinkedHashMap<String, Pair<Int, String>>()
+        gtFile!!.readLines().drop(1).forEach { line ->
+            if (line.isBlank()) return@forEach
+            val cols = parseCsvLine(line)
+            if (cols.size >= 7) {
+                val fname = cols[2]
+                val gt = cols[4].toIntOrNull() ?: 0
+                val notes = cols[6]
+                gtMap[fname] = gt to notes
+            }
+        }
+
+        var totalVideos = 0
         var totalFrames = 0L
-        var totalAudioFrames = 0L
-        var totalVisionJumps = 0
-        var totalFusionJumps = 0
-        var totalPllRescues = 0
-        var totalTrips = 0
+        var totalEngineNs = 0L
+        var sumGroundTruth = 0
+        var sumDetected = 0
+        var sumAbsErr = 0
 
-        println("\n==================== PRODUCTION KOTLIN ENGINE BENCHMARK (19 REAL VIDEOS) ====================")
+        var ijrcGtSum = 0
+        var ijrcDetSum = 0
+        var ijrcAbsErr = 0
+
+        val worstOutliers = ArrayList<Triple<String, Int, Int>>()
+
+        println("\n====================== JUMPVEX AI ENGINE v16 — 64 REAL VIDEOS BENCHMARK ======================")
         println(
             String.format(
                 Locale.US,
-                "%-26s | %5s | %4s | %4s | %4s | %-10s | %-18s | %6s | %6s",
-                "Video", "Dur", "Vis", "Fus6", "PLL+", "Style", "Self-Learned", "STFTms", "Vis+Fms"
+                "%-30s | %5s | %5s | %5s | %6s | %-14s | %7s",
+                "Video File", "Dur", "Truth", "Det", "Diff", "Active Engine", "CPU us"
             )
         )
-        println("-".repeat(112))
+        println("-".repeat(98))
 
-        val lines = manifestFile.readLines().filter { it.isNotBlank() }
-        for (line in lines) {
+        for (line in manifestFile.readLines()) {
+            if (line.isBlank()) continue
             val parts = line.split("\t")
-            val fid = parts[0]
-            val title = parts[1]
+            if (parts.size < 7) continue
+            val fileName = parts[1]
             val width = parts[2].toInt()
             val height = parts[3].toInt()
             val poseFile = File(parts[4])
-            val wavFile = File(vidDir, "$fid.wav")
+            val wavFile = File(parts[5])
+            val durSec = parts[6].toDoubleOrNull() ?: 0.0
+            val (gt, notes) = gtMap[fileName] ?: continue
 
-            // 1. Benchmark StftAudioEngine (production Kotlin Radix-2 256-pt FFT)
-            val stftEngine = StftAudioEngine()
-            var audioFlux: List<FluxSample> = emptyList()
-            val tStftStart = System.nanoTime()
+            val frames = loadPoseTsv(poseFile, width, height)
+            if (frames.isEmpty()) continue
+
+            val stft = StftAudioEngine()
+            var flux200: List<FluxSample> = emptyList()
             if (wavFile.exists()) {
                 val pcm = readWav16Mono(wavFile)
                 if (pcm.size >= 1024) {
-                    audioFlux = stftEngine.processOfflinePcm(pcm, 16_000)
+                    flux200 = stft.processOfflinePcm(pcm, 16_000, highRes200Hz = true)
                 }
             }
-            val stftNs = System.nanoTime() - tStftStart
-            totalStftNs += stftNs
-            totalAudioFrames += audioFlux.size
+            val flux100 = if (flux200.isEmpty()) {
+                emptyList()
+            } else {
+                ArrayList<FluxSample>((flux200.size + 1) / 2).also { out ->
+                    for (i in flux200.indices step 2) out.add(flux200[i])
+                }
+            }
+            val hadAudio = flux100.size >= 20
 
-            // 2. Load pose frames for this video
-            val frames = loadPoseTsv(poseFile, width, height)
-            if (frames.isEmpty()) continue
-            val durMs = frames.last().timestampMs
-            totalVideoMs += durMs
-            totalFrames += frames.size
-
-            // 3. Benchmark JumpDetector + FusionEngine + MetricsTracker
+            val isRopelessFootwork = notes.contains("Ropeless", ignoreCase = true)
             val jumpDetector = JumpDetector()
             val fusionEngine = FusionEngine()
+            val trickCoach = com.jumpropeai.ai.KineticTrickCoach()
+            val ijrcEngine = IjrcSpeedSprintEngine()
             val metrics = MetricsTracker()
             metrics.start(0L)
 
-            var visStandalone = 0
-            var visNs = 0L
-            var fusNs = 0L
-            val hadAudio = audioFlux.size >= 20
-
+            var lastMoveMs = -10_000L
+            val t0Ns = System.nanoTime()
             for (fr in frames) {
-                val tv0 = System.nanoTime()
                 val det = jumpDetector.processFrame(fr, isCountingActive = true)
-                visNs += (System.nanoTime() - tv0)
-
-                if (det.jumpDetected) visStandalone++
                 val cand = det.candidate
+                var acceptedThisFrame = 0
                 if (cand != null) {
-                    val tf0 = System.nanoTime()
-                    val dec = fusionEngine.evaluateCandidate(cand, audioFlux, useAudioFusion = hadAudio)
-                    fusNs += (System.nanoTime() - tf0)
-                    repeat(dec.acceptedJumps) {
-                        metrics.recordJump(cand.landTimeMs)
-                    }
+                    val dec = fusionEngine.evaluateCandidate(cand, flux100, useAudioFusion = hadAudio)
+                    acceptedThisFrame = dec.acceptedJumps
+                }
+                val kinRes = if (isRopelessFootwork) {
+                    trickCoach.processFrame(
+                        frame = fr,
+                        isAirborne = det.isAirborne,
+                        jumpAccepted = acceptedThisFrame > 0,
+                        jumpAmplitude = cand?.amplitude ?: 0f,
+                        audioHistory = flux100,
+                        isShuffleMode = true,
+                        jumpPeakTimeMs = cand?.peakTimeMs ?: fr.timestampMs
+                    )
+                } else null
+                val totalMoves = when {
+                    acceptedThisFrame > 0 -> acceptedThisFrame
+                    isRopelessFootwork && kinRes?.shuffleStepDetected == true && (fr.timestampMs - lastMoveMs) >= 270L -> 1
+                    else -> 0
+                }
+                repeat(totalMoves) {
+                    val evMs = cand?.landTimeMs ?: fr.timestampMs
+                    metrics.recordJump(evMs)
+                    lastMoveMs = evMs
                 }
             }
-            metrics.pause(durMs)
+            val hybridCount = metrics.jumpCount
 
-            totalVisionNs += visNs
-            totalFusionNs += fusNs
-            totalVisionJumps += visStandalone
-            totalFusionJumps += metrics.jumpCount
-            totalPllRescues += fusionEngine.totalPllBridged
-            totalTrips += fusionEngine.totalTrips
-
-            val fp = fusionEngine.currentFingerprint()
-            val learnedStr = if (fp.isCalibrated) "${fp.band.label}@${fp.lagMs}ms" else if (hadAudio) "LowSNR Fallback" else "Silent"
-
-            println(
-                String.format(
-                    Locale.US,
-                    "%-26s | %4.1fs | %4d | %4d | +%3d | %-10s | %-18s | %5.1fms | %5.2fms",
-                    title.take(26),
-                    durMs / 1000.0,
-                    visStandalone,
-                    metrics.jumpCount,
-                    fusionEngine.totalPllBridged,
-                    fusionEngine.latestStyle.label,
-                    learnedStr.take(18),
-                    stftNs / 1e6,
-                    (visNs + fusNs) / 1e6
+            val ijrcSummary = if (!isRopelessFootwork) {
+                ijrcEngine.analyzeOfflineSession(
+                    poseFrames = frames,
+                    audioFlux200Hz = flux200,
+                    forceCompetitionMode = false
                 )
-            )
-        }
-
-        val totalEngineMs = (totalStftNs + totalVisionNs + totalFusionNs) / 1e6
-        val realtimeSpeedup = totalVideoMs / maxOf(totalEngineMs, 0.001)
-        val usPerAudioFrame = (totalStftNs / 1000.0) / maxOf(totalAudioFrames, 1L)
-        val usPerVideoFrame = ((totalVisionNs + totalFusionNs) / 1000.0) / maxOf(totalFrames, 1L)
-
-        println("-".repeat(112))
-        println(
-            String.format(
-                Locale.US,
-                "SUMMARY (19 videos, %.1fs total video, %d pose frames, %d STFT audio frames):",
-                totalVideoMs / 1000.0,
-                totalFrames,
-                totalAudioFrames
-            )
-        )
-        println(
-            String.format(
-                Locale.US,
-                "  Jumps: Vision-Only=%d | Kotlin Fusion v6=%d (PLL rescued=+%d, Trips=%d)",
-                totalVisionJumps,
-                totalFusionJumps,
-                totalPllRescues,
-                totalTrips
-            )
-        )
-        println(
-            String.format(
-                Locale.US,
-                "  CPU Speed: STFT=%.1f us/frame (100Hz) | Vision+Fusion=%.1f us/frame (30Hz)",
-                usPerAudioFrame,
-                usPerVideoFrame
-            )
-        )
-        println(
-            String.format(
-                Locale.US,
-                "  Total Engine Time: %.1f ms for %.1f s of video (%.0fx faster than real-time!)",
-                totalEngineMs,
-                totalVideoMs / 1000.0,
-                realtimeSpeedup
-            )
-        )
-        println("============================================================================================\n")
-    }
-
-    @Test
-    fun benchmarkLowEndSmartphoneSimulation() {
-        val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
-        val vidDir = File(scratchDir, "videos_all")
-        Assume.assumeTrue("Local 19-video dataset not present; skipping simulation", manifestFile.exists())
-
-        data class PhoneProfile(
-            val name: String,
-            val targetFps: Int,
-            val jitterPx: Float,
-            val dropRate: Float
-        )
-
-        val profiles = listOf(
-            PhoneProfile("Flagship/Mid (30 FPS, 0px jitter)", 30, 0f, 0.00f),
-            PhoneProfile("Budget Phone (15 FPS, +-3px, 5% drop)", 15, 3f, 0.05f),
-            PhoneProfile("Low-End      (10 FPS, +-6px, 10% drop)", 10, 6f, 0.10f),
-            PhoneProfile("Extreme Low  ( 8 FPS, +-8px, 15% drop)", 8, 8f, 0.15f)
-        )
-
-        val lines = manifestFile.readLines().filter { it.isNotBlank() }
-
-        // Preload audio flux & raw frames once so all 4 profiles run on identical data
-        data class VideoData(
-            val title: String,
-            val frames: List<PoseFrame>,
-            val audioFlux: List<FluxSample>
-        )
-
-        val dataset = lines.mapNotNull { line ->
-            val p = line.split("\t")
-            val fid = p[0]; val title = p[1]; val w = p[2].toInt(); val h = p[3].toInt()
-            val frames = loadPoseTsv(File(p[4]), w, h)
-            if (frames.isEmpty()) return@mapNotNull null
-            val wav = File(vidDir, "$fid.wav")
-            val flux = if (wav.exists()) {
-                val pcm = readWav16Mono(wav)
-                if (pcm.size >= 1024) StftAudioEngine().processOfflinePcm(pcm, 16_000) else emptyList()
             } else {
-                emptyList()
+                com.jumpropeai.ai.IjrcSprintSummary()
             }
-            VideoData(title, frames, flux)
+            val useIjrc = ijrcSummary.isCompetitionSprintDetected &&
+                (!jumpDetector.hadSpeedSprint || ijrcSummary.buzzerWindow.detected) &&
+                ijrcSummary.totalAlternatingSteps > hybridCount * 1.30
+
+            val finalCount = if (useIjrc) ijrcSummary.totalAlternatingSteps else hybridCount
+            val elapsedNs = System.nanoTime() - t0Ns
+
+            // Smoke-test RopeAngularVelocityEngine telemetry builder
+            val telem = RopeAngularVelocityEngine.buildTelemetrySeries(
+                durationMs = (durSec * 1000).toLong(),
+                poseFrames = frames,
+                audioFlux = flux200,
+                telemetryEvents = emptyList(),
+                ijrcSummary = if (useIjrc) ijrcSummary else null
+            )
+            assertTrue(telem.points.isNotEmpty())
+
+            totalVideos++
+            totalFrames += frames.size
+            totalEngineNs += elapsedNs
+            sumGroundTruth += gt
+            sumDetected += finalCount
+            val diff = finalCount - gt
+            sumAbsErr += abs(diff)
+
+            val isCompetitionClip = notes.contains("speed-sprint", ignoreCase = true) ||
+                notes.contains("IJRC", ignoreCase = true)
+            if (isCompetitionClip) {
+                ijrcGtSum += gt
+                ijrcDetSum += finalCount
+                ijrcAbsErr += abs(diff)
+            }
+
+            if (abs(diff) >= 12) {
+                worstOutliers.add(Triple(fileName, gt, finalCount))
+            }
+
+            val engineTag = when {
+                useIjrc -> "IJRC-v16"
+                isRopelessFootwork -> "Shuffle-v16"
+                else -> "Hybrid-v16"
+            }
+            val usPerFrame = (elapsedNs / 1000.0) / frames.size.coerceAtLeast(1)
+            println(
+                String.format(
+                    Locale.US,
+                    "%-30s | %4.1fs | %5d | %5d | %+6d | %-14s | %5.1fus",
+                    fileName, durSec, gt, finalCount, diff, engineTag, usPerFrame
+                )
+            )
         }
 
-        println("\n==================== LOW-END SMARTPHONE SIMULATION (19 REAL VIDEOS) ====================")
+        val volAccuracy = (1.0 - abs(sumDetected - sumGroundTruth).toDouble() / sumGroundTruth.coerceAtLeast(1)) * 100.0
+        val strictAccuracy = (1.0 - sumAbsErr.toDouble() / sumGroundTruth.coerceAtLeast(1)) * 100.0
+        val ijrcVolAcc = if (ijrcGtSum > 0) {
+            (1.0 - abs(ijrcDetSum - ijrcGtSum).toDouble() / ijrcGtSum) * 100.0
+        } else 100.0
+        val ijrcStrictAcc = if (ijrcGtSum > 0) {
+            (1.0 - ijrcAbsErr.toDouble() / ijrcGtSum) * 100.0
+        } else 100.0
+        val avgUsPerFrame = (totalEngineNs / 1000.0) / totalFrames.coerceAtLeast(1L)
+
+        println("-".repeat(98))
         println(
             String.format(
                 Locale.US,
-                "%-40s | %10s | %10s | %8s | %8s",
-                "Simulated Device Profile", "VisionOnly", "Fusion v6", "PLL+Resc", "Retention"
+                "ALL %d REAL VIDEOS: Detected=%d / Truth=%d | VolAcc=%.2f%% | StrictAcc=%.2f%% | CPU=%.1f us/frame",
+                totalVideos, sumDetected, sumGroundTruth, volAccuracy, strictAccuracy, avgUsPerFrame
             )
         )
-        println("-".repeat(88))
-
-        var baselineFusion = 0
-        for (prof in profiles) {
-            val minStepMs = (1000L / prof.targetFps)
-            val rng = java.util.Random(42L)
-            var sumVis = 0
-            var sumFus = 0
-            var sumPll = 0
-
-            for (vid in dataset) {
-                val jd = JumpDetector()
-                val fe = FusionEngine()
-                val hadAudio = vid.audioFlux.size >= 20
-                var lastT = -1000L
-
-                for (fr in vid.frames) {
-                    if (fr.timestampMs - lastT < minStepMs) continue
-                    lastT = fr.timestampMs
-
-                    // Simulate low-end GC frame drop / lost tracking
-                    val simulatedFrame = if (prof.dropRate > 0f && rng.nextFloat() < prof.dropRate) {
-                        fr.copy(landmarks = emptyMap())
-                    } else if (prof.jitterPx > 0f) {
-                        val noisy = fr.landmarks.mapValues { (_, pt) ->
-                            val jx = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
-                            val jy = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
-                            pt.copy(x = pt.x + jx, y = pt.y + jy)
-                        }
-                        fr.copy(landmarks = noisy)
-                    } else {
-                        fr
-                    }
-
-                    val det = jd.processFrame(simulatedFrame, isCountingActive = true)
-                    if (det.jumpDetected) sumVis++
-                    val cand = det.candidate
-                    if (cand != null) {
-                        val dec = fe.evaluateCandidate(cand, vid.audioFlux, useAudioFusion = hadAudio)
-                        sumFus += dec.acceptedJumps
-                        sumPll += dec.pllBridgedJumps
-                    }
-                }
-            }
-
-            if (baselineFusion == 0) baselineFusion = maxOf(sumFus, 1)
-            val retentionPct = (sumFus * 100.0) / baselineFusion
-
-            println(
-                String.format(
-                    Locale.US,
-                    "%-40s | %10d | %10d | +%7d | %7.1f%%",
-                    prof.name,
-                    sumVis,
-                    sumFus,
-                    sumPll,
-                    retentionPct
-                )
+        println(
+            String.format(
+                Locale.US,
+                "IJRC SPEED-SPRINT SUBSET: Detected=%d / Truth=%d | VolAcc=%.2f%% | StrictAcc=%.2f%%",
+                ijrcDetSum, ijrcGtSum, ijrcVolAcc, ijrcStrictAcc
             )
+        )
+        if (worstOutliers.isNotEmpty()) {
+            println("Outliers (|diff| >= 12): " + worstOutliers.joinToString { "${it.first}(gt=${it.second},det=${it.third})" })
         }
-        println("========================================================================================\n")
+        println("==============================================================================================\n")
+
+        assertTrue("Expected Volume Accuracy >= 98.5%, got $volAccuracy%", volAccuracy >= 98.5)
+        assertTrue("Expected Strict Accuracy >= 89.0%, got $strictAccuracy%", strictAccuracy >= 89.0)
+        assertTrue("Expected IJRC Speed-Sprint Volume Accuracy >= 96.0%, got $ijrcVolAcc%", ijrcVolAcc >= 96.0)
+        assertTrue("Expected CPU < 80 us/frame, got $avgUsPerFrame us", avgUsPerFrame < 80.0)
     }
 
-    @Test
-    fun experimentLowEndOptimization() {
-        val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
-        val vidDir = File(scratchDir, "videos_all")
-        Assume.assumeTrue("Local 19-video dataset not present", manifestFile.exists())
-
-        data class PhoneProfile(val name: String, val fps: Int, val jitterPx: Float, val dropRate: Float)
-        val profiles = listOf(
-            PhoneProfile("Flagship/Mid (30 FPS, 0px)", 30, 0f, 0.00f),
-            PhoneProfile("Budget Phone (15 FPS, +-3px, 5% drop)", 15, 3f, 0.05f),
-            PhoneProfile("Low-End      (10 FPS, +-6px, 10% drop)", 10, 6f, 0.10f),
-            PhoneProfile("Extreme Low  ( 8 FPS, +-8px, 15% drop)", 8, 8f, 0.15f)
-        )
-
-        data class VideoData(val frames: List<PoseFrame>, val audioFlux: List<FluxSample>)
-        val dataset = manifestFile.readLines().filter { it.isNotBlank() }.mapNotNull { line ->
-            val p = line.split("\t")
-            val frames = loadPoseTsv(File(p[4]), p[2].toInt(), p[3].toInt())
-            if (frames.isEmpty()) return@mapNotNull null
-            val wav = File(vidDir, "${p[0]}.wav")
-            val flux = if (wav.exists()) {
-                val pcm = readWav16Mono(wav)
-                if (pcm.size >= 1024) StftAudioEngine().processOfflinePcm(pcm, 16_000) else emptyList()
-            } else emptyList()
-            VideoData(frames, flux)
-        }
-
-        // Experimental FPS-aware detector + extended PLL audio bridging
-        fun runLowEndOpt(vid: VideoData, prof: PhoneProfile, rng: java.util.Random): Pair<Int, Int> {
-            val minStepMs = 1000L / prof.fps
-            val hadAudio = vid.audioFlux.size >= 20
-            val fe = FusionEngine()
-
-            // FPS-aware adaptive Peak-Valley detector
-            var prevFrameMs: Long? = null
-            var avgDtMs = 33f
-            var smoothedY: Float? = null
-            var smoothedScale: Float? = null
-            var warmup = 0
-            var seekingValley = false
-            var valleyY = 0f; var valleyT = 0L
-            var peakY = 0f; var peakT = 0L
-            var lastJumpT: Long? = null
-
-            var totalJumps = 0
-            var totalPll = 0
-            var lastSampledT = -1000L
-
-            for (fr in vid.frames) {
-                if (fr.timestampMs - lastSampledT < minStepMs) continue
-                lastSampledT = fr.timestampMs
-
-                val sim = if (prof.dropRate > 0f && rng.nextFloat() < prof.dropRate) {
-                    fr.copy(landmarks = emptyMap())
-                } else if (prof.jitterPx > 0f) {
-                    fr.copy(landmarks = fr.landmarks.mapValues { (_, pt) ->
-                        pt.copy(
-                            x = pt.x + (rng.nextFloat() * 2f - 1f) * prof.jitterPx,
-                            y = pt.y + (rng.nextFloat() * 2f - 1f) * prof.jitterPx
-                        )
-                    })
-                } else fr
-
-                val nowMs = sim.timestampMs
-                prevFrameMs?.let { pMs ->
-                    val d = (nowMs - pMs).coerceIn(16L, 300L).toFloat()
-                    avgDtMs = avgDtMs * 0.85f + d * 0.15f
+    private fun parseCsvLine(line: String): List<String> {
+        val out = ArrayList<String>(8)
+        val sb = StringBuilder()
+        var inQuotes = false
+        for (ch in line) {
+            when {
+                ch == '"' -> inQuotes = !inQuotes
+                ch == ',' && !inQuotes -> {
+                    out.add(sb.toString())
+                    sb.setLength(0)
                 }
-                prevFrameMs = nowMs
-
-                if (sim.landmarks.isEmpty()) continue
-                val nose = sim.landmarks[BodyLandmark.NOSE]?.takeIf { it.confidence >= 0.4f }
-                val ls = sim.landmarks[BodyLandmark.LEFT_SHOULDER]?.takeIf { it.confidence >= 0.4f }
-                val rs = sim.landmarks[BodyLandmark.RIGHT_SHOULDER]?.takeIf { it.confidence >= 0.4f }
-                val lh = sim.landmarks[BodyLandmark.LEFT_HIP]?.takeIf { it.confidence >= 0.4f }
-                val rh = sim.landmarks[BodyLandmark.RIGHT_HIP]?.takeIf { it.confidence >= 0.4f }
-                val shY = when {
-                    ls != null && rs != null -> (ls.y + rs.y) * 0.5f
-                    ls != null -> ls.y
-                    rs != null -> rs.y
-                    else -> continue
-                }
-                val hipY = when {
-                    lh != null && rh != null -> (lh.y + rh.y) * 0.5f
-                    lh != null -> lh.y
-                    rh != null -> rh.y
-                    else -> null
-                }
-                val rawY = when {
-                    nose != null && hipY != null -> 0.25f * nose.y + 0.50f * shY + 0.25f * hipY
-                    hipY != null -> 0.60f * shY + 0.40f * hipY
-                    else -> shY
-                }
-                val rawScale = if (hipY != null && kotlin.math.abs(hipY - shY) > 10f) {
-                    kotlin.math.abs(hipY - shY)
-                } else 100f
-
-                // KEY UPGRADE 1: FPS-Aware Adaptive Smoothing (keep minProm=0.045f to reject jitter!)
-                val lowFpsFactor = ((avgDtMs - 40f) / 60f).coerceIn(0f, 1f)
-                val alpha = 0.55f + 0.33f * lowFpsFactor
-                val minProm = 0.045f
-                val dropFrac = 0.40f - 0.08f * lowFpsFactor
-
-                val curY = smoothedY?.let { it + alpha * (rawY - it) } ?: rawY
-                smoothedY = curY
-                val curScale = smoothedScale?.let { it + 0.10f * (rawScale - it) } ?: rawScale
-                smoothedScale = curScale
-
-                if (warmup < 3) {
-                    warmup++; valleyY = curY; valleyT = nowMs; peakY = curY; peakT = nowMs; continue
-                }
-
-                if (!seekingValley) {
-                    if (curY >= valleyY || (nowMs - valleyT) > 580L) {
-                        valleyY = curY; valleyT = nowMs
-                    }
-                    val rise = (valleyY - curY) / curScale
-                    if (rise >= minProm) {
-                        seekingValley = true; peakY = curY; peakT = nowMs
-                    }
-                } else {
-                    if (curY <= peakY) {
-                        peakY = curY; peakT = nowMs
-                    }
-                    val drop = (curY - peakY) / curScale
-                    val amp = (valleyY - peakY) / curScale
-                    val riseMs = peakT - valleyT
-                    val dropMs = nowMs - peakT
-                    if (dropMs > 480L) {
-                        seekingValley = false; valleyY = curY; valleyT = nowMs
-                    } else if (drop >= kotlin.math.max(minProm * 0.6f, amp * dropFrac)) {
-                        val sinceLast = lastJumpT?.let { nowMs - it } ?: Long.MAX_VALUE
-                        if (riseMs in 40L..580L && amp <= 1.05f && sinceLast >= 200L) {
-                            val cand = com.jumpropeai.ai.JumpCandidate(peakT, nowMs, amp, 0f)
-                            val dec = fe.evaluateCandidate(cand, vid.audioFlux, useAudioFusion = hadAudio)
-                            totalJumps += dec.acceptedJumps
-                            totalPll += dec.pllBridgedJumps
-                            lastJumpT = nowMs
-                        }
-                        seekingValley = false; valleyY = curY; valleyT = nowMs
-                    }
-                }
-            }
-            return totalJumps to totalPll
-        }
-
-        println("\n================ EXPERIMENT: LOW-END OPTIMIZATION (BEFORE vs AFTER) ================")
-        println(String.format(Locale.US, "%-38s | %10s | %10s | %8s", "Simulated Device Profile", "Before", "After Opt", "Retention"))
-        println("-".repeat(78))
-
-        val beforeCounts = listOf(763, 671, 569, 465)
-        var baseAfter = 0
-        profiles.forEachIndexed { idx, prof ->
-            val rng = java.util.Random(42L)
-            var sumJ = 0
-            var sumPll = 0
-            for (vid in dataset) {
-                val (j, p) = runLowEndOpt(vid, prof, rng)
-                sumJ += j; sumPll += p
-            }
-            if (idx == 0) baseAfter = maxOf(sumJ, 1)
-            val ret = sumJ * 100.0 / baseAfter
-            println(
-                String.format(
-                    Locale.US,
-                    "%-38s | %10d | %10d | %7.1f%% (PLL+%d)",
-                    prof.name, beforeCounts[idx], sumJ, ret, sumPll
-                )
-            )
-        }
-        println("====================================================================================\n")
-    }
-
-    @Test
-    fun verify4SmartphonesGroundTruth95Percent() {
-        val manifestFile = File(scratchDir, "kotlin_bench_manifest.txt")
-        val vidDir = File(scratchDir, "videos_all")
-        val gtCsv = File("/home/antigravity/JumpRopeAI/ground_truth_all_videos.csv")
-        Assume.assumeTrue("Local dataset not present", manifestFile.exists() && gtCsv.exists())
-
-        // Load ALL 46 verified Ground-Truth videos from ground_truth_all_videos.csv
-        val groundTruth = linkedMapOf<String, Pair<String, Int>>()
-        gtCsv.readLines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-            // CSV columns: no,drive_id,filename,duration_s,ground_truth_jumps,method,notes
-            val cols = line.split(",", limit = 7)
-            if (cols.size >= 5) {
-                val fid = cols[1].trim()
-                val title = cols[2].trim()
-                val man = cols[4].trim().toIntOrNull() ?: return@forEach
-                groundTruth[fid] = title to man
+                else -> sb.append(ch)
             }
         }
-
-        data class PhoneProfile(val name: String, val fps: Int, val jitterPx: Float, val dropRate: Float)
-        val profiles = listOf(
-            PhoneProfile("1. Flagship (30 FPS, 0px, 0% drop)", 30, 0f, 0.00f),
-            PhoneProfile("2. Mid-Range(20 FPS, 2px, 2% drop)", 20, 2f, 0.02f),
-            PhoneProfile("3. Budget   (15 FPS, 4px, 5% drop)", 15, 4f, 0.05f),
-            PhoneProfile("4. Low-End  (10 FPS, 6px, 10% drop)", 10, 6f, 0.10f)
-        )
-
-        data class VideoData(val fid: String, val title: String, val frames: List<PoseFrame>, val audioFlux: List<FluxSample>)
-        val dataset = manifestFile.readLines().filter { it.isNotBlank() }.mapNotNull { line ->
-            val p = line.split("\t")
-            val frames = loadPoseTsv(File(p[4]), p[2].toInt(), p[3].toInt())
-            if (frames.isEmpty()) return@mapNotNull null
-            val wav = File(vidDir, "${p[0]}.wav")
-            val flux = if (wav.exists()) {
-                val pcm = readWav16Mono(wav)
-                if (pcm.size >= 1024) StftAudioEngine().processOfflinePcm(pcm, 16_000) else emptyList()
-            } else emptyList()
-            VideoData(p[0], p[1], frames, flux)
-        }
-
-        println("\n==================== 4-SMARTPHONE 46-VIDEO GROUND-TRUTH BENCHMARK ====================")
-        val perPhonePerVideo = mutableMapOf<String, MutableMap<String, Int>>()
-        var all46Baseline = 0
-
-        for (prof in profiles) {
-            val stepMs = 1000.0 / prof.fps
-            val rng = java.util.Random(42L)
-            val mapForPhone = mutableMapOf<String, Int>()
-            var sumAll46 = 0
-            var gtManualTotal = 0
-            var gtAppTotal = 0
-            var gtAbsErrTotal = 0
-
-            for (vid in dataset) {
-                val jd = JumpDetector()
-                val fe = FusionEngine()
-                val hadAudio = vid.audioFlux.size >= 20
-                var nextT = 0.0
-                var count = 0
-
-                for (fr in vid.frames) {
-                    if (fr.timestampMs + 4 < nextT) continue
-                    nextT = fr.timestampMs + stepMs
-                    val sim = if (prof.dropRate > 0f && rng.nextFloat() < prof.dropRate) {
-                        fr.copy(landmarks = emptyMap())
-                    } else if (prof.jitterPx > 0f) {
-                        val noisy = fr.landmarks.mapValues { (_, pt) ->
-                            val jx = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
-                            val jy = (rng.nextFloat() * 2f - 1f) * prof.jitterPx
-                            pt.copy(x = pt.x + jx, y = pt.y + jy)
-                        }
-                        fr.copy(landmarks = noisy)
-                    } else fr
-
-                    val det = jd.processFrame(sim, isCountingActive = true)
-                    val cand = det.candidate
-                    if (cand != null) {
-                        val dec = fe.evaluateCandidate(cand, vid.audioFlux, useAudioFusion = hadAudio)
-                        count += dec.acceptedJumps
-                    }
-                }
-                sumAll46 += count
-                groundTruth[vid.fid]?.let { (_, man) ->
-                    mapForPhone[vid.fid] = count
-                    gtManualTotal += man
-                    gtAppTotal += count
-                    gtAbsErrTotal += kotlin.math.abs(count - man)
-                }
-            }
-
-            if (all46Baseline == 0) all46Baseline = maxOf(sumAll46, 1)
-            val strictAcc = (1.0 - gtAbsErrTotal.toDouble() / maxOf(gtManualTotal, 1)) * 100.0
-            val volAcc = (1.0 - kotlin.math.abs(gtAppTotal - gtManualTotal).toDouble() / maxOf(gtManualTotal, 1)) * 100.0
-            val all46Ret = (sumAll46 * 100.0) / all46Baseline
-            perPhonePerVideo[prof.name] = mapForPhone
-            println(
-                String.format(
-                    Locale.US,
-                    "%-36s | GT=%4d/%4d | AbsErr=%3d | StrictAcc=%5.2f%% | VolAcc=%5.2f%% | Ret=%5.1f%%",
-                    prof.name, gtAppTotal, gtManualTotal, gtAbsErrTotal, strictAcc, volAcc, all46Ret
-                )
-            )
-        }
-
-        println("\n--- Per-Video Breakdown (All 46 Ground-Truth Videos) ---")
-        println(String.format(Locale.US, "%-28s | %4s | %4s | %4s | %4s | %4s", "Video", "Man", "30f", "20f", "15f", "10f"))
-        for ((fid, pair) in groundTruth) {
-            val (title, man) = pair
-            val c1 = perPhonePerVideo[profiles[0].name]?.get(fid) ?: -1
-            val c2 = perPhonePerVideo[profiles[1].name]?.get(fid) ?: -1
-            val c3 = perPhonePerVideo[profiles[2].name]?.get(fid) ?: -1
-            val c4 = perPhonePerVideo[profiles[3].name]?.get(fid) ?: -1
-            println(String.format(Locale.US, "%-28s | %4d | %4d | %4d | %4d | %4d", title.take(28), man, c1, c2, c3, c4))
-        }
-        println("========================================================================================\n")
+        out.add(sb.toString())
+        return out
     }
 
     private fun readWav16Mono(file: File): FloatArray {
         val bytes = file.readBytes()
         if (bytes.size <= 44) return FloatArray(0)
-        // Standard 44-byte PCM WAV header from ffmpeg
         val dataBytes = bytes.size - 44
         val nSamples = dataBytes / 2
         val bb = ByteBuffer.wrap(bytes, 44, nSamples * 2).order(ByteOrder.LITTLE_ENDIAN)
@@ -613,19 +306,22 @@ class RealVideosBenchmarkTest {
     }
 
     private fun loadPoseTsv(file: File, w: Int, h: Int): List<PoseFrame> {
-        val list = ArrayList<PoseFrame>()
+        val list = ArrayList<PoseFrame>(1024)
         file.forEachLine { line ->
             if (line.isBlank()) return@forEachLine
             val cols = line.split("\t")
-            val t = cols[0].toLong()
-            val map = mutableMapOf<BodyLandmark, LandmarkPoint>()
+            val t = cols[0].toLongOrNull() ?: return@forEachLine
+            val map = EnumMap<BodyLandmark, LandmarkPoint>(BodyLandmark::class.java)
             for (i in 1 until cols.size) {
-                val kv = cols[i].split(":")
+                val col = cols[i]
+                if (col.startsWith("OPT:")) continue
+                val kv = col.split(":")
                 if (kv.size != 2) continue
                 val lm = runCatching { BodyLandmark.valueOf(kv[0]) }.getOrNull() ?: continue
                 val xyz = kv[1].split(",")
-                if (xyz.size == 3) {
-                    map[lm] = LandmarkPoint(xyz[0].toFloat(), xyz[1].toFloat(), xyz[2].toFloat())
+                if (xyz.size >= 3) {
+                    val zVal = if (xyz.size >= 4) xyz[3].toFloat() else 0f
+                    map[lm] = LandmarkPoint(xyz[0].toFloat(), xyz[1].toFloat(), xyz[2].toFloat(), zVal)
                 }
             }
             list.add(PoseFrame(map, t, w, h, isMirrored = false))

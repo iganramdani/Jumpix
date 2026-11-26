@@ -14,7 +14,7 @@
       <a class="brand" href="#top">
         <img src="assets/jumpvex_logo.svg" alt="Jumpvex JV Logo" />
         <span>JUMPVEX</span>
-        <span class="ver mono" id="navVersion">v4.0.1</span>
+        <span class="ver mono" id="navVersion">v6.1.0</span>
       </a>
       <div class="nav-links">
         <a href="#telemetry-lab">🔬 CSV Telemetry Lab</a>
@@ -32,11 +32,11 @@
     <!-- Hero -->
     <section class="hero">
       <div>
-        <div class="pill mono"><span class="dot"></span> 100% PHONE-ONLY • ZERO WATCH • ZERO CLOUD</div>
+        <div class="pill mono"><span class="dot"></span> 100% PHONE-ONLY • AI ENGINE v16 IJRC PRO</div>
         <h1>99% Accuracy &amp;<br /><span>99% Lightweight</span> AI Engine</h1>
         <p>
-          Open-source Android jump rope, freestyle trick, and Melbourne Shuffle counter powered by
-          <strong>2D/3D Heel-to-Toe Foot-Triangle Vision + 100 Hz 5-Band STFT Audio Fusion</strong>.
+          Open-source Android IJRC competition speed-sprint, freestyle trick, and Melbourne Shuffle engine powered by
+          <strong>2D/3D Heel-to-Toe Vision + 200 Hz 5-Band Bare-Wire STFT Audio Fusion</strong>.
           Inspect real session CSV logs right here in your browser — 100% client-side, zero uploads.
         </p>
         <div class="hero-actions">
@@ -48,14 +48,14 @@
 
       <div class="stat-grid">
         <div class="stat-card">
-          <div class="k mono">4-Phone Avg Accuracy</div>
-          <div class="v">98.86%</div>
-          <div class="s">46 videos • 2,212 jumps</div>
+          <div class="k mono">64-Video Benchmark</div>
+          <div class="v">99.42%</div>
+          <div class="s">64 real videos • 3,767 jumps</div>
         </div>
         <div class="stat-card">
-          <div class="k mono">Redmi Note 9 CPU</div>
-          <div class="v cyan">64 µs</div>
-          <div class="s">0.19% of 30 FPS frame</div>
+          <div class="k mono">Engine CPU Latency</div>
+          <div class="v cyan">18.5 µs</div>
+          <div class="s">64 µs on Redmi Note 9</div>
         </div>
         <div class="stat-card">
           <div class="k mono">JVM Heap Memory</div>
@@ -74,10 +74,10 @@
     <section class="section" id="telemetry-lab">
       <div class="section-head">
         <div>
-          <h2>🔬 Browser CSV Telemetry Oscilloscope</h2>
+          <h2>🔬 Browser CSV Telemetry &amp; Step/Rope Velocity Oscilloscope</h2>
           <p>
-            Drop any diagnostic CSV from <code>Documents/Jumpvex/DebugLogs/</code> to inspect jump peaks,
-            trick transitions, Foot-Triangle pitch/separation, CPU latency (<code>µs</code>), and JVM heap —
+            Drop any diagnostic CSV from <code>Documents/Jumpvex/DebugLogs/</code> to inspect live Step/Rope Speed (SPM/RPM),
+            jump peaks, Foot-Triangle pitch/separation, CPU latency (<code>µs</code>), and JVM heap —
             computed 100% locally in your browser.
           </p>
         </div>
@@ -87,7 +87,7 @@
       <div class="dropzone" id="dropzone">
         <div style="font-weight:700; font-size:1rem;">Drop a Jumpvex <code>.csv</code> log here</div>
         <div style="color:var(--muted); font-size:0.86rem; margin-top:4px;">
-          Supports full 21-column AI Engine v13/v14 diagnostic logs • Nothing is uploaded to any server
+          Supports full 21-column AI Engine v14–v16 diagnostic logs • Nothing is uploaded to any server
         </div>
         <div class="dropzone-actions">
           <label class="btn btn-primary btn-sm" for="csvFileInput">📂 Choose Local CSV File</label>
@@ -104,7 +104,7 @@
 
       <div class="osc-controls">
         <div class="legend mono">
-          <span><i class="swatch" style="background:#2ee59d"></i> Jumps &amp; Airborne Peaks</span>
+          <span><i class="swatch" style="background:#2ee59d"></i> Step / Rope Speed (SPM) &amp; Peaks</span>
           <span><i class="swatch" style="background:#38bdf8"></i> Form Score (0–100%)</span>
           <span><i class="swatch" style="background:#f59e0b"></i> Foot-Triangle Separation &amp; Pitch</span>
           <span><i class="swatch" style="background:#fb7185"></i> AI CPU Latency (µs)</span>
@@ -123,7 +123,7 @@
         <div>
           <h2>🦴 Interactive Trick Kinematics &amp; <code>±110 ms</code> Peak-Aligned Sandbox</h2>
           <p>
-            Explore how AI Engine v14 captures fast tricks right at mid-air apex (<code>t = 0 ms</code>)
+            Explore how AI Engine v16 captures fast tricks right at mid-air apex (<code>t = 0 ms</code>)
             instead of missing them after landing (<code>+250 ms</code>). Scrub the timeline or hit Play!
           </p>
         </div>
@@ -194,7 +194,7 @@
           </div>
           <div class="control-group">
             <label><span>Average Cadence</span><strong class="mono" id="rpmVal">145 RPM</strong></label>
-            <input type="range" id="rpmSlider" min="80" max="240" step="5" value="145" />
+            <input type="range" id="rpmSlider" min="80" max="420" step="5" value="145" />
           </div>
           <div class="control-group">
             <label><span>Workout Duration</span><strong class="mono" id="durVal">15 min</strong></label>
@@ -229,7 +229,7 @@
           <div class="release-box" id="releaseBox">
             <div>
               <div class="mono" style="font-size:0.76rem; color:var(--mint);">LATEST GITHUB RELEASE</div>
-              <div id="releaseTitle" style="font-weight:800; font-size:1.05rem;">Jumpvex v4.0.1 (46 MB)</div>
+              <div id="releaseTitle" style="font-weight:800; font-size:1.05rem;">Jumpvex v6.1.0 (46 MB)</div>
               <div id="releaseMeta" style="font-size:0.82rem; color:var(--muted);">Android 7.0+ • 100% On-Device • Free GPLv3</div>
             </div>
             <a class="btn btn-primary btn-sm" id="releaseApkBtn" href="https://github.com/iganramdani/Jumpvex/releases/latest" target="_blank" rel="noopener">

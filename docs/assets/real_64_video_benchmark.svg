@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 400" width="1120" height="400" role="img" aria-label="Jumpvex 64-Real-Video Ground-Truth Benchmark &amp; IJRC Speed Telemetry">
+  <defs>
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A101D"/>
+      <stop offset="100%" stop-color="#111B2E"/>
+    </linearGradient>
+    <linearGradient id="barMint" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2EE59D"/>
+      <stop offset="100%" stop-color="#38BDF8"/>
+    </linearGradient>
+    <style>
+      .h1 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 800; }
+      .sub { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-weight: 500; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-weight: 700; }
+    </style>
+  </defs>
+
+  <rect width="1120" height="400" rx="20" fill="url(#cardBg)" stroke="#1E293B" stroke-width="1.5"/>
+
+  <!-- Left Panel: 64-Real-Video Ground-Truth Benchmark (Zero Synthetic Smartphone Tiers!) -->
+  <text x="34" y="42" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.8">OFFICIAL REAL-VIDEO BENCHMARK • 64 VIDEOS • 3,767 VERIFIED JUMPS/STEPS</text>
+  <text x="34" y="70" fill="#F8FAFC" font-size="22" class="h1">AI Engine v16 Real-World Benchmark Suite</text>
+
+  <!-- Row 1: All 64 Real Videos -->
+  <g transform="translate(34, 102)">
+    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">All 64 Real Videos (JumpRope Test + IJRC Stage)</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.42%</text>
+    <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
+    <rect x="0" y="25" width="485" height="14" rx="7" fill="url(#barMint)"/>
+  </g>
+
+  <!-- Row 2: Freestyle, Boxing & Double-Under Subset -->
+  <g transform="translate(34, 162)">
+    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">Freestyle, Boxing &amp; Double-Under Subset (55 Videos)</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.48%</text>
+    <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
+    <rect x="0" y="25" width="485" height="14" rx="7" fill="url(#barMint)"/>
+  </g>
+
+  <!-- Row 3: Official IJRC 30s Speed-Sprint Subset -->
+  <g transform="translate(34, 222)">
+    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">IJRC 30s Speed-Sprint Subset (270–430 SPM • Buzzer + Side/Front)</text>
+    <text x="488" y="16" fill="#38BDF8" font-size="14" class="mono" text-anchor="end">97.50%</text>
+    <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
+    <rect x="0" y="25" width="476" height="14" rx="7" fill="#38BDF8"/>
+  </g>
+
+  <!-- Row 4: Ropeless Shuffle & Agility Footwork Subset -->
+  <g transform="translate(34, 282)">
+    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">Ropeless Shuffle &amp; Boxing Footwork Drills (5 Videos)</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">96.67%</text>
+    <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
+    <rect x="0" y="25" width="472" height="14" rx="7" fill="url(#barMint)"/>
+  </g>
+
+  <text x="34" y="358" fill="#94A3B8" font-size="12" class="mono">
+    Total Detected: 3,745 / 3,767 Truth • Strict Per-Video Acc: 90.50% (IJRC Strict: 93.43%)
+  </text>
+
+  <!-- Divider -->
+  <line x1="560" y1="34" x2="560" y2="366" stroke="#1E293B" stroke-width="1.5"/>
+
+  <!-- Right Panel: IJRC Step vs Rope Velocity & Zero-GC Frame Budget -->
+  <text x="594" y="42" fill="#38BDF8" font-size="12" class="mono" letter-spacing="0.8">ZERO-GC SILICON EFFICIENCY &amp; IJRC 200 Hz TELEMETRY</text>
+  <text x="594" y="70" fill="#F8FAFC" font-size="22" class="h1">18.5 µs Engine CPU &amp; Dual-Velocity Curve</text>
+
+  <!-- Mini Step Speed vs Rope Speed Chart -->
+  <g transform="translate(594, 92)">
+    <rect width="492" height="132" rx="14" fill="#080D18" stroke="#1E293B"/>
+    <text x="14" y="22" fill="#2EE59D" font-size="10.5" class="mono">● STEP SPEED (SPS/SPM)</text>
+    <text x="188" y="22" fill="#38BDF8" font-size="10.5" class="mono">● ROPE ROTATION (RPS/RPM)</text>
+    <text x="372" y="22" fill="#FB7185" font-size="10.5" class="mono">■ TRIP @ 14.9s</text>
+
+    <!-- Trip highlight zone -->
+    <rect x="232" y="32" width="24" height="86" fill="#FB7185" fill-opacity="0.22"/>
+    <!-- Step Speed Curve -->
+    <polyline fill="none" stroke="#2EE59D" stroke-width="2.5" stroke-linecap="round"
+      points="16,105 42,48 80,45 125,46 175,49 225,50 244,108 264,54 315,52 370,54 425,53 472,55"/>
+    <!-- Rope Rotation Speed Curve -->
+    <polyline fill="none" stroke="#38BDF8" stroke-width="2" stroke-dasharray="5 3" stroke-linecap="round"
+      points="16,108 42,46 80,43 125,45 175,47 225,49 244,112 264,51 315,50 370,52 425,51 472,54"/>
+    <text x="16" y="124" fill="#64748B" font-size="10" class="mono">0.3s Start Buzzer • 97 Right-Foot Score (194 Steps) • 30.3s Finish Horn</text>
+  </g>
+
+  <!-- Metric Cards -->
+  <g transform="translate(594, 240)">
+    <rect x="0" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#2EE59D" stroke-opacity="0.4"/>
+    <text x="14" y="26" fill="#94A3B8" font-size="10.5" class="mono">BENCHMARK CPU</text>
+    <text x="14" y="56" fill="#2EE59D" font-size="24" class="h1">18.5 µs</text>
+    <text x="14" y="73" fill="#64748B" font-size="10" class="mono">0.06% of 30 FPS</text>
+
+    <rect x="169" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#38BDF8" stroke-opacity="0.4"/>
+    <text x="183" y="26" fill="#94A3B8" font-size="10.5" class="mono">REDMI NOTE 9</text>
+    <text x="183" y="56" fill="#38BDF8" font-size="24" class="h1">64 µs</text>
+    <text x="183" y="73" fill="#64748B" font-size="10" class="mono">26 MB JVM Heap</text>
+
+    <rect x="338" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#2EE59D" stroke-opacity="0.4"/>
+    <text x="352" y="26" fill="#94A3B8" font-size="10.5" class="mono">RELEASE APK</text>
+    <text x="352" y="56" fill="#F8FAFC" font-size="24" class="h1">46 MB</text>
+    <text x="352" y="73" fill="#2EE59D" font-size="10" class="mono">Zero Watch / Cloud</text>
+  </g>
+
+  <text x="594" y="358" fill="#94A3B8" font-size="12" class="mono">
+    200 Hz Bare-Wire STFT + AC Leg-Drive Oscillator + Synced 0.2x Slow-Mo Charts
+  </text>
+</svg>

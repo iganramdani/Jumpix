@@ -51,29 +51,29 @@
   </g>
 
   <g transform="translate(335, 50)">
-    <rect width="340" height="30" rx="15" fill="#0D1321"/>
+    <rect width="352" height="30" rx="15" fill="#0D1321"/>
     <circle cx="18" cy="15" r="4.5" fill="#2EE59D" class="dot-live"/>
-    <text x="32" y="19.5" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.6">AI ENGINE v15 OMNI-SENSOR • 100% PHONE-ONLY</text>
+    <text x="32" y="19.5" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.6">AI ENGINE v16 IJRC PRO • 100% PHONE-ONLY</text>
   </g>
 
   <text x="335" y="138" fill="#0D1321" font-size="60" class="title" letter-spacing="-1.2">JUMPVEX</text>
-  <text x="646" y="138" fill="#059669" font-size="22" class="mono">v6.0.0</text>
+  <text x="646" y="138" fill="#059669" font-size="22" class="mono">v6.1.0</text>
 
   <text x="335" y="175" fill="#1E293B" font-size="20" class="body" font-weight="600">
     99% Accuracy &amp; 99% Lightweight — On-Device AI Jump Rope &amp; Shuffle Engine
   </text>
   <text x="335" y="203" fill="#475569" font-size="14.5" class="body">
-    Zero Smartwatch • Zero Smart Rope • Zero Cloud • Built-In Live Animated Video HUD &amp; Touchless Control
+    Zero Smartwatch • IJRC 200 Hz Speed Engine • Synced Slow-Mo Velocity Charts &amp; Camera rPPG HR
   </text>
 
   <g transform="translate(335, 232)">
     <rect x="0" y="0" width="150" height="72" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
-    <text x="16" y="26" fill="#64748B" font-size="11" class="mono">4-PHONE ACCURACY</text>
-    <text x="16" y="54" fill="#059669" font-size="24" class="title">98.86%</text>
+    <text x="16" y="26" fill="#64748B" font-size="11" class="mono">64-VIDEO BENCH</text>
+    <text x="16" y="54" fill="#059669" font-size="24" class="title">99.42%</text>
 
     <rect x="164" y="0" width="150" height="72" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
     <text x="180" y="26" fill="#64748B" font-size="11" class="mono">ENGINE LATENCY</text>
-    <text x="180" y="54" fill="#0284C7" font-size="24" class="title">64 µs</text>
+    <text x="180" y="54" fill="#0284C7" font-size="24" class="title">18.5 µs</text>
 
     <rect x="328" y="0" width="142" height="72" rx="12" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1.2"/>
     <text x="344" y="26" fill="#64748B" font-size="11" class="mono">JVM HEAP RAM</text>
@@ -86,7 +86,7 @@
 
   <g transform="translate(995, 58)">
     <rect width="166" height="246" rx="16" fill="#0D1321"/>
-    <text x="16" y="28" fill="#2EE59D" font-size="11" class="mono">100 Hz 5-BAND STFT</text>
+    <text x="16" y="28" fill="#2EE59D" font-size="11" class="mono">200 Hz 5-BAND STFT</text>
     <text x="16" y="45" fill="#94A3B8" font-size="10" class="mono">ZERO-GC AUDIO PLL</text>
 
     <g transform="translate(22, 68)">

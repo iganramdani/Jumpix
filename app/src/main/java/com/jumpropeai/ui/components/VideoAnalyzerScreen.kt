@@ -68,19 +68,25 @@ import com.jumpropeai.ui.theme.MidnightElevated
 import com.jumpropeai.ui.theme.MidnightSurface
 import com.jumpropeai.ui.theme.TextPrimary
 import com.jumpropeai.ui.theme.TextSecondary
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.setValue
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
+import com.jumpropeai.video.VideoStudioMode
 import java.util.Locale
 
 /**
- * Modern Two-Tone Video Studio tab (Deep Midnight + Ice Mint) with Shuffle toggle,
- * BPM & Beat-Sync telemetry, and Live Animated HUD export.
+ * Modern Two-Tone Video Studio tab (Deep Midnight + Ice Mint) with 4-Mode AI Selector
+ * (Auto Hybrid, IJRC Competition Speed, Freestyle Tricks, Shuffle & Footwork),
+ * Frame-Accurate Slow-Mo Video Scrubber, and Interactive Step-Speed vs Rope-Speed Charts.
  */
 @Composable
 fun VideoAnalyzerScreen(
     isAnalyzing: Boolean,
     isShuffleMode: Boolean,
     onToggleShuffleMode: () -> Unit,
+    studioMode: VideoStudioMode = if (isShuffleMode) VideoStudioMode.SHUFFLE_FOOTWORK else VideoStudioMode.AUTO_HYBRID,
+    onSelectStudioMode: (VideoStudioMode) -> Unit = { _ -> onToggleShuffleMode() },
     progress: VideoAnalysisProgress?,
     result: VideoAnalysisResult?,
     errorMessage: String?,
@@ -93,6 +99,7 @@ fun VideoAnalyzerScreen(
     batchResults: List<VideoAnalysisResult> = emptyList(),
     modifier: Modifier = Modifier
 ) {
+    var scrubTimeMs by remember(result) { mutableLongStateOf(0L) }
     val activeBitmap = when {
         isAnalyzing -> progress?.previewBitmap
         result != null -> result.finalPreviewBitmap
@@ -173,64 +180,68 @@ fun VideoAnalyzerScreen(
 
         Spacer(Modifier.height(10.dp))
 
-        // Mode Toggle Strip: Jump Rope vs Shuffle & Footwork
+        // 4-Mode AI Engine Selector Strip: Auto Hybrid • IJRC Speed • Freestyle • Shuffle
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Surface(
-                onClick = { if (!isAnalyzing && isShuffleMode) onToggleShuffleMode() },
-                shape = CircleShape,
-                color = if (!isShuffleMode) IceMint else MidnightSurface,
-                border = BorderStroke(1.dp, if (!isShuffleMode) IceMint else MidnightBorder),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "Jump Rope AI",
-                    color = if (!isShuffleMode) DeepMidnight else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-            Surface(
-                onClick = { if (!isAnalyzing && !isShuffleMode) onToggleShuffleMode() },
-                shape = CircleShape,
-                color = if (isShuffleMode) IceMint else MidnightSurface,
-                border = BorderStroke(1.dp, if (isShuffleMode) IceMint else MidnightBorder),
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "Shuffle & Footwork",
-                    color = if (isShuffleMode) DeepMidnight else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
+            listOf(
+                VideoStudioMode.AUTO_HYBRID to "Auto Hybrid",
+                VideoStudioMode.IJRC_COMPETITION to "IJRC Speed",
+                VideoStudioMode.FREESTYLE_TRICKS to "Freestyle",
+                VideoStudioMode.SHUFFLE_FOOTWORK to "Shuffle"
+            ).forEach { (modeItem, shortTitle) ->
+                val selected = studioMode == modeItem
+                Surface(
+                    onClick = { if (!isAnalyzing) onSelectStudioMode(modeItem) },
+                    shape = CircleShape,
+                    color = if (selected) IceMint else MidnightSurface,
+                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = shortTitle,
+                        color = if (selected) DeepMidnight else TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                    )
+                }
             }
         }
 
         Spacer(Modifier.height(14.dp))
 
-        // 2. Adaptive Full-Frame Video Preview Card
+        // 2. Synced Slow-Mo Video Scrubber (when result ready) OR Live Analysis Preview Card
         val isPortraitVideo = imageBitmap != null && imageBitmap.height > imageBitmap.width
         val previewAspect = if (isPortraitVideo) 3f / 4f else 16f / 10f
-        Surface(
-            shape = RoundedCornerShape(22.dp),
-            color = MidnightSurface,
-            border = BorderStroke(1.dp, MidnightBorder),
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(previewAspect)
-        ) {
-            Box(
+        if (!isAnalyzing && result != null && result.sourceUri != null) {
+            SyncedSlowMoVideoPlayer(
+                sourceUri = result.sourceUri,
+                durationMs = result.durationMs,
+                poseFrames = result.poseFrames,
+                scrubTimeMs = scrubTimeMs,
+                onScrubTimeChanged = { scrubTimeMs = it },
+                isPortrait = isPortraitVideo
+            )
+        } else {
+            Surface(
+                shape = RoundedCornerShape(22.dp),
+                color = MidnightSurface,
+                border = BorderStroke(1.dp, MidnightBorder),
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(10.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(previewAspect)
             ) {
-                if (imageBitmap != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(10.dp)
+                ) {
+                    if (imageBitmap != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -351,6 +362,7 @@ fun VideoAnalyzerScreen(
                             lineHeight = 18.sp
                         )
                     }
+                    }
                 }
             }
         }
@@ -464,6 +476,16 @@ fun VideoAnalyzerScreen(
                 }
             }
 
+            // Interactive Graphic Telemetry Charts (IJRC Judge Score, Step vs Rope Speed, Leg/Whip Oscilloscope & 5s Splits)
+            if (result.telemetrySeries.points.isNotEmpty() || result.ijrcSummary?.isCompetitionSprintDetected == true) {
+                Spacer(Modifier.height(12.dp))
+                VideoTelemetryDashboard(
+                    result = result,
+                    scrubTimeMs = scrubTimeMs,
+                    onScrubTimeChanged = { scrubTimeMs = it }
+                )
+            }
+
             if (result.formScore > 0 || result.moveCounts.isNotEmpty() || result.detectedBpm > 0) {
                 Spacer(Modifier.height(12.dp))
                 Surface(
@@ -567,7 +589,10 @@ fun VideoAnalyzerScreen(
                 }
                 if (result.telemetryEvents.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
-                    VideoSlowMoInspectorCard(events = result.telemetryEvents)
+                    VideoSlowMoInspectorCard(
+                        events = result.telemetryEvents,
+                        onJumpToTimestampMs = { scrubTimeMs = it }
+                    )
                 }
             }
 

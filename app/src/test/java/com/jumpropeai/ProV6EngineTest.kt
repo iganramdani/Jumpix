@@ -188,4 +188,73 @@ class ProV6EngineTest {
         assertEquals(ThermalTier.WARM, ThermalGovernor.mapAndroidThermalStatus(2))
         assertEquals(ThermalTier.HOT, ThermalGovernor.mapAndroidThermalStatus(3))
     }
+
+    @Test
+    fun ijrcSpeedSprintAndRopeVelocityEnginesAnalyze30sCompetitionSprint() {
+        val stft = com.jumpropeai.audio.StftAudioEngine()
+        // Synthesize 32s 16kHz PCM with 1000 Hz start buzzer (0.3..0.6s), 180 wire whips (1.0..30.0s), and 1000 Hz end buzzer (30.3..30.8s)
+        val sr = 16_000
+        val pcm = FloatArray(sr * 32)
+        for (i in (sr * 3 / 10) until (sr * 6 / 10)) {
+            pcm[i] = 0.5f * sin(2.0 * PI * 1050.0 * i / sr).toFloat()
+        }
+        for (i in (sr * 303 / 10) until (sr * 308 / 10)) {
+            pcm[i] = 0.5f * sin(2.0 * PI * 1050.0 * i / sr).toFloat()
+        }
+        for (step in 0 until 180) {
+            val tMs = 1_000L + step * 160L // 375 SPM sprint
+            val centerSample = ((tMs * sr) / 1000L).toInt()
+            for (k in -24..24) {
+                val idx = centerSample + k
+                if (idx in pcm.indices) {
+                    pcm[idx] += 0.65f * sin(2.0 * PI * 4200.0 * k / sr).toFloat()
+                }
+            }
+        }
+        val flux200 = stft.processOfflinePcm(pcm, sr, highRes200Hz = true)
+        assertTrue("Expected 200Hz STFT frames > 6000", flux200.size > 6000)
+
+        // Synthesize 30 FPS side-profile bent-forward alternating knee-drive poses
+        val poses = ArrayList<com.jumpropeai.ai.PoseFrame>(960)
+        for (f in 0 until 960) {
+            val ts = f * 33L
+            val inActive = ts in 900L..30_200L
+            val phase = if (inActive) sin(2.0 * PI * (ts - 900L) / 320.0).toFloat() else 0f
+            val map = java.util.EnumMap<com.jumpropeai.ai.BodyLandmark, com.jumpropeai.ai.LandmarkPoint>(
+                com.jumpropeai.ai.BodyLandmark::class.java
+            )
+            map[com.jumpropeai.ai.BodyLandmark.LEFT_SHOULDER] = com.jumpropeai.ai.LandmarkPoint(410f, 420f, 0.98f)
+            map[com.jumpropeai.ai.BodyLandmark.RIGHT_SHOULDER] = com.jumpropeai.ai.LandmarkPoint(420f, 425f, 0.95f)
+            map[com.jumpropeai.ai.BodyLandmark.LEFT_HIP] = com.jumpropeai.ai.LandmarkPoint(340f, 560f, 0.98f)
+            map[com.jumpropeai.ai.BodyLandmark.RIGHT_HIP] = com.jumpropeai.ai.LandmarkPoint(350f, 565f, 0.95f)
+            map[com.jumpropeai.ai.BodyLandmark.LEFT_KNEE] = com.jumpropeai.ai.LandmarkPoint(370f + 18f * phase, 740f + 38f * phase, 0.96f)
+            map[com.jumpropeai.ai.BodyLandmark.RIGHT_KNEE] = com.jumpropeai.ai.LandmarkPoint(370f - 18f * phase, 740f - 38f * phase, 0.96f)
+            map[com.jumpropeai.ai.BodyLandmark.LEFT_ANKLE] = com.jumpropeai.ai.LandmarkPoint(355f, 920f + 26f * phase, 0.94f)
+            map[com.jumpropeai.ai.BodyLandmark.RIGHT_ANKLE] = com.jumpropeai.ai.LandmarkPoint(355f, 920f - 26f * phase, 0.94f)
+            poses.add(com.jumpropeai.ai.PoseFrame(map, ts, 720, 1280, false))
+        }
+
+        val ijrcEngine = com.jumpropeai.ai.IjrcSpeedSprintEngine()
+        val summary = ijrcEngine.analyzeOfflineSession(poses, flux200, forceCompetitionMode = false)
+        assertTrue("Expected IJRC competition sprint auto-detection", summary.isCompetitionSprintDetected)
+        assertTrue("Expected official 30s buzzer detection", summary.buzzerWindow.detected)
+        assertTrue("Expected ~180 steps, got ${summary.totalAlternatingSteps}", summary.totalAlternatingSteps in 174..184)
+        assertEquals((summary.totalAlternatingSteps + 1) / 2, summary.rightFootJudgeScore)
+
+        val telem = com.jumpropeai.ai.RopeAngularVelocityEngine.buildTelemetrySeries(
+            durationMs = 32_000L,
+            poseFrames = poses,
+            audioFlux = flux200,
+            telemetryEvents = emptyList(),
+            ijrcSummary = summary
+        )
+        assertTrue("Expected telemetry points", telem.points.size >= 150)
+        assertTrue("Expected 5s splits", telem.splits5s.size >= 6)
+        assertTrue("Expected peakStepSps > 5.0", telem.peakStepSps > 5.0f)
+
+        val pacemaker = com.jumpropeai.audio.PacemakerSynthesizer()
+        pacemaker.configure(com.jumpropeai.audio.PacemakerMode.IJRC_SPRINT, 420)
+        assertEquals(420, pacemaker.targetRpm)
+        assertEquals(com.jumpropeai.audio.PacemakerMode.IJRC_SPRINT, pacemaker.mode)
+    }
 }

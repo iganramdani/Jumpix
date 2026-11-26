@@ -51,6 +51,7 @@ import com.jumpropeai.update.UpdateCheckResult
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
 import com.jumpropeai.video.VideoJumpAnalyzer
+import com.jumpropeai.video.VideoStudioMode
 import com.jumpropeai.workout.AdaptiveWeekPlan
 import com.jumpropeai.workout.GhostPacerEngine
 import com.jumpropeai.workout.GhostPacerSnapshot
@@ -100,15 +101,16 @@ data class JumpRopeUiState(
     val isControlsVisible: Boolean = true,
     val startCountdownDurationSec: Int = 3,
     val preStartCountdownRemaining: Int = 0,
-    // Touchless Gesture & Smart Framing (v4.0)
+    // Touchless Gesture, Double-Clap & Smart Framing (v4.0 – v6.1)
     val isGestureControlEnabled: Boolean = true,
+    val isDoubleClapEnabled: Boolean = false,
     val framingStatus: FramingStatus = FramingStatus.NO_PERSON,
     val gestureHoldProgress: Float = 0f,
     // Athlete Profile & Rope Physics (v4.0)
     val userWeightKg: Int = 65,
     val ropeType: RopeType = RopeType.SPEED_CABLE,
     val dailyGoalJumps: Int = 500,
-    // v4.2 - v6.0 Phone-Only Pro Suite (Zero Watch!)
+    // v4.2 - v6.1 Phone-Only Pro Suite (Zero Watch!)
     val pacemakerMode: PacemakerMode = PacemakerMode.OFF,
     val pacemakerRpm: Int = 150,
     val ghostProfile: GhostProfile = GhostProfile.OFF,
@@ -145,6 +147,7 @@ data class JumpRopeUiState(
     val showModeSheet: Boolean = false,
     // Video Studio analysis state
     val showVideoSheet: Boolean = false,
+    val videoStudioMode: VideoStudioMode = VideoStudioMode.AUTO_HYBRID,
     val isVideoShuffleMode: Boolean = false,
     val isAnalyzingVideo: Boolean = false,
     val videoProgress: VideoAnalysisProgress? = null,
@@ -160,7 +163,10 @@ data class JumpRopeUiState(
     val updateStatusMessage: String? = null
 ) {
     val isCameraActive: Boolean
-        get() = sensorMode != SensorMode.AUDIO_ONLY && sensorMode != SensorMode.POCKET_IMU && !showVideoSheet
+        get() = sensorMode != SensorMode.AUDIO_ONLY &&
+            sensorMode != SensorMode.POCKET_IMU &&
+            !showVideoSheet &&
+            !showHeartRateDialog
 
     val hasActiveProgress: Boolean
         get() = metrics.jumpCount > 0 || metrics.elapsedMs >= 1000L
@@ -326,7 +332,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setPacemakerRpm(rpm: Int) {
-        val clean = rpm.coerceIn(100, 240)
+        val clean = rpm.coerceIn(100, 420)
         pacemakerSynthesizer.configure(_uiState.value.pacemakerMode, clean)
         _uiState.update { it.copy(pacemakerRpm = clean) }
     }
@@ -334,7 +340,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     fun cycleGhostProfile() {
         val profiles = GhostProfile.entries
         val next = profiles[(_uiState.value.ghostProfile.ordinal + 1) % profiles.size]
-        val pbRpm = _uiState.value.cumulativeStats.fastestPeakRpm.coerceIn(110, 260)
+        val pbRpm = _uiState.value.cumulativeStats.fastestPeakRpm.coerceIn(110, 320)
         ghostPacerEngine.configure(next, pbRpm)
         _uiState.update {
             it.copy(
@@ -346,6 +352,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
     fun setHeartRateDialogVisible(visible: Boolean) {
         if (visible) {
+            if (_uiState.value.isSessionRunning) pauseSession()
             opticalHrScanner.reset()
         }
         _uiState.update {
@@ -373,13 +380,27 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleBattleArena(mode: BattleMode = BattleMode.SPEED_DUEL_30S) {
-        if (_uiState.value.battleState.isActive) {
+        if (_uiState.value.battleState.isActive || _uiState.value.battleState.winnerLabel != null) {
             splitBattleArena.stop()
             _uiState.update { it.copy(battleState = BattleArenaState()) }
         } else {
             splitBattleArena.start(mode)
             _uiState.update { it.copy(battleState = BattleArenaState(isActive = true, mode = mode)) }
+            if (!_uiState.value.isSessionRunning) startSession()
         }
+    }
+
+    fun cycleBattleArenaMode() {
+        val modes = BattleMode.entries
+        val next = modes[(_uiState.value.battleState.mode.ordinal + 1) % modes.size]
+        splitBattleArena.start(next)
+        _uiState.update { it.copy(battleState = BattleArenaState(isActive = true, mode = next)) }
+    }
+
+    fun resetBattleArena() {
+        val m = _uiState.value.battleState.mode
+        splitBattleArena.start(m)
+        _uiState.update { it.copy(battleState = BattleArenaState(isActive = true, mode = m)) }
     }
 
     private fun onPocketImuJumpFromSensor(timestampMs: Long, isDoubleUnder: Boolean) {
@@ -452,8 +473,31 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun toggleDoubleClapControl() {
+        _uiState.update { state ->
+            val next = !state.isDoubleClapEnabled
+            state.copy(isDoubleClapEnabled = next)
+        }
+        syncAudioCapture()
+    }
+
     fun toggleVideoShuffleMode() {
-        _uiState.update { it.copy(isVideoShuffleMode = !it.isVideoShuffleMode) }
+        _uiState.update {
+            val nextShuffle = !it.isVideoShuffleMode
+            it.copy(
+                isVideoShuffleMode = nextShuffle,
+                videoStudioMode = if (nextShuffle) VideoStudioMode.SHUFFLE_FOOTWORK else VideoStudioMode.AUTO_HYBRID
+            )
+        }
+    }
+
+    fun setVideoStudioMode(mode: VideoStudioMode) {
+        _uiState.update {
+            it.copy(
+                videoStudioMode = mode,
+                isVideoShuffleMode = (mode == VideoStudioMode.SHUFFLE_FOOTWORK)
+            )
+        }
     }
 
     fun exportHistoryBackup(context: Context): Boolean {
@@ -669,6 +713,12 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             currentState.plyometrics
         }
         val ghostSnap = ghostPacerEngine.evaluate(elapsedMs, metricsTracker.jumpCount)
+        val updatedBattle = if (currentState.battleState.isActive && isCountingAllowed) {
+            val slot = splitBattleArena.nextInterleavedPlayerSlot()
+            splitBattleArena.processPlayerFrame(slot, frame, elapsedMs)
+        } else {
+            currentState.battleState
+        }
 
         val justCompleted = currentState.isSessionRunning && progress.isCompleted
 
@@ -684,6 +734,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 formCoach = kineticRes?.formSnapshot ?: state.formCoach,
                 plyometrics = plyoSnap,
                 ghostSnapshot = ghostSnap,
+                battleState = updatedBattle,
                 tripAutopsy = autopsy,
                 beatSync = beatSnapshot,
                 perfStats = updatedPerf ?: state.perfStats,
@@ -1136,7 +1187,8 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         videoJob?.cancel()
         val totalCount = videos.size
         val stateSnap = _uiState.value
-        val shuffleEnabled = stateSnap.isVideoShuffleMode
+        val studioMode = stateSnap.videoStudioMode
+        val shuffleEnabled = (studioMode == VideoStudioMode.SHUFFLE_FOOTWORK)
         val weightKg = stateSnap.userWeightKg.toDouble()
         val ropeType = stateSnap.ropeType
 
@@ -1179,6 +1231,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                         fileName = fileName,
                         enableDebugLog = true,
                         isShuffleMode = shuffleEnabled,
+                        studioMode = studioMode,
                         userWeightKg = weightKg,
                         ropeType = ropeType
                     ) { prog ->
@@ -1193,11 +1246,22 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                         for ((m, c) in result.moveCounts) {
                             if (c > 0) moveStrMap[m.label] = c
                         }
+                        val ijrc = result.ijrcSummary
+                        val videoModeLabel = when {
+                            ijrc?.isCompetitionSprintDetected == true ->
+                                "Video • IJRC (${ijrc.rightFootJudgeScore} R-Foot)"
+                            shuffleEnabled -> "Video • Shuffle & Tricks"
+                            else -> "Video • ${result.style.label}"
+                        }
                         val autoSession = WorkoutSession(
                             id = UUID.randomUUID().toString(),
                             timestampMillis = System.currentTimeMillis(),
-                            modeLabel = if (shuffleEnabled) "Video • Shuffle & Tricks" else "Video • ${result.style.label}",
-                            modeType = if (shuffleEnabled) WorkoutModeType.FREESTYLE_SHUFFLE else WorkoutModeType.FREE,
+                            modeLabel = videoModeLabel,
+                            modeType = when {
+                                ijrc?.isCompetitionSprintDetected == true -> WorkoutModeType.IJRU_SPEED_30S
+                                shuffleEnabled -> WorkoutModeType.FREESTYLE_SHUFFLE
+                                else -> WorkoutModeType.FREE
+                            },
                             jumpCount = result.jumpCount,
                             durationMs = result.durationMs,
                             averageRpm = result.averageRpm,
@@ -1413,17 +1477,36 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
     private fun syncAudioCapture() {
         val state = _uiState.value
-        val needsMic = state.isSessionRunning &&
+        val needsWorkoutMic = state.isSessionRunning &&
             state.hasAudioPermission &&
             (state.sensorMode == SensorMode.FUSION || state.sensorMode == SensorMode.AUDIO_ONLY)
+        val needsClapMic = state.isDoubleClapEnabled && state.hasAudioPermission && !state.showVideoSheet
 
-        if (needsMic) {
-            val audioOnlyCallback: ((Long) -> Unit)? = if (state.sensorMode == SensorMode.AUDIO_ONLY) {
+        if (needsWorkoutMic || needsClapMic) {
+            stftAudioEngine.stopLiveCapture()
+            val audioOnlyCallback: ((Long) -> Unit)? = if (state.isSessionRunning && state.sensorMode == SensorMode.AUDIO_ONLY) {
                 { ts -> onAudioOnlyJumpFromThread(ts) }
             } else {
                 null
             }
-            stftAudioEngine.startLiveCapture(onAudioOnlyJump = audioOnlyCallback)
+            val clapCallback: (() -> Unit)? = if (state.isDoubleClapEnabled) {
+                {
+                    viewModelScope.launch(Dispatchers.Main.immediate) {
+                        // Only allow double-clap pause when quiet or idle to avoid fast rope whip false pauses
+                        val now = SystemClock.elapsedRealtime()
+                        val st = _uiState.value
+                        if (!st.isSessionRunning || (now - lastLiveMoveAcceptedMs) > 1_300L) {
+                            toggleSession()
+                        }
+                    }
+                }
+            } else {
+                null
+            }
+            stftAudioEngine.startLiveCapture(
+                onAudioOnlyJump = audioOnlyCallback,
+                onDoubleClap = clapCallback
+            )
         } else {
             stftAudioEngine.stopLiveCapture()
         }

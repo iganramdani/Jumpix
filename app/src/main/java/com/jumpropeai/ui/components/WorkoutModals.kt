@@ -588,6 +588,52 @@ fun SessionSummaryDialog(
                     )
                 }
 
+                if (session.avgJumpHeightCm > 0.1f || session.avgGctMs > 0 || session.postWorkoutBpm > 0) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = DeepMidnight,
+                        border = BorderStroke(1.dp, MidnightBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            if (session.avgJumpHeightCm > 0.1f) {
+                                SummaryStat("Height", String.format(Locale.US, "%.1f cm", session.avgJumpHeightCm), IceMint)
+                            }
+                            if (session.avgGctMs > 0) {
+                                SummaryStat("GCT", "${session.avgGctMs} ms", TextPrimary)
+                            }
+                            if (session.avgRsi > 0.05f) {
+                                SummaryStat("RSI", String.format(Locale.US, "%.2f", session.avgRsi), IceMint)
+                            }
+                            if (session.postWorkoutBpm > 0) {
+                                SummaryStat("Peak HR", "${session.postWorkoutBpm}", IceMint)
+                            }
+                        }
+                    }
+                }
+
+                if (session.topTripCause.isNotBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MidnightElevated,
+                        border = BorderStroke(1.dp, Color(0xFFFB7185).copy(alpha = 0.55f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Trip Autopsy: ${session.topTripCause}",
+                            color = Color(0xFFFB7185),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        )
+                    }
+                }
+
                 if (session.moveBreakdown.isNotEmpty()) {
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),

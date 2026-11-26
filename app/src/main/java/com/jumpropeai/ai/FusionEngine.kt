@@ -169,7 +169,7 @@ class FusionEngine {
         // 2. Confirm or expire pending post-gap jump
         pendingJump?.let { pend ->
             val gapFromPend = pt - pend.peakTimeMs
-            if (gapFromPend in 190L..1000L) {
+            if (gapFromPend in 170L..1050L) {
                 acceptedCount++
                 recordAcceptedInternal(pend.peakTimeMs, pend.amplitude, pend.ankleAlternation, dt = null)
                 currentStreakInEngine = 1
@@ -210,48 +210,52 @@ class FusionEngine {
             }
             val medTempo = StftAudioEngine.medianLong(intervals.toList())
             val dtSoft = pt - prevTime
-            if (dtSoft !in (medTempo * 0.72).toLong()..(medTempo * 1.28).toLong()) {
+            if (dtSoft !in (medTempo * 0.70).toLong()..(medTempo * 1.32).toLong()) {
                 return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
             }
         }
 
-        // 5. Nyquist-Shannon Aliasing & Drop-Aware Audio PLL Bridge (Low-End 10 FPS or actual dropped frames)
+        // 5. Nyquist-Shannon Aliasing, Drop-Aware & Single-Beat Dance/Trick Audio PLL Bridge
         val isExtremeLowFps = candidate.avgFrameDtMs >= 82f
         val hadDrop = candidate.droppedFramesSinceLast >= 1
-        if ((isExtremeLowFps || hadDrop) && intervals.size >= 3 && currentStreakInEngine >= 4) {
+        if (intervals.size >= 3 && currentStreakInEngine >= 4) {
             val medTempo = StftAudioEngine.medianLong(intervals.toList())
             val gap = pt - prevTime
-            val maxMult = if (isExtremeLowFps) 6.0 else 2.5
-            if (medTempo <= 440L && gap in (medTempo * 1.65).toLong()..(medTempo * maxMult).toLong()) {
-                val cv = computeIntervalCv(intervals.toList(), medTempo)
-                var predT = prevTime + medTempo
-                var bridgedHere = 0
-                val minMargin = maxOf(195L, (medTempo * 0.55).toLong())
-                while (predT <= pt - minMargin) {
-                    var ok = hasAudio && hasStrongAudioHitAt(
-                        audioHistory = audioHistory,
-                        targetTimeMs = predT + learnedLagMs.toLong(),
-                        zThr = 2.1f,
-                        ratioThr = 1.45f
-                    )
-                    if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.24f &&
-                        bridgedHere < 3 && gap <= (medTempo * 3.35).toLong()
-                    ) {
-                        ok = true
+            val cv = computeIntervalCv(intervals.toList(), medTempo)
+            val isTightDoubleBeat = medTempo in 220L..540L && cv <= 0.22f &&
+                gap in (medTempo * 1.76).toLong()..(medTempo * 2.26).toLong()
+            if (isExtremeLowFps || hadDrop || (hasAudio && isTightDoubleBeat)) {
+                val maxMult = if (isExtremeLowFps) 6.0 else 2.5
+                if (medTempo <= 540L && gap in (medTempo * 1.65).toLong()..(medTempo * maxMult).toLong()) {
+                    var predT = prevTime + medTempo
+                    var bridgedHere = 0
+                    val minMargin = maxOf(175L, (medTempo * 0.55).toLong())
+                    while (predT <= pt - minMargin) {
+                        var ok = hasAudio && hasStrongAudioHitAt(
+                            audioHistory = audioHistory,
+                            targetTimeMs = predT + learnedLagMs.toLong(),
+                            zThr = if (isTightDoubleBeat) 1.55f else 2.1f,
+                            ratioThr = if (isTightDoubleBeat) 1.30f else 1.45f
+                        )
+                        if (!ok && isExtremeLowFps && medTempo <= 410L && cv <= 0.24f &&
+                            bridgedHere < 3 && gap <= (medTempo * 3.35).toLong()
+                        ) {
+                            ok = true
+                        }
+                        if (!ok && hadDrop && bridgedHere == 0 && gap in (medTempo * 1.72).toLong()..(medTempo * 2.30).toLong()) {
+                            ok = true
+                        }
+                        if (ok && (isExtremeLowFps || bridgedHere == 0)) {
+                            acceptedCount++
+                            pllBridged++
+                            bridgedHere++
+                            totalPllBridged++
+                            currentStreakInEngine++
+                            prevTime = predT
+                            lastAcceptedTimeMs = predT
+                        }
+                        predT += medTempo
                     }
-                    if (!ok && hadDrop && bridgedHere == 0 && gap in (medTempo * 1.72).toLong()..(medTempo * 2.30).toLong()) {
-                        ok = true
-                    }
-                    if (ok) {
-                        acceptedCount++
-                        pllBridged++
-                        bridgedHere++
-                        totalPllBridged++
-                        currentStreakInEngine++
-                        prevTime = predT
-                        lastAcceptedTimeMs = predT
-                    }
-                    predT += medTempo
                 }
             }
         }
@@ -286,7 +290,7 @@ class FusionEngine {
         acceptedAmplitudes.addLast(amplitude)
         while (acceptedAmplitudes.size > 8) acceptedAmplitudes.removeFirst()
 
-        if (dt != null && dt in 190L..950L) {
+        if (dt != null && dt in 170L..950L) {
             intervals.addLast(dt)
             while (intervals.size > 6) intervals.removeFirst()
         }
