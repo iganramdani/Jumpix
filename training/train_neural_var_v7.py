@@ -690,9 +690,11 @@ def main():
             if fname not in gt_map:
                 continue
             gt_jumps, _, notes = gt_map[fname]
+            pose_p = parts[4] if os.path.isabs(parts[4]) else os.path.join(BENCH_DIR, parts[4])
+            wav_p = parts[5] if os.path.isabs(parts[5]) else os.path.join(BENCH_DIR, parts[5])
             seq = extract_sequence_features_and_targets(
-                pose_path=parts[4],
-                wav_path=parts[5],
+                pose_path=pose_p,
+                wav_path=wav_p,
                 w_img=int(parts[2]),
                 h_img=int(parts[3]),
                 gt_jumps=gt_jumps,
