@@ -19,12 +19,12 @@
 
   <!-- Left Panel: 64-Real-Video Ground-Truth Benchmark (Zero Synthetic Smartphone Tiers!) -->
   <text x="34" y="42" fill="#2EE59D" font-size="12" class="mono" letter-spacing="0.8">OFFICIAL REAL-VIDEO BENCHMARK • 64 VIDEOS • 3,767 VERIFIED JUMPS/STEPS</text>
-  <text x="34" y="70" fill="#F8FAFC" font-size="22" class="h1">AI Engine v16 Real-World Benchmark Suite</text>
+  <text x="34" y="70" fill="#F8FAFC" font-size="22" class="h1">AI Engine v17 Dual-Tier Neural VAR Suite</text>
 
   <!-- Row 1: All 64 Real Videos -->
   <g transform="translate(34, 102)">
     <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">All 64 Real Videos (JumpRope Test + IJRC Stage)</text>
-    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.42%</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.44%</text>
     <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
     <rect x="0" y="25" width="485" height="14" rx="7" fill="url(#barMint)"/>
   </g>
@@ -32,9 +32,9 @@
   <!-- Row 2: Freestyle, Boxing & Double-Under Subset -->
   <g transform="translate(34, 162)">
     <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">Freestyle, Boxing &amp; Double-Under Subset (55 Videos)</text>
-    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.48%</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.51%</text>
     <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
-    <rect x="0" y="25" width="485" height="14" rx="7" fill="url(#barMint)"/>
+    <rect x="0" y="25" width="486" height="14" rx="7" fill="url(#barMint)"/>
   </g>
 
   <!-- Row 3: Official IJRC 30s Speed-Sprint Subset -->
@@ -45,30 +45,30 @@
     <rect x="0" y="25" width="476" height="14" rx="7" fill="#38BDF8"/>
   </g>
 
-  <!-- Row 4: Ropeless Shuffle & Agility Footwork Subset -->
+  <!-- Row 4: 5-Fold Zero-Leakage Neural VAR Cross-Validation -->
   <g transform="translate(34, 282)">
-    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">Ropeless Shuffle &amp; Boxing Footwork Drills (5 Videos)</text>
-    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">96.67%</text>
+    <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">5-Fold Group CV Out-of-Fold Neural VAR F1 (Zero Leakage)</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">81.62%</text>
     <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
-    <rect x="0" y="25" width="472" height="14" rx="7" fill="url(#barMint)"/>
+    <rect x="0" y="25" width="398" height="14" rx="7" fill="url(#barMint)"/>
   </g>
 
   <text x="34" y="358" fill="#94A3B8" font-size="12" class="mono">
-    Total Detected: 3,745 / 3,767 Truth • Strict Per-Video Acc: 90.50% (IJRC Strict: 93.43%)
+    Detected: 3,788 / 3,767 Truth • Strict Acc: 90.31% (IJRC Strict: 93.43%)
   </text>
 
   <!-- Divider -->
   <line x1="560" y1="34" x2="560" y2="366" stroke="#1E293B" stroke-width="1.5"/>
 
-  <!-- Right Panel: IJRC Step vs Rope Velocity & Zero-GC Frame Budget -->
-  <text x="594" y="42" fill="#38BDF8" font-size="12" class="mono" letter-spacing="0.8">ZERO-GC SILICON EFFICIENCY &amp; IJRC 200 Hz TELEMETRY</text>
-  <text x="594" y="70" fill="#F8FAFC" font-size="22" class="h1">18.5 µs Engine CPU &amp; Dual-Velocity Curve</text>
+  <!-- Right Panel: Dual-Tier Neural VAR & IJRC 200 Hz Telemetry -->
+  <text x="594" y="42" fill="#38BDF8" font-size="12" class="mono" letter-spacing="0.8">DUAL-TIER NEURAL VAR &amp; HPSS 200 Hz TELEMETRY</text>
+  <text x="594" y="70" fill="#F8FAFC" font-size="22" class="h1">74.8 µs Dual-TCN CPU &amp; Velocity Curve</text>
 
   <!-- Mini Step Speed vs Rope Speed Chart -->
   <g transform="translate(594, 92)">
     <rect width="492" height="132" rx="14" fill="#080D18" stroke="#1E293B"/>
     <text x="14" y="22" fill="#2EE59D" font-size="10.5" class="mono">● STEP SPEED (SPS/SPM)</text>
-    <text x="188" y="22" fill="#38BDF8" font-size="10.5" class="mono">● ROPE ROTATION (RPS/RPM)</text>
+    <text x="188" y="22" fill="#38BDF8" font-size="10.5" class="mono">● ROPE + VISUAL PASS</text>
     <text x="372" y="22" fill="#FB7185" font-size="10.5" class="mono">■ TRIP @ 14.9s</text>
 
     <!-- Trip highlight zone -->
@@ -85,22 +85,22 @@
   <!-- Metric Cards -->
   <g transform="translate(594, 240)">
     <rect x="0" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#2EE59D" stroke-opacity="0.4"/>
-    <text x="14" y="26" fill="#94A3B8" font-size="10.5" class="mono">BENCHMARK CPU</text>
-    <text x="14" y="56" fill="#2EE59D" font-size="24" class="h1">18.5 µs</text>
-    <text x="14" y="73" fill="#64748B" font-size="10" class="mono">0.06% of 30 FPS</text>
+    <text x="14" y="26" fill="#94A3B8" font-size="10.5" class="mono">DUAL-NEURAL CPU</text>
+    <text x="14" y="56" fill="#2EE59D" font-size="24" class="h1">74.8 µs</text>
+    <text x="14" y="73" fill="#64748B" font-size="10" class="mono">0.22% of 30 FPS</text>
 
     <rect x="169" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#38BDF8" stroke-opacity="0.4"/>
     <text x="183" y="26" fill="#94A3B8" font-size="10.5" class="mono">REDMI NOTE 9</text>
-    <text x="183" y="56" fill="#38BDF8" font-size="24" class="h1">64 µs</text>
-    <text x="183" y="73" fill="#64748B" font-size="10" class="mono">26 MB JVM Heap</text>
+    <text x="183" y="56" fill="#38BDF8" font-size="24" class="h1">30 FPS</text>
+    <text x="183" y="73" fill="#64748B" font-size="10" class="mono">34 MB Median Heap</text>
 
     <rect x="338" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#2EE59D" stroke-opacity="0.4"/>
-    <text x="352" y="26" fill="#94A3B8" font-size="10.5" class="mono">RELEASE APK</text>
-    <text x="352" y="56" fill="#F8FAFC" font-size="24" class="h1">46 MB</text>
-    <text x="352" y="73" fill="#2EE59D" font-size="10" class="mono">Zero Watch / Cloud</text>
+    <text x="352" y="26" fill="#94A3B8" font-size="10.5" class="mono">UNIFIED APK</text>
+    <text x="352" y="56" fill="#F8FAFC" font-size="24" class="h1">52 MB</text>
+    <text x="352" y="73" fill="#2EE59D" font-size="10" class="mono">Fast + Heavy 3D Pose</text>
   </g>
 
   <text x="594" y="358" fill="#94A3B8" font-size="12" class="mono">
-    200 Hz Bare-Wire STFT + AC Leg-Drive Oscillator + Synced 0.2x Slow-Mo Charts
+    Heavy 3D Pose + Sub-Foot Visual Cable Tracker + Bidirectional MS-TCN + HPSS
   </text>
 </svg>

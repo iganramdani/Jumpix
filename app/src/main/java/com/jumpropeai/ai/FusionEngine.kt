@@ -109,12 +109,15 @@ class FusionEngine {
     fun evaluateCandidate(
         candidate: JumpCandidate,
         audioHistory: List<FluxSample>,
-        useAudioFusion: Boolean
+        useAudioFusion: Boolean,
+        neuralVarProb: Float = -1f,
+        neuralActiveProb: Float = 1f
     ): FusionDecision {
         val pt = candidate.peakTimeMs
         val amp = candidate.amplitude
         val prom = candidate.prominence
         val hasAudio = useAudioFusion && audioHistory.size >= 20
+        val hasNeural = neuralVarProb >= 0f
 
         // 0. Vision-Gated 100 Hz STFT Audio Speed-Sprint Counter (O(log N) binary search, zero-GC):
         // During bent-over competition speed sprints (>270 RPM), 100 Hz STFT audio resolves every
@@ -166,6 +169,14 @@ class FusionEngine {
         var pllBridged = 0
         var tripDetected = false
 
+        // Neural VAR Walk-Away / IG-Outro Hard-Negative Rejection after an established set pause:
+        if (hasNeural && acceptedAmplitudes.size >= 12 && lastAcceptedTimeMs != null && (pt - lastAcceptedTimeMs!!) > 1350L) {
+            if (neuralActiveProb < 0.16f && neuralVarProb < 0.22f && prom < 0.14f) {
+                pendingJump = null
+                return buildDecision(0, 0, false, hasAudio)
+            }
+        }
+
         // 2. Confirm or expire pending post-gap jump
         pendingJump?.let { pend ->
             val gapFromPend = pt - pend.peakTimeMs
@@ -196,7 +207,9 @@ class FusionEngine {
                 } else 0f
                 val isOutroRipple = (acceptedAmplitudes.size >= 8 && medAmp >= 0.22f && prom < 0.16f) ||
                     (acceptedAmplitudes.size >= 40 && prevT != null && (pt - prevT) > 1650L &&
-                        prom < maxOf(0.068f, medAmp * 0.48f) && candidate.ankleAlternation < 0.14f)
+                        prom < maxOf(0.068f, medAmp * 0.48f) && candidate.ankleAlternation < 0.14f) ||
+                    (hasNeural && acceptedAmplitudes.size >= 20 && prevT != null && (pt - prevT) > 1400L &&
+                        neuralActiveProb < 0.24f && neuralVarProb < 0.30f)
                 if (!isOutroRipple) {
                     pendingJump = PendingJump(pt, amp, candidate.ankleAlternation)
                 }
@@ -206,15 +219,18 @@ class FusionEngine {
 
         var prevTime: Long = prevT
 
-        // 4. Soft candidate gating: accept ONLY on-rhythm during an established streak >= 3
+        // 4. Soft candidate gating: accept on-rhythm during an established streak OR when Neural VAR strongly confirms (>= 0.68)!
         if (candidate.isSoft) {
-            if (currentStreakInEngine < 3 || intervals.size < 3) {
-                return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
-            }
-            val medTempo = StftAudioEngine.medianLong(intervals.toList())
-            val dtSoft = pt - prevTime
-            if (dtSoft !in (medTempo * 0.70).toLong()..(medTempo * 1.32).toLong()) {
-                return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
+            val neuralStrongConfirm = hasNeural && neuralVarProb >= 0.68f && neuralActiveProb >= 0.55f
+            if (!neuralStrongConfirm) {
+                if (currentStreakInEngine < 3 || intervals.size < 3) {
+                    return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
+                }
+                val medTempo = StftAudioEngine.medianLong(intervals.toList())
+                val dtSoft = pt - prevTime
+                if (dtSoft !in (medTempo * 0.70).toLong()..(medTempo * 1.32).toLong()) {
+                    return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
+                }
             }
         }
 

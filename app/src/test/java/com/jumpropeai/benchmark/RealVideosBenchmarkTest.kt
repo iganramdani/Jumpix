@@ -138,19 +138,28 @@ class RealVideosBenchmarkTest {
             val isRopelessFootwork = notes.contains("Ropeless", ignoreCase = true)
             val jumpDetector = JumpDetector()
             val fusionEngine = FusionEngine()
+            val causalTcn = com.jumpropeai.ai.NeuralVarEngine.CausalJumpTcnLite(null)
             val trickCoach = com.jumpropeai.ai.KineticTrickCoach()
             val ijrcEngine = IjrcSpeedSprintEngine()
             val metrics = MetricsTracker()
             metrics.start(0L)
 
             var lastMoveMs = -10_000L
+            val evTimes = ArrayList<Long>(256)
             val t0Ns = System.nanoTime()
             for (fr in frames) {
                 val det = jumpDetector.processFrame(fr, isCountingActive = true)
+                val liveNeural = causalTcn.processLiveFrame(fr, flux100)
                 val cand = det.candidate
                 var acceptedThisFrame = 0
                 if (cand != null) {
-                    val dec = fusionEngine.evaluateCandidate(cand, flux100, useAudioFusion = hadAudio)
+                    val dec = fusionEngine.evaluateCandidate(
+                        candidate = cand,
+                        audioHistory = flux100,
+                        useAudioFusion = hadAudio,
+                        neuralVarProb = liveNeural.combinedVarProb,
+                        neuralActiveProb = liveNeural.activeSkippingProb
+                    )
                     acceptedThisFrame = dec.acceptedJumps
                 }
                 val kinRes = if (isRopelessFootwork) {
@@ -170,12 +179,18 @@ class RealVideosBenchmarkTest {
                     else -> 0
                 }
                 repeat(totalMoves) {
-                    val evMs = cand?.landTimeMs ?: fr.timestampMs
+                    val evMs = maxOf((evTimes.lastOrNull() ?: -1L) + 1L, cand?.peakTimeMs ?: fr.timestampMs)
                     metrics.recordJump(evMs)
+                    evTimes.add(evMs)
                     lastMoveMs = evMs
                 }
             }
-            val hybridCount = metrics.jumpCount
+
+            val biNeural = com.jumpropeai.ai.NeuralVarEngine.evaluateOfflineSequence(frames, flux200, null)
+            val rescuedVar = if (!isRopelessFootwork && !jumpDetector.hadSpeedSprint) {
+                com.jumpropeai.ai.NeuralVarEngine.rescueMissedRhythmicJumps(frames, biNeural, evTimes)
+            } else emptyList()
+            val hybridCount = metrics.jumpCount + rescuedVar.size
 
             val ijrcSummary = if (!isRopelessFootwork) {
                 ijrcEngine.analyzeOfflineSession(
@@ -193,13 +208,14 @@ class RealVideosBenchmarkTest {
             val finalCount = if (useIjrc) ijrcSummary.totalAlternatingSteps else hybridCount
             val elapsedNs = System.nanoTime() - t0Ns
 
-            // Smoke-test RopeAngularVelocityEngine telemetry builder
+            // Smoke-test Bidirectional Neural VAR + RopeAngularVelocityEngine telemetry builder
             val telem = RopeAngularVelocityEngine.buildTelemetrySeries(
                 durationMs = (durSec * 1000).toLong(),
                 poseFrames = frames,
                 audioFlux = flux200,
                 telemetryEvents = emptyList(),
-                ijrcSummary = if (useIjrc) ijrcSummary else null
+                ijrcSummary = if (useIjrc) ijrcSummary else null,
+                neuralPredictions = biNeural
             )
             assertTrue(telem.points.isNotEmpty())
 
@@ -268,10 +284,10 @@ class RealVideosBenchmarkTest {
         }
         println("==============================================================================================\n")
 
-        assertTrue("Expected Volume Accuracy >= 98.5%, got $volAccuracy%", volAccuracy >= 98.5)
-        assertTrue("Expected Strict Accuracy >= 89.0%, got $strictAccuracy%", strictAccuracy >= 89.0)
-        assertTrue("Expected IJRC Speed-Sprint Volume Accuracy >= 96.0%, got $ijrcVolAcc%", ijrcVolAcc >= 96.0)
-        assertTrue("Expected CPU < 80 us/frame, got $avgUsPerFrame us", avgUsPerFrame < 80.0)
+        assertTrue("Expected Volume Accuracy >= 99.0%, got $volAccuracy%", volAccuracy >= 99.0)
+        assertTrue("Expected Strict Accuracy >= 89.5%, got $strictAccuracy%", strictAccuracy >= 89.5)
+        assertTrue("Expected IJRC Speed-Sprint Volume Accuracy >= 96.5%, got $ijrcVolAcc%", ijrcVolAcc >= 96.5)
+        assertTrue("Expected Dual-Neural VAR CPU < 120 us/frame, got $avgUsPerFrame us", avgUsPerFrame < 120.0)
     }
 
     private fun parseCsvLine(line: String): List<String> {

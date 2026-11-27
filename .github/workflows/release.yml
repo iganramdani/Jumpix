@@ -72,7 +72,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: "Jumpvex ${{ github.ref_name }} — AI Engine v16 IJRC Pro, 64-Video Benchmark (99.42%) & Video Telemetry Studio"
+          name: "Jumpvex ${{ github.ref_name }} — Dual-Tier Neural VAR Studio, Visual Rope Tracker & High-Usability Cockpit"
           draft: false
           prerelease: false
           generate_release_notes: true

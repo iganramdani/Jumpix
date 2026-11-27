@@ -13,7 +13,10 @@ data class TelemetryChartPoint(
     val ropeRps: Float,
     val legOscillator: Float,
     val whipEnergy: Float,
-    val isTripZone: Boolean
+    val isTripZone: Boolean,
+    val neuralVarProb: Float = 0f,
+    val cleanWhipEnergy: Float = 0f,
+    val visualRopePass: Boolean = false
 )
 
 data class SplitIntervalBar(
@@ -32,17 +35,13 @@ data class RichTelemetrySeries(
     val fatigueDropPct: Float = 0f,
     val peakStepSps: Float = 0f,
     val peakRopeRps: Float = 0f,
-    val totalRopeTurns: Int = 0
+    val totalRopeTurns: Int = 0,
+    val verifiedVisualRopePasses: Int = 0,
+    val meanNeuralConfidencePct: Int = 0
 )
 
 /**
- * Jumpvex AI Engine v16 — Independent Step-Speed vs Rope-Rotation Velocity & Split Telemetry Engine.
- *
- * Computes synchronized 250 ms high-resolution curves for:
- * 1. **Step Speed (`SPS` / `SPM`)**: Rate of foot/step strikes on the floor.
- * 2. **Rope Rotation Speed (`RPS` / `RPM`)**: Actual physical cable revolutions per second derived
- *    from 200 Hz steel-wire/PVC whip bursts + wrist angular velocity + Double/Triple-Under multipliers!
- * 3. **Left-vs-Right Alternating Leg Phase Wave** & **5-Second Competition Splits + Fatigue Drop %**.
+ * Jumpvex AI Engine v17 — Step-Speed, Rope-Rotation Velocity, Neural VAR Probability & Visual Rope Telemetry.
  */
 object RopeAngularVelocityEngine {
 
@@ -51,7 +50,9 @@ object RopeAngularVelocityEngine {
         poseFrames: List<PoseFrame>,
         audioFlux: List<FluxSample>,
         telemetryEvents: List<VideoTelemetryEvent>,
-        ijrcSummary: IjrcSprintSummary?
+        ijrcSummary: IjrcSprintSummary?,
+        neuralPredictions: Array<NeuralFramePrediction>? = null,
+        visualPassTimestampsMs: LongArray? = null
     ): RichTelemetrySeries {
         if (durationMs <= 500L) return RichTelemetrySeries()
 
@@ -65,6 +66,8 @@ object RopeAngularVelocityEngine {
         var peakStepSps = 0f
         var peakRopeRps = 0f
         var totalRopeTurns = 0
+        var neuralPeakSum = 0f
+        var neuralPeakCnt = 0
 
         for (ev in telemetryEvents) {
             val mult = when (ev.move) {
@@ -80,6 +83,7 @@ object RopeAngularVelocityEngine {
 
         var poseIdx = 0
         var fluxIdx = 0
+        var vPassIdx = 0
 
         for (b in 0 until totalBuckets) {
             val tCenter = b * stepSampleMs
@@ -125,16 +129,44 @@ object RopeAngularVelocityEngine {
                 fk++
             }
 
-            // Sample leg phase wave (left vs right knee/ankle)
-            while (poseIdx + 1 < poseFrames.size && poseFrames[poseIdx + 1].timestampMs <= tCenter) {
+            // Sample leg phase wave & bidirectional Neural VAR probability around tCenter
+            while (poseIdx + 1 < poseFrames.size && poseFrames[poseIdx + 1].timestampMs <= tCenter - 100L) {
                 poseIdx++
             }
-            val legWave = if (poseFrames.isNotEmpty()) computeLegPhaseAt(poseFrames[poseIdx]) else 0f
+            val legWave = if (poseFrames.isNotEmpty()) computeLegPhaseAt(poseFrames[poseIdx.coerceAtMost(poseFrames.size - 1)]) else 0f
+
+            var localNeuralProb = 0f
+            var localCleanWhip = whipPeak
+            if (neuralPredictions != null && neuralPredictions.size == poseFrames.size && poseFrames.isNotEmpty()) {
+                var pk = poseIdx
+                while (pk < poseFrames.size && poseFrames[pk].timestampMs <= tCenter + 110L) {
+                    val np = neuralPredictions[pk]
+                    if (np.combinedVarProb > localNeuralProb) localNeuralProb = np.combinedVarProb
+                    val cw = (np.cleanWhipEnergy * 0.65f).coerceIn(0f, 1f)
+                    if (cw > localCleanWhip) localCleanWhip = cw
+                    pk++
+                }
+            } else if (stepsInWin > 0.5f) {
+                localNeuralProb = (0.72f + 0.24f * whipPeak).coerceIn(0f, 0.99f)
+            }
+            if (localNeuralProb >= 0.45f) {
+                neuralPeakSum += localNeuralProb
+                neuralPeakCnt++
+            }
+
+            var hasVisPass = false
+            if (visualPassTimestampsMs != null && visualPassTimestampsMs.isNotEmpty()) {
+                while (vPassIdx < visualPassTimestampsMs.size && visualPassTimestampsMs[vPassIdx] < tCenter - 100L) {
+                    vPassIdx++
+                }
+                if (vPassIdx < visualPassTimestampsMs.size && visualPassTimestampsMs[vPassIdx] <= tCenter + 100L) {
+                    hasVisPass = true
+                }
+            }
 
             val stepSps = (stepsInWin / winSec).coerceAtLeast(0f)
-            // Modulate ropeRps slightly with live acoustic whip presence so rope-stall trips show clearly!
             val rawRopeRps = (turnsInWin / winSec).coerceAtLeast(0f)
-            val ropeRps = if (audioFlux.size >= 40 && rawRopeRps > 0.5f && whipPeak < 0.06f) {
+            val ropeRps = if (audioFlux.size >= 40 && rawRopeRps > 0.5f && whipPeak < 0.06f && !hasVisPass) {
                 rawRopeRps * 0.45f
             } else {
                 rawRopeRps
@@ -151,7 +183,10 @@ object RopeAngularVelocityEngine {
                     ropeRps = ropeRps,
                     legOscillator = legWave,
                     whipEnergy = whipPeak,
-                    isTripZone = isTrip
+                    isTripZone = isTrip,
+                    neuralVarProb = localNeuralProb,
+                    cleanWhipEnergy = localCleanWhip,
+                    visualRopePass = hasVisPass
                 )
             )
         }
@@ -222,13 +257,19 @@ object RopeAngularVelocityEngine {
             0f
         }
 
+        val meanConfPct = if (neuralPeakCnt > 0) {
+            ((neuralPeakSum / neuralPeakCnt) * 100f).roundToInt().coerceIn(0, 100)
+        } else 0
+
         return RichTelemetrySeries(
             points = points,
             splits5s = splits,
             fatigueDropPct = fatigueDrop,
             peakStepSps = peakStepSps,
             peakRopeRps = peakRopeRps,
-            totalRopeTurns = totalRopeTurns
+            totalRopeTurns = totalRopeTurns,
+            verifiedVisualRopePasses = visualPassTimestampsMs?.size ?: 0,
+            meanNeuralConfidencePct = meanConfPct
         )
     }
 

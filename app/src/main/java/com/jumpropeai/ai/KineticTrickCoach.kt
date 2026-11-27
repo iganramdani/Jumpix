@@ -251,7 +251,8 @@ class KineticTrickCoach {
         jumpAmplitude: Float,
         audioHistory: List<FluxSample>,
         isShuffleMode: Boolean,
-        jumpPeakTimeMs: Long = frame.timestampMs
+        jumpPeakTimeMs: Long = frame.timestampMs,
+        visualRopePassesInFlight: Int = 0
     ): KineticFrameResult {
         val nowMs = frame.timestampMs
         val lm = frame.landmarks
@@ -518,15 +519,16 @@ class KineticTrickCoach {
             }
 
             val audioBursts = countHighAudioBursts(audioHistory, jumpPeakTimeMs)
+            val verifiedPasses = max(audioBursts, visualRopePassesInFlight)
             val cycleDtMs = if (lastEventTimeMs > 0L) (nowMs - lastEventTimeMs) else 700L
             val isTripleUnder = baselineJumpCount >= 3 && activeFlightMs >= 320L && cycleDtMs >= 620L && (
                 (jumpAmplitude >= max(0.16f, rollingJumpAmp * 1.85f) && activeFlightMs >= 390L) ||
-                    (jumpAmplitude >= max(0.14f, rollingJumpAmp * 1.65f) && audioBursts >= 3)
+                    (jumpAmplitude >= max(0.14f, rollingJumpAmp * 1.65f) && verifiedPasses >= 3)
                 )
 
             val isDoubleUnder = !isTripleUnder && baselineJumpCount >= 3 && activeFlightMs >= 205L && (
                 (jumpAmplitude >= max(0.11f, rollingJumpAmp * 1.48f) && activeFlightMs >= 250L) ||
-                    (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && audioBursts >= 2)
+                    (jumpAmplitude >= max(0.10f, rollingJumpAmp * 1.38f) && verifiedPasses >= 2)
                 )
 
             // Peak-Aligned Window `[jumpPeakTimeMs - 110ms .. jumpPeakTimeMs + 110ms]`

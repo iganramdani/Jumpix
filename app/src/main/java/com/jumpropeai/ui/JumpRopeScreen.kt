@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -104,7 +105,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -118,9 +121,11 @@ import com.jumpropeai.ai.DetectorStatus
 import com.jumpropeai.ai.FramingStatus
 import com.jumpropeai.ai.PoseFrame
 import com.jumpropeai.audio.AudioFeedbackManager
+import com.jumpropeai.audio.PacemakerMode
 import com.jumpropeai.data.WorkoutSession
 import com.jumpropeai.metrics.RopeType
 import com.jumpropeai.ui.components.CameraPreview
+import com.jumpropeai.ui.components.CategorizedWorkoutSettingsSheet
 import com.jumpropeai.ui.components.HistoryTabScreen
 import com.jumpropeai.ui.components.OpticalHeartRateDialog
 import com.jumpropeai.ui.components.PoseOverlay
@@ -295,6 +300,11 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         onFinishSession = { viewModel.finishAndSaveSession(completedByTarget = false) },
                         onResetSession = viewModel::resetSession,
                         onToggleCamera = viewModel::toggleCamera,
+                        onCycleSensorMode = viewModel::cycleSensorMode,
+                        onCyclePacemakerMode = viewModel::cyclePacemakerMode,
+                        onCycleGhostProfile = viewModel::cycleGhostProfile,
+                        onOpenHeartRateScanner = { viewModel.setHeartRateDialogVisible(true) },
+                        onToggleSplitBattle = { viewModel.toggleBattleArena() },
                         onToggleEcoMode = viewModel::toggleEcoMode,
                         onToggleControls = viewModel::toggleControlsVisibility,
                         onOpenModeSheet = { viewModel.setShowModeSheet(true) },
@@ -312,6 +322,10 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
                         onToggleShuffleMode = viewModel::toggleVideoShuffleMode,
                         studioMode = uiState.videoStudioMode,
                         onSelectStudioMode = viewModel::setVideoStudioMode,
+                        precisionTier = uiState.studioPrecisionTier,
+                        onTogglePrecisionTier = viewModel::toggleStudioPrecisionTier,
+                        onCancelAnalysis = viewModel::cancelVideoAnalysis,
+                        onShareDebugLogs = { viewModel.shareVideoDebugLogs(context) },
                         progress = uiState.videoProgress,
                         result = uiState.videoResult,
                         errorMessage = uiState.videoError,
@@ -413,9 +427,9 @@ fun JumpRopeScreen(viewModel: JumpRopeViewModel) {
         )
     }
 
-    // Clean Settings Bottom Sheet (Countdown + Touchless Gesture + Athlete Profile + Phone-Only Pro Suite)
+    // Categorized High-Usability Settings Bottom Sheet (Athlete & Goal • AI & Pro Suite • Display & Logs)
     if (showSettingsSheet) {
-        WorkoutSettingsSheet(
+        CategorizedWorkoutSettingsSheet(
             uiState = uiState,
             onCycleSensorMode = viewModel::cycleSensorMode,
             onSelectCountdown = viewModel::setStartCountdownDuration,
@@ -532,6 +546,11 @@ private fun DynamicRingLiveHud(
     onFinishSession: () -> Unit,
     onResetSession: () -> Unit,
     onToggleCamera: () -> Unit,
+    onCycleSensorMode: () -> Unit = {},
+    onCyclePacemakerMode: () -> Unit = {},
+    onCycleGhostProfile: () -> Unit = {},
+    onOpenHeartRateScanner: () -> Unit = {},
+    onToggleSplitBattle: () -> Unit = {},
     onToggleEcoMode: () -> Unit,
     onToggleControls: () -> Unit,
     onOpenModeSheet: () -> Unit,
@@ -544,7 +563,9 @@ private fun DynamicRingLiveHud(
     val config = uiState.workoutConfig
     val progress = uiState.workoutProgress
     val showControls = (!uiState.isSessionRunning || uiState.isControlsVisible) && !uiState.isCountingDown
-    val isPureBlackMode = uiState.isEcoMode || uiState.sensorMode == SensorMode.AUDIO_ONLY
+    val isPureBlackMode = uiState.isEcoMode ||
+        uiState.sensorMode == SensorMode.AUDIO_ONLY ||
+        uiState.sensorMode == SensorMode.POCKET_IMU
 
     // Compute intuitive ring progress for ALL 4 modes
     val rawRingProgress = when (config.mode) {
@@ -629,8 +650,8 @@ private fun DynamicRingLiveHud(
                 )
         )
 
-        // 5. Audio-Only Minimalist Backdrop
-        if (uiState.sensorMode == SensorMode.AUDIO_ONLY) {
+        // 5. Camera-Free Minimalist Backdrop (Audio-Only or Pocket IMU)
+        if (uiState.sensorMode == SensorMode.AUDIO_ONLY || uiState.sensorMode == SensorMode.POCKET_IMU) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -646,12 +667,13 @@ private fun DynamicRingLiveHud(
                 .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // TOP BAR: Mode selector pill on left, ONLY 2 circular icon buttons (Settings + Camera Flip) on right
+            // TOP BAR: Mode selector pill on left + 1-Tap Sensor Pill + Settings + Camera Flip on right
             AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
+                val haptics = LocalHapticFeedback.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -661,10 +683,11 @@ private fun DynamicRingLiveHud(
                         onClick = onOpenModeSheet,
                         shape = CircleShape,
                         color = MidnightGlass,
-                        border = BorderStroke(1.dp, MidnightBorder)
+                        border = BorderStroke(1.dp, MidnightBorder),
+                        modifier = Modifier.defaultMinSize(minHeight = 48.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
@@ -673,26 +696,70 @@ private fun DynamicRingLiveHud(
                                     .clip(CircleShape)
                                     .background(IceMint)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(7.dp))
                             Text(
                                 text = config.shortLabel(),
                                 color = TextPrimary,
-                                fontSize = 14.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(3.dp))
                             Icon(
                                 imageVector = Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = "Select Mode",
                                 tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(17.dp)
                             )
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // v7.0 1-Tap Sensor Mode Pill (Fusion AI / Pocket IMU / Audio Eco / Camera)
+                        Surface(
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onCycleSensorMode()
+                            },
+                            shape = CircleShape,
+                            color = if (uiState.sensorMode == SensorMode.POCKET_IMU || uiState.sensorMode == SensorMode.AUDIO_ONLY) {
+                                IceMintSoft
+                            } else {
+                                MidnightGlass
+                            },
+                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.55f)),
+                            modifier = Modifier.defaultMinSize(minHeight = 48.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                Icon(
+                                    imageVector = when (uiState.sensorMode) {
+                                        SensorMode.FUSION -> Icons.Rounded.Videocam
+                                        SensorMode.POCKET_IMU -> Icons.Rounded.FitnessCenter
+                                        SensorMode.AUDIO_ONLY -> Icons.Rounded.GraphicEq
+                                        SensorMode.CAMERA_ONLY -> Icons.Rounded.Videocam
+                                    },
+                                    contentDescription = "Cycle Sensor Mode",
+                                    tint = IceMint,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Text(
+                                    text = uiState.sensorMode.label,
+                                    color = IceMint,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+
                         Box {
                             CircularHudIconButton(
                                 icon = Icons.Rounded.Settings,
@@ -952,6 +1019,73 @@ private fun DynamicRingLiveHud(
             }
 
             Spacer(Modifier.weight(1f))
+
+            // v7.0 Pre-Workout Quick Dock (4 ergonomic >=48dp chips, auto-hidden while jumping!)
+            AnimatedVisibility(
+                visible = !uiState.isSessionRunning && showControls,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                val haptics = LocalHapticFeedback.current
+                val paceActive = uiState.pacemakerMode != PacemakerMode.OFF
+                val ghostActive = uiState.ghostProfile != GhostProfile.OFF
+                val hrActive = uiState.heartRateSnapshot.currentBpm > 0
+                val battleActive = uiState.battleState.isActive
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    QuickDockChip(
+                        title = "Pace",
+                        value = if (paceActive) "${uiState.pacemakerRpm} SPM" else "Off",
+                        active = paceActive,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onCyclePacemakerMode()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickDockChip(
+                        title = "Ghost",
+                        value = when (uiState.ghostProfile) {
+                            GhostProfile.OFF -> "Off"
+                            GhostProfile.CRUISER_160 -> "160 RPM"
+                            GhostProfile.BOXER_190 -> "190 RPM"
+                            GhostProfile.IJRU_WORLD_230 -> "230 RPM"
+                            GhostProfile.PERSONAL_BEST -> "PB"
+                        },
+                        active = ghostActive,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onCycleGhostProfile()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickDockChip(
+                        title = "rPPG HR",
+                        value = if (hrActive) "${uiState.heartRateSnapshot.currentBpm} BPM" else "Scan",
+                        active = hrActive,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onOpenHeartRateScanner()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    QuickDockChip(
+                        title = "2P Battle",
+                        value = if (battleActive) "Active" else "VS",
+                        active = battleActive,
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onToggleSplitBattle()
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
 
             // LOWER SYMMETRICAL STAT STRIP (more translucent when Skeleton Overlay is ON so feet stay clear!)
             val timerMs = when (config.mode) {
@@ -1253,11 +1387,54 @@ private fun DynamicProgressRingCounter(
 }
 
 @Composable
+private fun QuickDockChip(
+    title: String,
+    value: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = if (active) IceMintSoft else MidnightGlass,
+        border = BorderStroke(1.dp, if (active) IceMint.copy(alpha = 0.7f) else MidnightBorder),
+        modifier = modifier.defaultMinSize(minHeight = 52.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 7.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                color = if (active) IceMint else TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value,
+                color = if (active) IceMint else TextPrimary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.ExtraBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum")
+            )
+        }
+    }
+}
+
+@Composable
 private fun CircularHudIconButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    sizeDp: Int = 44
+    sizeDp: Int = 48
 ) {
     Surface(
         onClick = onClick,
@@ -1354,750 +1531,6 @@ private fun IsolatedPoseOverlay(
         isAirborne = isAirborne,
         modifier = modifier
     )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun WorkoutSettingsSheet(
-    uiState: JumpRopeUiState,
-    onCycleSensorMode: () -> Unit,
-    onSelectCountdown: (Int) -> Unit,
-    onToggleGestureControl: () -> Unit,
-    onToggleDoubleClap: () -> Unit = {},
-    onUpdateAthleteProfile: (Int, RopeType, Int) -> Unit,
-    onCyclePacemakerMode: () -> Unit,
-    onSetPacemakerRpm: (Int) -> Unit,
-    onCycleGhostProfile: () -> Unit,
-    onOpenHeartRateScanner: () -> Unit,
-    onOpenSkillAcademy: () -> Unit,
-    onStartSplitBattle: () -> Unit = {},
-    onToggleSkeleton: () -> Unit,
-    onToggleAudio: () -> Unit,
-    onToggleEcoMode: () -> Unit,
-    onToggleAutoHideControls: () -> Unit,
-    onToggleDiagnostics: () -> Unit,
-    onExportDiagnosticLog: () -> Boolean,
-    onCheckForUpdates: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = DeepMidnight,
-        contentColor = TextPrimary,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 12.dp)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(MidnightBorder)
-            )
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding()
-                .padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                text = "Workout Settings",
-                color = TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-
-            // Athlete Profile & Rope Setup Card (Body Weight Slider + Rope Type + Daily Goal)
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MidnightSurface,
-                border = BorderStroke(1.dp, MidnightBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            tint = IceMint,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Athlete Profile & Rope",
-                                color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Used for accurate calorie burn & daily target",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    // Body Weight (dedicated spacious row with smooth 1 kg Slider + ±1 kg fine buttons)
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Body Weight",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Surface(
-                                shape = CircleShape,
-                                color = IceMintSoft,
-                                border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f))
-                            ) {
-                                Text(
-                                    text = "${uiState.userWeightKg} kg",
-                                    color = IceMint,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Surface(
-                                onClick = {
-                                    onUpdateAthleteProfile(
-                                        (uiState.userWeightKg - 1).coerceAtLeast(35),
-                                        uiState.ropeType,
-                                        uiState.dailyGoalJumps
-                                    )
-                                },
-                                shape = CircleShape,
-                                color = MidnightElevated,
-                                border = BorderStroke(1.dp, MidnightBorder),
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "−",
-                                        color = TextPrimary,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Slider(
-                                value = uiState.userWeightKg.toFloat().coerceIn(35f, 150f),
-                                onValueChange = { raw ->
-                                    val snapped = raw.roundToInt().coerceIn(35, 150)
-                                    if (snapped != uiState.userWeightKg) {
-                                        onUpdateAthleteProfile(snapped, uiState.ropeType, uiState.dailyGoalJumps)
-                                    }
-                                },
-                                valueRange = 35f..150f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = IceMint,
-                                    activeTrackColor = IceMint,
-                                    inactiveTrackColor = MidnightElevated
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            Surface(
-                                onClick = {
-                                    onUpdateAthleteProfile(
-                                        (uiState.userWeightKg + 1).coerceAtMost(150),
-                                        uiState.ropeType,
-                                        uiState.dailyGoalJumps
-                                    )
-                                },
-                                shape = CircleShape,
-                                color = MidnightElevated,
-                                border = BorderStroke(1.dp, MidnightBorder),
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "+",
-                                        color = TextPrimary,
-                                        fontSize = 17.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Rope Type selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Rope Type",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            RopeType.entries.forEach { rope ->
-                                val selected = uiState.ropeType == rope
-                                Surface(
-                                    onClick = {
-                                        onUpdateAthleteProfile(uiState.userWeightKg, rope, uiState.dailyGoalJumps)
-                                    },
-                                    shape = CircleShape,
-                                    color = if (selected) IceMint else MidnightElevated,
-                                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder)
-                                ) {
-                                    Text(
-                                        text = rope.label,
-                                        color = if (selected) DeepMidnight else TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Daily Jump Goal selector
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = "Daily Jump Goal",
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(250 to "250", 500 to "500", 1000 to "1,000", 2000 to "2,000").forEach { (goal, label) ->
-                                val selected = uiState.dailyGoalJumps == goal
-                                Surface(
-                                    onClick = {
-                                        onUpdateAthleteProfile(uiState.userWeightKg, uiState.ropeType, goal)
-                                    },
-                                    shape = CircleShape,
-                                    color = if (selected) IceMintSoft else MidnightElevated,
-                                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        color = if (selected) IceMint else TextSecondary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier.padding(vertical = 6.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.PanTool,
-                title = "Touchless Hand-Gesture Control",
-                subtitle = "Raise 1 hand above head for 1.2s to Start or Pause hands-free",
-                checked = uiState.isGestureControlEnabled,
-                onCheckedChange = { onToggleGestureControl() }
-            )
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.GraphicEq,
-                title = "Double-Clap Start / Pause (5m+)",
-                subtitle = "Clap twice crisply from across the gym to Start or Pause hands-free",
-                checked = uiState.isDoubleClapEnabled,
-                onCheckedChange = { onToggleDoubleClap() }
-            )
-
-            // Pre-Start Countdown Selector (Off / 3s / 5s / 8s)
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MidnightSurface,
-                border = BorderStroke(1.dp, MidnightBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Timer,
-                            contentDescription = null,
-                            tint = IceMint,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Start Countdown",
-                                color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Delay after pressing Play to get in position",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(0 to "Off", 3 to "3s", 5 to "5s", 8 to "8s").forEach { (sec, label) ->
-                            val selected = uiState.startCountdownDurationSec == sec
-                            Surface(
-                                onClick = { onSelectCountdown(sec) },
-                                shape = CircleShape,
-                                color = if (selected) IceMint else MidnightElevated,
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (selected) IceMint else MidnightBorder
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (selected) DeepMidnight else TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center,
-                                    modifier = Modifier.padding(vertical = 8.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Sensor Mode Row (click to cycle)
-            Surface(
-                onClick = onCycleSensorMode,
-                shape = RoundedCornerShape(18.dp),
-                color = MidnightSurface,
-                border = BorderStroke(1.dp, MidnightBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.GraphicEq,
-                        contentDescription = null,
-                        tint = IceMint,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "AI Sensor Mode",
-                            color = TextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Tap to switch • ${uiState.fingerprint.shortBadge()}",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Surface(
-                        shape = CircleShape,
-                        color = IceMintSoft
-                    ) {
-                        Text(
-                            text = uiState.sensorMode.label,
-                            color = IceMint,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-            }
-
-            // Phone-Only Pro Suite (v4.2 – v6.0): Audio Pacemaker, Ghost Rival, Camera rPPG & Skill Academy
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MidnightSurface,
-                border = BorderStroke(1.dp, IceMint.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Phone-Only Pro Suite",
-                            color = IceMint,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Thermal: ${uiState.thermalTier.label}",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Surface(
-                            onClick = onCyclePacemakerMode,
-                            shape = RoundedCornerShape(12.dp),
-                            color = MidnightElevated,
-                            border = BorderStroke(1.dp, MidnightBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("Audio Pacemaker", color = TextSecondary, fontSize = 10.5.sp)
-                                Text(
-                                    text = "${uiState.pacemakerMode.label} (${uiState.pacemakerRpm})",
-                                    color = IceMint,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Surface(
-                            onClick = onCycleGhostProfile,
-                            shape = RoundedCornerShape(12.dp),
-                            color = MidnightElevated,
-                            border = BorderStroke(1.dp, MidnightBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp)) {
-                                Text("Ghost Rival Pacer", color = TextSecondary, fontSize = 10.5.sp)
-                                Text(
-                                    text = uiState.ghostProfile.label,
-                                    color = IceMint,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-
-                    Slider(
-                        value = uiState.pacemakerRpm.toFloat(),
-                        onValueChange = { onSetPacemakerRpm(it.roundToInt()) },
-                        valueRange = 100f..420f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = IceMint,
-                            activeTrackColor = IceMint,
-                            inactiveTrackColor = MidnightElevated
-                        )
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedButton(
-                            onClick = onOpenHeartRateScanner,
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, IceMint.copy(alpha = 0.6f)),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Camera rPPG HR", color = IceMint, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                        OutlinedButton(
-                            onClick = onOpenSkillAcademy,
-                            shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, MidnightBorder),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("AI Skill Tree", color = TextPrimary, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = onStartSplitBattle,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = if (uiState.battleState.isActive) "Close 2-Player Split Battle" else "Start 2-Player Split-Screen Battle",
-                            color = IceMint,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.AccessibilityNew,
-                title = "Pose Skeleton Overlay",
-                subtitle = "Display AI body skeleton lines on camera",
-                checked = uiState.showSkeletonOverlay,
-                onCheckedChange = { onToggleSkeleton() }
-            )
-
-            SettingsSwitchCard(
-                icon = Icons.AutoMirrored.Rounded.VolumeUp,
-                title = "Sound & Audio Cues",
-                subtitle = "Countdown beeps, milestones, and HIIT transitions",
-                checked = uiState.isAudioEnabled,
-                onCheckedChange = { onToggleAudio() }
-            )
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.Bedtime,
-                title = "AMOLED Eco Mode",
-                subtitle = "Dim screen to pure black to save battery",
-                checked = uiState.isEcoMode,
-                onCheckedChange = { onToggleEcoMode() }
-            )
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.VisibilityOff,
-                title = "Hide Toolbar While Active",
-                subtitle = "Auto-hide top & bottom bars during workout (tap screen to toggle)",
-                checked = uiState.autoHideControlsWhileActive,
-                onCheckedChange = { onToggleAutoHideControls() }
-            )
-
-            SettingsSwitchCard(
-                icon = Icons.Rounded.GraphicEq,
-                title = "AI Performance & Full CSV Log",
-                subtitle = "Show live FPS/CPU/RAM badge & record session telemetry",
-                checked = uiState.isDiagnosticsEnabled,
-                onCheckedChange = { onToggleDiagnostics() }
-            )
-
-            if (uiState.isDiagnosticsEnabled || uiState.perfStats.loggedRows > 0) {
-                var logExportNote by remember { mutableStateOf<String?>(null) }
-                Surface(
-                    onClick = {
-                        val ok = onExportDiagnosticLog()
-                        logExportNote = if (ok) {
-                            "Log exported (${uiState.perfStats.loggedRows} frames)"
-                        } else {
-                            "Start a workout first to record log data"
-                        }
-                    },
-                    shape = RoundedCornerShape(18.dp),
-                    color = MidnightSurface,
-                    border = BorderStroke(1.dp, IceMint.copy(alpha = 0.45f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Download,
-                            contentDescription = null,
-                            tint = IceMint,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Export Diagnostic Log (CSV)",
-                                color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = logExportNote
-                                    ?: uiState.perfStats.lastSavedLogPath?.let { "Auto-saved: $it" }
-                                    ?: "${uiState.perfStats.loggedRows} frames recorded • Auto-saves to Documents/Jumpvex/DebugLogs",
-                                color = IceMint,
-                                fontSize = 12.sp,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Surface(
-                            shape = CircleShape,
-                            color = IceMintSoft
-                        ) {
-                            Text(
-                                text = "Share",
-                                color = IceMint,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // In-App GitHub Release Update Checker Row
-            val hasUpdate = uiState.availableUpdate != null
-            Surface(
-                onClick = onCheckForUpdates,
-                shape = RoundedCornerShape(18.dp),
-                color = MidnightSurface,
-                border = BorderStroke(1.dp, if (hasUpdate) IceMint.copy(alpha = 0.65f) else MidnightBorder),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.SystemUpdate,
-                        contentDescription = null,
-                        tint = if (hasUpdate) IceMint else TextSecondary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (hasUpdate) {
-                                "Update Ready • v${uiState.availableUpdate?.versionName}"
-                            } else {
-                                "App Updates (v${BuildConfig.VERSION_NAME})"
-                            },
-                            color = TextPrimary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = uiState.updateStatusMessage ?: "Check GitHub Releases for latest APK",
-                            color = if (hasUpdate) IceMint else TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-                    if (uiState.isCheckingUpdate) {
-                        CircularProgressIndicator(
-                            color = IceMint,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (hasUpdate) IceMint else IceMintSoft
-                        ) {
-                            Text(
-                                text = if (hasUpdate) "Update" else "Check",
-                                color = if (hasUpdate) DeepMidnight else IceMint,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsSwitchCard(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MidnightSurface,
-        border = BorderStroke(1.dp, MidnightBorder),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = if (checked) IceMint else TextSecondary,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = subtitle,
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
-            }
-            Switch(
-                checked = checked,
-                onCheckedChange = onCheckedChange,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = DeepMidnight,
-                    checkedTrackColor = IceMint,
-                    uncheckedThumbColor = TextSecondary,
-                    uncheckedTrackColor = MidnightElevated,
-                    uncheckedBorderColor = MidnightBorder
-                )
-            )
-        }
-    }
 }
 
 @Composable

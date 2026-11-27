@@ -12,12 +12,12 @@ android {
         applicationId = "com.jumpropeai"
         minSdk = 24
         targetSdk = 35
-        versionCode = 38
-        versionName = "6.1.1"
+        versionCode = 39
+        versionName = "7.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // 99% Lightweight: bundle only real Android phone ABIs (64-bit & 32-bit ARM), removing ~45MB of x86 emulator libraries
+        // Dual-Tier Offline Suite: bundle ARM 64-bit & 32-bit phone ABIs (100% offline on-device Neural VAR)
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
@@ -100,8 +100,10 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
-    // ML Kit Pose Detection (fast real-time on-device AI)
+    // Dual-Tier ML Kit Pose Backbones:
+    // Tier 1 (Live 30 FPS): Fast Stream Pose | Tier 2 (Video Studio VAR): Accurate Heavy 3D Pose
     implementation("com.google.mlkit:pose-detection:18.0.0-beta5")
+    implementation("com.google.mlkit:pose-detection-accurate:18.0.0-beta5")
 
     // Media3 Transformer (hardware-accelerated video watermark export)
     val media3Version = "1.4.1"

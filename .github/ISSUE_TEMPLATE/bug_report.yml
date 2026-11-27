@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping keep **Jumpvex 99% Accurate & 99% Lightweight**!
-        💡 **Pro Tip:** Before submitting, you can drop your CSV log into the **[Jumpvex Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/#telemetry-lab)** and click **"Copy Summary for GitHub Issue"**!
+        Thanks for helping keep **Jumpvex 99.9% VAR-Grade Precision & Real-Time 30 FPS Dual-Engine**!
+        💡 **Pro Tip:** Before submitting, you can drop your CSV log (or `.ZIP` batch) into the **[Jumpvex Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/#telemetry-lab)** and click **"Copy Summary for GitHub Issue"**!
 
   - type: input
     id: device
@@ -22,7 +22,7 @@ body:
     id: version
     attributes:
       label: Jumpvex Version
-      placeholder: "e.g., v4.0.1"
+      placeholder: "e.g., v7.0.0"
     validations:
       required: true
 

@@ -19,6 +19,7 @@ import com.jumpropeai.ai.JumpDetector
 import com.jumpropeai.ai.JumpStyle
 import com.jumpropeai.ai.KineticMove
 import com.jumpropeai.ai.KineticTrickCoach
+import com.jumpropeai.ai.NeuralVarEngine
 import com.jumpropeai.ai.PlyometricAnalyzer
 import com.jumpropeai.ai.PlyometricSnapshot
 import com.jumpropeai.ai.PoseFrame
@@ -48,6 +49,7 @@ import com.jumpropeai.system.ThermalTier
 import com.jumpropeai.update.AppReleaseInfo
 import com.jumpropeai.update.AppUpdateChecker
 import com.jumpropeai.update.UpdateCheckResult
+import com.jumpropeai.video.StudioPrecisionTier
 import com.jumpropeai.video.VideoAnalysisProgress
 import com.jumpropeai.video.VideoAnalysisResult
 import com.jumpropeai.video.VideoJumpAnalyzer
@@ -148,6 +150,7 @@ data class JumpRopeUiState(
     // Video Studio analysis state
     val showVideoSheet: Boolean = false,
     val videoStudioMode: VideoStudioMode = VideoStudioMode.AUTO_HYBRID,
+    val studioPrecisionTier: StudioPrecisionTier = StudioPrecisionTier.HEAVY_VAR,
     val isVideoShuffleMode: Boolean = false,
     val isAnalyzingVideo: Boolean = false,
     val videoProgress: VideoAnalysisProgress? = null,
@@ -180,6 +183,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
     private val prefs = application.getSharedPreferences("jumpvex_prefs", Context.MODE_PRIVATE)
     private val jumpDetector = JumpDetector()
     private val fusionEngine = FusionEngine()
+    private val liveCausalTcn = NeuralVarEngine.CausalJumpTcnLite(application.applicationContext)
     private val kineticTrickCoach = KineticTrickCoach()
     private val touchlessController = TouchlessGestureController()
     private val beatSyncEngine = BeatSyncEngine()
@@ -554,12 +558,20 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
             emptyList()
         }
 
+        val liveNeural = if (isCountingAllowed) {
+            liveCausalTcn.processLiveFrame(frame, audioSnapshot)
+        } else {
+            liveCausalTcn.latestPrediction
+        }
+
         if (candidate != null && isCountingAllowed) {
             if (currentState.sensorMode == SensorMode.FUSION) {
                 val decision = fusionEngine.evaluateCandidate(
                     candidate = candidate,
                     audioHistory = audioSnapshot,
-                    useAudioFusion = useAudio
+                    useAudioFusion = useAudio,
+                    neuralVarProb = liveNeural.combinedVarProb,
+                    neuralActiveProb = liveNeural.activeSkippingProb
                 )
                 jumpsAccepted = decision.acceptedJumps
                 latestStyle = decision.jumpStyle
@@ -650,7 +662,10 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                     lPitch = kineticTrickCoach.lastLPitch,
                     rPitch = kineticTrickCoach.lastRPitch,
                     vYawL = kineticTrickCoach.lastVYawL,
-                    vYawR = kineticTrickCoach.lastVYawR
+                    vYawR = kineticTrickCoach.lastVYawR,
+                    neuralProb = liveNeural.combinedVarProb,
+                    ropeVisEnergy = 0f,
+                    cleanWhipEnergy = liveNeural.cleanWhipEnergy
                 )
             }
             if (nowMs - lastPerfEmitMs >= 500L) {
@@ -1046,6 +1061,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
 
         jumpDetector.reset()
         fusionEngine.reset()
+        liveCausalTcn.reset()
         kineticTrickCoach.reset()
         touchlessController.reset()
         beatSyncEngine.reset()
@@ -1110,6 +1126,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         stftAudioEngine.stopLiveCapture()
         jumpDetector.reset()
         fusionEngine.reset()
+        liveCausalTcn.reset()
         kineticTrickCoach.reset()
         touchlessController.reset()
         beatSyncEngine.reset()
@@ -1178,6 +1195,40 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun toggleStudioPrecisionTier() {
+        _uiState.update { state ->
+            val next = if (state.studioPrecisionTier == StudioPrecisionTier.HEAVY_VAR) {
+                StudioPrecisionTier.FAST_HYBRID
+            } else {
+                StudioPrecisionTier.HEAVY_VAR
+            }
+            state.copy(studioPrecisionTier = next)
+        }
+    }
+
+    fun cancelVideoAnalysis() {
+        videoJob?.cancel()
+        videoJob = null
+        _uiState.update {
+            it.copy(
+                isAnalyzingVideo = false,
+                videoProgress = null,
+                videoError = "Analysis canceled."
+            )
+        }
+    }
+
+    fun shareVideoDebugLogs(context: Context): Boolean {
+        val state = _uiState.value
+        val files = buildList {
+            for (r in state.batchCompletedResults) {
+                r.debugLogFile?.let { add(it) }
+            }
+            state.videoResult?.debugLogFile?.let { add(it) }
+        }
+        return SessionDiagnosticLogger.shareLogsOrBatchZip(context, files)
+    }
+
     fun analyzeMp4Video(uri: Uri, fileName: String) {
         analyzeMultipleVideos(listOf(uri to fileName))
     }
@@ -1188,6 +1239,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
         val totalCount = videos.size
         val stateSnap = _uiState.value
         val studioMode = stateSnap.videoStudioMode
+        val precisionTier = stateSnap.studioPrecisionTier
         val shuffleEnabled = (studioMode == VideoStudioMode.SHUFFLE_FOOTWORK)
         val weightKg = stateSnap.userWeightKg.toDouble()
         val ropeType = stateSnap.ropeType
@@ -1201,7 +1253,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                 videoQueueIndex = 1,
                 videoQueueTotal = totalCount,
                 batchCompletedResults = emptyList(),
-                videoProgress = VideoAnalysisProgress("Starting analysis...", 0.02f, 0)
+                videoProgress = VideoAnalysisProgress("Starting ${precisionTier.label} analysis...", 0.02f, 0)
             )
         }
 
@@ -1218,7 +1270,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                         videoQueueTotal = totalCount,
                         videoError = null,
                         videoProgress = VideoAnalysisProgress(
-                            stage = if (totalCount > 1) "[$currentNum/$totalCount] Preparing $fileName..." else "Starting analysis...",
+                            stage = if (totalCount > 1) "[$currentNum/$totalCount] ${precisionTier.label}: $fileName..." else "Starting ${precisionTier.label}...",
                             fraction = 0.02f,
                             currentJumps = 0
                         )
@@ -1232,6 +1284,7 @@ class JumpRopeViewModel(application: Application) : AndroidViewModel(application
                         enableDebugLog = true,
                         isShuffleMode = shuffleEnabled,
                         studioMode = studioMode,
+                        precisionTier = precisionTier,
                         userWeightKg = weightKg,
                         ropeType = ropeType
                     ) { prog ->

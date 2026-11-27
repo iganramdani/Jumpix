@@ -13,6 +13,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.pose.Pose
 import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.PoseLandmark
+import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import com.jumpropeai.ai.AcousticFingerprint
 import com.jumpropeai.ai.BodyLandmark
@@ -24,6 +25,8 @@ import com.jumpropeai.ai.JumpStyle
 import com.jumpropeai.ai.KineticMove
 import com.jumpropeai.ai.KineticTrickCoach
 import com.jumpropeai.ai.LandmarkPoint
+import com.jumpropeai.ai.NeuralVarEngine
+import com.jumpropeai.ai.OpticalRopeTracker
 import com.jumpropeai.ai.PlyometricAnalyzer
 import com.jumpropeai.ai.PlyometricSnapshot
 import com.jumpropeai.ai.PoseFrame
@@ -48,6 +51,11 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+enum class StudioPrecisionTier(val label: String, val badge: String) {
+    HEAVY_VAR("Heavy VAR", "🔬 Heavy VAR"),
+    FAST_HYBRID("Fast 30fps", "⚡ Fast 30fps")
+}
 
 enum class VideoStudioMode(val label: String) {
     AUTO_HYBRID("Auto Hybrid"),
@@ -111,6 +119,8 @@ data class VideoAnalysisResult(
     val plyometrics: PlyometricSnapshot = PlyometricSnapshot(),
     val poseFrames: List<PoseFrame> = emptyList(),
     val studioMode: VideoStudioMode = VideoStudioMode.AUTO_HYBRID,
+    val precisionTier: StudioPrecisionTier = StudioPrecisionTier.HEAVY_VAR,
+    val visualPassTimestampsMs: LongArray = LongArray(0),
     val highlightStartMs: Long = 0L,
     val highlightEndMs: Long = 0L,
     val highlightSummary: String = "",
@@ -119,11 +129,10 @@ data class VideoAnalysisResult(
 )
 
 /**
- * High-speed hardware-accelerated video jump rope, IJRC competition sprint & footwork analyzer (AI Engine v16):
- * - Native 30/60 FPS video frame decoding (eliminating the legacy 15 FPS Nyquist aliasing bottleneck!).
- * - O(1)-memory 200 Hz (5 ms hop) anti-aliased streaming audio STFT + IJRU Buzzer boundary detection.
- * - Dual-Engine Pipeline: Dedicated `IjrcSpeedSprintEngine` + `RopeAngularVelocityEngine` alongside
- *   protected v15 Hybrid Freestyle/Shuffle classifiers.
+ * Dual-Tier Hardware-Accelerated Video Studio & Neural VAR Analyzer (AI Engine v17):
+ * - `HEAVY_VAR`: ML Kit Accurate Heavy 33-Landmark Pose + Rotation-Aware Sub-Foot Visual Rope Tracker
+ *   + Harmonic-Percussive 200 Hz Audio Isolator + Bidirectional Temporal Neural VAR (`var_bitemporal_v7.jvxmodel`).
+ * - `FAST_HYBRID`: ML Kit Fast Stream Pose + Causal TCN (`live_causal_tcn_v7.jvxmodel`) for rapid batch queues.
  */
 class VideoJumpAnalyzer(private val context: Context) {
 
@@ -133,12 +142,14 @@ class VideoJumpAnalyzer(private val context: Context) {
         enableDebugLog: Boolean = true,
         isShuffleMode: Boolean = false,
         studioMode: VideoStudioMode = if (isShuffleMode) VideoStudioMode.SHUFFLE_FOOTWORK else VideoStudioMode.AUTO_HYBRID,
+        precisionTier: StudioPrecisionTier = StudioPrecisionTier.HEAVY_VAR,
         userWeightKg: Double = 65.0,
         ropeType: RopeType = RopeType.SPEED_CABLE,
         onProgress: (VideoAnalysisProgress) -> Unit
     ): VideoAnalysisResult = withContext(Dispatchers.Default) {
         val effectiveShuffle = isShuffleMode || studioMode == VideoStudioMode.SHUFFLE_FOOTWORK
-        onProgress(VideoAnalysisProgress("Scanning 200 Hz audio spectrum...", 0.04f, 0))
+        val useHeavyVar = precisionTier == StudioPrecisionTier.HEAVY_VAR
+        onProgress(VideoAnalysisProgress("Scanning 200 Hz HPSS audio spectrum...", 0.04f, 0))
 
         // 1. O(1)-RAM Streaming Audio Decode -> Anti-aliased 200 Hz (5 ms hop) 5-Band STFT Flux + Buzzer Tones
         val audioFlux200Hz = decodeVideoAudioStreamingToFlux(uri, highRes200Hz = true)
@@ -154,7 +165,11 @@ class VideoJumpAnalyzer(private val context: Context) {
         ensureActive()
         onProgress(
             VideoAnalysisProgress(
-                stage = if (hadAudio) "Audio locked • Full-FPS AI decoding..." else "Silent video • Full-FPS AI decoding...",
+                stage = if (useHeavyVar) {
+                    "Heavy VAR Pose + Rope Vision decoding..."
+                } else {
+                    "Fast 30fps Hybrid AI decoding..."
+                },
                 fraction = 0.10f,
                 currentJumps = 0
             )
@@ -162,15 +177,25 @@ class VideoJumpAnalyzer(private val context: Context) {
 
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
-        val poseDetector = PoseDetection.getClient(
-            PoseDetectorOptions.Builder()
-                .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
-                .build()
-        )
+        val poseDetector = if (useHeavyVar) {
+            PoseDetection.getClient(
+                AccuratePoseDetectorOptions.Builder()
+                    .setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE)
+                    .build()
+            )
+        } else {
+            PoseDetection.getClient(
+                PoseDetectorOptions.Builder()
+                    .setDetectorMode(PoseDetectorOptions.STREAM_MODE)
+                    .build()
+            )
+        }
 
         val jumpDetector = JumpDetector()
         val fusionEngine = FusionEngine()
         val kineticTrickCoach = KineticTrickCoach()
+        val opticalRopeTracker = OpticalRopeTracker()
+        val causalTcn = NeuralVarEngine.CausalJumpTcnLite(context)
         val plyometricAnalyzer = PlyometricAnalyzer()
         val ijrcEngine = IjrcSpeedSprintEngine()
         val beatSyncEngine = BeatSyncEngine()
@@ -181,8 +206,8 @@ class VideoJumpAnalyzer(private val context: Context) {
             SessionDiagnosticLogger().also {
                 it.startSession(
                     context = context,
-                    modeLabel = "Video Studio (${studioMode.label})",
-                    sensorLabel = if (hadAudio) "Fusion AI v16 (30/60 FPS + 200Hz)" else "Vision v16",
+                    modeLabel = "Video Studio (${studioMode.label} • ${precisionTier.label})",
+                    sensorLabel = if (useHeavyVar) "Neural VAR v17 (Heavy Pose + Rope ROI + 200Hz HPSS)" else "Fast Hybrid v17",
                     filePrefix = "Video_${fileName.substringBeforeLast('.')}"
                 )
             }
@@ -190,6 +215,7 @@ class VideoJumpAnalyzer(private val context: Context) {
             null
         }
         val jumpTimestamps = ArrayList<Long>(512)
+        val visualPassTimestamps = ArrayList<Long>(512)
         val telemetryEvents = ArrayList<VideoTelemetryEvent>(512)
         val collectedPoses = ArrayList<PoseFrame>(1024)
         var lastDisplayedBitmap: Bitmap? = null
@@ -335,13 +361,36 @@ class VideoJumpAnalyzer(private val context: Context) {
                             val det = jumpDetector.processFrame(poseFrame, isCountingActive = true)
                             plyometricAnalyzer.processFrame(timestampMs = currentMs, isAirborne = det.isAirborne)
 
+                            val ropeSignal = if (useHeavyVar) {
+                                val sig = opticalRopeTracker.processNv21Frame(
+                                    nv21 = nv21,
+                                    imgW = imgW,
+                                    imgH = imgH,
+                                    rotationDegrees = rotationDegrees,
+                                    effW = effW,
+                                    effH = effH,
+                                    poseFrame = poseFrame,
+                                    isAirborne = det.isAirborne
+                                )
+                                if (sig.ropePassConfirmed) {
+                                    visualPassTimestamps.add(currentMs)
+                                }
+                                sig
+                            } else {
+                                com.jumpropeai.ai.OpticalRopeSignal()
+                            }
+
+                            val liveNeural = causalTcn.processLiveFrame(poseFrame, audioFlux100Hz)
+
                             var acceptedThisFrame = 0
                             val cand = det.candidate
                             if (cand != null) {
                                 val decision = fusionEngine.evaluateCandidate(
                                     candidate = cand,
                                     audioHistory = audioFlux100Hz,
-                                    useAudioFusion = hadAudio
+                                    useAudioFusion = hadAudio,
+                                    neuralVarProb = liveNeural.combinedVarProb,
+                                    neuralActiveProb = liveNeural.activeSkippingProb
                                 )
                                 acceptedThisFrame = decision.acceptedJumps
                             }
@@ -357,7 +406,8 @@ class VideoJumpAnalyzer(private val context: Context) {
                                 jumpAmplitude = cand?.amplitude ?: 0f,
                                 audioHistory = audioFlux100Hz,
                                 isShuffleMode = effectiveShuffle,
-                                jumpPeakTimeMs = cand?.peakTimeMs ?: currentMs
+                                jumpPeakTimeMs = cand?.peakTimeMs ?: currentMs,
+                                visualRopePassesInFlight = ropeSignal.passesInCurrentFlight
                             )
 
                             val lastEvMs = jumpTimestamps.lastOrNull() ?: -10_000L
@@ -430,7 +480,10 @@ class VideoJumpAnalyzer(private val context: Context) {
                                     lPitch = kineticTrickCoach.lastLPitch,
                                     rPitch = kineticTrickCoach.lastRPitch,
                                     vYawL = kineticTrickCoach.lastVYawL,
-                                    vYawR = kineticTrickCoach.lastVYawR
+                                    vYawR = kineticTrickCoach.lastVYawR,
+                                    neuralProb = liveNeural.combinedVarProb,
+                                    ropeVisEnergy = ropeSignal.horizontalMotionEnergy,
+                                    cleanWhipEnergy = liveNeural.cleanWhipEnergy
                                 )
                             }
 
@@ -537,21 +590,60 @@ class VideoJumpAnalyzer(private val context: Context) {
                 kineticTrickCoach.snapshotMoveCounts()
             }
 
+            val biNeuralPreds = if (useHeavyVar && collectedPoses.isNotEmpty()) {
+                NeuralVarEngine.evaluateOfflineSequence(collectedPoses, audioFlux200Hz, context)
+            } else {
+                null
+            }
+            if (!useIjrcResult && !effectiveShuffle && !jumpDetector.hadSpeedSprint && biNeuralPreds != null) {
+                val rescuedTimes = NeuralVarEngine.rescueMissedRhythmicJumps(collectedPoses, biNeuralPreds, jumpTimestamps)
+                if (rescuedTimes.isNotEmpty()) {
+                    val merged = (jumpTimestamps + rescuedTimes).sorted()
+                    metricsTracker.reset()
+                    metricsTracker.start(0L)
+                    jumpTimestamps.clear()
+                    val oldByTime = telemetryEvents.associateBy { it.timestampMs }
+                    telemetryEvents.clear()
+                    for (tEv in merged) {
+                        metricsTracker.recordJump(tEv)
+                        jumpTimestamps.add(tEv)
+                        val prevEv = oldByTime[tEv]
+                        telemetryEvents.add(
+                            VideoTelemetryEvent(
+                                timestampMs = tEv,
+                                jumpNumber = metricsTracker.jumpCount,
+                                currentRpm = metricsTracker.getCurrentRpm(tEv),
+                                currentStreak = metricsTracker.getActiveStreak(tEv),
+                                move = prevEv?.move ?: KineticMove.REGULAR,
+                                calories = metricsTracker.estimatedCalories
+                            )
+                        )
+                    }
+                    metricsTracker.pause(finalDur)
+                }
+            }
+            val totalJumpsFinal = metricsTracker.jumpCount
+            val avgRpmFinal = if (totalJumpsFinal > 0) (totalJumpsFinal * 60_000.0 / activeSpanMs).roundToInt() else 0
+            val visPassArr = visualPassTimestamps.toLongArray()
+
             val richSeries = RopeAngularVelocityEngine.buildTelemetrySeries(
                 durationMs = finalDur,
                 poseFrames = collectedPoses,
                 audioFlux = audioFlux200Hz,
                 telemetryEvents = telemetryEvents,
-                ijrcSummary = if (useIjrcResult) ijrcSummary else null
+                ijrcSummary = if (useIjrcResult) ijrcSummary else null,
+                neuralPredictions = biNeuralPreds,
+                visualPassTimestampsMs = visPassArr
             )
 
             val formSnap = kineticTrickCoach.currentFormSnapshot()
             val finalBeatSnap = beatSyncEngine.snapshot()
             val (hlStart, hlEnd, hlSummary) = computePeakHighlightWindow(jumpTimestamps, finalDur)
             val activeEngineName = when {
-                useIjrcResult -> "IJRC-v16"
-                effectiveShuffle -> "Shuffle-v16"
-                else -> "Hybrid-v16"
+                useIjrcResult -> "IJRC-VAR-v17"
+                effectiveShuffle -> "Shuffle-VAR-v17"
+                useHeavyVar -> "Heavy-VAR-v17"
+                else -> "Fast-Hybrid-v17"
             }
             val buzzerLabel = if (useIjrcResult && ijrcSummary.buzzerWindow.detected) {
                 String.format(
@@ -566,12 +658,14 @@ class VideoJumpAnalyzer(private val context: Context) {
             val finalTrips = if (useIjrcResult) ijrcSummary.detectedTrips else fusionEngine.totalTrips
             videoLogger?.recordFinalSummary(
                 activeEngine = activeEngineName,
-                finalJumps = totalJumps,
-                avgRpm = avgRpm,
+                finalJumps = totalJumpsFinal,
+                avgRpm = avgRpmFinal,
                 peakRpm = peakRpm,
                 rightFootJudgeScore = if (useIjrcResult) ijrcSummary.rightFootJudgeScore else 0,
                 buzzerWindowLabel = buzzerLabel,
-                trips = finalTrips
+                trips = finalTrips,
+                visualRopePasses = visPassArr.size,
+                neuralConfPct = richSeries.meanNeuralConfidencePct
             )
             val savedLogPath = videoLogger?.autoSaveToDebugFolder(context)
             val savedLogFile = videoLogger?.exportToFile(context)
@@ -579,8 +673,8 @@ class VideoJumpAnalyzer(private val context: Context) {
             VideoAnalysisResult(
                 fileName = fileName,
                 durationMs = finalDur,
-                jumpCount = totalJumps,
-                averageRpm = avgRpm,
+                jumpCount = totalJumpsFinal,
+                averageRpm = avgRpmFinal,
                 peakRpm = peakRpm,
                 estimatedCalories = metricsTracker.estimatedCalories,
                 bestStreak = metricsTracker.bestStreak,
@@ -603,6 +697,8 @@ class VideoJumpAnalyzer(private val context: Context) {
                 plyometrics = plyometricAnalyzer.snapshot(),
                 poseFrames = collectedPoses,
                 studioMode = studioMode,
+                precisionTier = precisionTier,
+                visualPassTimestampsMs = visPassArr,
                 highlightStartMs = hlStart,
                 highlightEndMs = hlEnd,
                 highlightSummary = hlSummary,

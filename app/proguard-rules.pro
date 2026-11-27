@@ -1,6 +1,7 @@
-# Keep ML Kit Pose Detection & Vision JNI classes
+# Keep ML Kit Pose Detection (Fast + Accurate Heavy) & Vision JNI classes
 -keep class com.google.mlkit.** { *; }
 -keep class com.google.android.gms.internal.mlkit_vision_pose_common.** { *; }
+-keep class com.google.android.gms.internal.mlkit_vision_pose_accurate.** { *; }
 -keep class com.google.android.libraries.vision.** { *; }
 -dontwarn com.google.mlkit.**
 

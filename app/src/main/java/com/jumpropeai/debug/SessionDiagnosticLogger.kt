@@ -44,7 +44,8 @@ class SessionDiagnosticLogger {
         private const val STALE_CACHE_MAX_AGE_MS = 24L * 60L * 60L * 1000L
         private const val HEADER =
             "ts_ms,fps,ai_us,heap_mb,jumps,airborne,move,form_score,bpm,sync_pct," +
-                "sh_ratio,ank_sep,ank_dy,kn_asym,vlx_vrx,hip_vx,hip_std,l_pitch,r_pitch,v_yaw_l,v_yaw_r"
+                "sh_ratio,ank_sep,ank_dy,kn_asym,vlx_vrx,hip_vx,hip_std,l_pitch,r_pitch,v_yaw_l,v_yaw_r," +
+                "neural_prob,rope_vis,clean_whip"
 
         fun pruneStaleSharedCache(context: Context) {
             runCatching {
@@ -57,6 +58,63 @@ class SessionDiagnosticLogger {
                     }
                 }
             }
+        }
+
+        /**
+         * Shares a single CSV log directly or bundles multiple batch CSV logs into a single
+         * timestamped `.zip` archive in `cacheDir/shared_cards` for 1-tap sharing!
+         */
+        fun shareLogsOrBatchZip(context: Context, files: List<File>): Boolean {
+            val valid = files.filter { it.exists() && it.length() > 0L }.distinctBy { it.absolutePath }
+            if (valid.isEmpty()) return false
+            return runCatching {
+                if (valid.size == 1) {
+                    shareSingleFile(context, valid[0], "text/csv", "Jumpvex Telemetry Log (${Build.MODEL})")
+                } else {
+                    val outDir = File(context.cacheDir, "shared_cards").apply { mkdirs() }
+                    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val zipFile = File(outDir, "Jumpvex_BatchLogs_${valid.size}videos_${stamp}.zip")
+                    java.util.zip.ZipOutputStream(FileOutputStream(zipFile)).use { zos ->
+                        val buf = ByteArray(8192)
+                        for (f in valid) {
+                            zos.putNextEntry(java.util.zip.ZipEntry(f.name))
+                            FileInputStream(f).use { fis ->
+                                var n: Int
+                                while (fis.read(buf).also { n = it } > 0) {
+                                    zos.write(buf, 0, n)
+                                }
+                            }
+                            zos.closeEntry()
+                        }
+                    }
+                    shareSingleFile(
+                        context,
+                        zipFile,
+                        "application/zip",
+                        "Jumpvex Batch Telemetry Logs (${valid.size} videos)"
+                    )
+                }
+                true
+            }.getOrDefault(false)
+        }
+
+        private fun shareSingleFile(context: Context, file: File, mimeType: String, subject: String) {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, subject).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
         }
     }
 
@@ -94,7 +152,7 @@ class SessionDiagnosticLogger {
 
         val ts = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
         val headerBlock = buildString {
-            append("# Jumpvex Diagnostic Log (Unlimited)\n")
+            append("# Jumpvex Diagnostic Log (v17 Neural VAR)\n")
             append("# App: v${BuildConfig.VERSION_NAME} (code ${BuildConfig.VERSION_CODE})\n")
             append("# Device: ${Build.MANUFACTURER} ${Build.MODEL} (Android ${Build.VERSION.RELEASE}, SDK ${Build.VERSION.SDK_INT})\n")
             append("# Mode: $modeLabel | Sensor: $sensorLabel | Started: $ts\n")
@@ -130,7 +188,10 @@ class SessionDiagnosticLogger {
         lPitch: Float,
         rPitch: Float,
         vYawL: Float,
-        vYawR: Float
+        vYawR: Float,
+        neuralProb: Float = 0f,
+        ropeVisEnergy: Float = 0f,
+        cleanWhipEnergy: Float = 0f
     ) {
         chunkBuffer.append(tsMs).append(',')
             .append(fps).append(',')
@@ -152,7 +213,10 @@ class SessionDiagnosticLogger {
         appendFixed2(chunkBuffer, lPitch).append(',')
         appendFixed2(chunkBuffer, rPitch).append(',')
         appendFixed2(chunkBuffer, vYawL).append(',')
-        appendFixed2(chunkBuffer, vYawR).append('\n')
+        appendFixed2(chunkBuffer, vYawR).append(',')
+        appendFixed2(chunkBuffer, neuralProb).append(',')
+        appendFixed2(chunkBuffer, ropeVisEnergy).append(',')
+        appendFixed2(chunkBuffer, cleanWhipEnergy).append('\n')
 
         rowCount++
         bufferedRows++
@@ -181,7 +245,7 @@ class SessionDiagnosticLogger {
 
     /**
      * Appends the final authoritative session summary (including offline IJRC Speed-Sprint override,
-     * Right-Foot Judge Score, active-window RPM, and IJRU Buzzer window) before flushing to disk.
+     * Right-Foot Judge Score, active-window RPM, IJRU Buzzer window, and Visual Rope Passes) before flushing.
      */
     fun recordFinalSummary(
         activeEngine: String,
@@ -190,7 +254,9 @@ class SessionDiagnosticLogger {
         peakRpm: Int,
         rightFootJudgeScore: Int = 0,
         buzzerWindowLabel: String = "None",
-        trips: Int = 0
+        trips: Int = 0,
+        visualRopePasses: Int = 0,
+        neuralConfPct: Int = 0
     ) {
         chunkBuffer.append("# Final Summary: Engine=").append(activeEngine)
             .append(" | FinalJumps=").append(finalJumps)
@@ -199,7 +265,8 @@ class SessionDiagnosticLogger {
             .append(" | RightFootJudge=").append(rightFootJudgeScore)
             .append(" | Buzzer=").append(buzzerWindowLabel)
             .append(" | Trips=").append(trips)
-            .append('\n')
+            .append(" | VisRopePasses=").append(visualRopePasses)
+            .append(" | NeuralConf=").append(neuralConfPct).append("%\n")
         bufferedRows++
         alreadyAutoSaved = false
     }
@@ -249,22 +316,7 @@ class SessionDiagnosticLogger {
     }
 
     fun shareLogFile(context: Context, file: File) {
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/csv"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "Jumpvex AI Diagnostic Log (${Build.MODEL})")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        val chooser = Intent.createChooser(intent, "Share Jumpvex Diagnostic Log").apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        context.startActivity(chooser)
+        shareLogsOrBatchZip(context, listOf(file))
     }
 
     private fun saveFileToDebugFolder(context: Context, sourceFile: File, fileName: String): String? {

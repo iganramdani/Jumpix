@@ -20,7 +20,7 @@
 
   function parseJumpvexCsv(text) {
     const lines = text.split(/\r?\n/);
-    const meta = { app: 'Unknown', device: 'Unknown', mode: 'Unknown' };
+    const meta = { app: 'Unknown', device: 'Unknown', mode: 'Unknown', finalJumps: null, engine: null };
     let headerIdx = -1;
     let cols = [];
 
@@ -31,12 +31,17 @@
         if (line.includes('App:')) meta.app = line.split('App:')[1].trim();
         if (line.includes('Device:')) meta.device = line.split('Device:')[1].trim();
         if (line.includes('Mode:')) meta.mode = line.split('Mode:')[1].trim();
+        if (line.includes('Final Summary:')) {
+          const mJumps = line.match(/FinalJumps=(\d+)/);
+          if (mJumps) meta.finalJumps = parseInt(mJumps[1], 10);
+          const mEng = line.match(/Engine=([^|]+)/);
+          if (mEng) meta.engine = mEng[1].trim();
+        }
         continue;
       }
       if (headerIdx === -1 && line.includes('ts_ms')) {
         headerIdx = i;
         cols = line.split(',').map(c => c.trim());
-        break;
       }
     }
     if (headerIdx === -1) return { meta, rows: [] };
@@ -69,7 +74,10 @@
         sync: getNum('sync_pct'),
         ankSep: getNum('ank_sep'),
         lPitch: getNum('l_pitch'),
-        rPitch: getNum('r_pitch')
+        rPitch: getNum('r_pitch'),
+        neuralProb: getNum('neural_prob', -1),
+        ropeVis: getNum('rope_vis', 0),
+        cleanWhip: getNum('clean_whip', 0)
       });
     }
     return { meta, rows };
@@ -89,17 +97,28 @@
       return;
     }
     const last = parsedRows[parsedRows.length - 1];
+    const totalJumps = parsedMeta.finalJumps !== null ? parsedMeta.finalJumps : last.jumps;
     const durSec = Math.max(0.1, (last.ts - parsedRows[0].ts) / 1000);
     const medCpu = Math.round(median(parsedRows.map(r => r.aiUs)));
     const medHeap = Math.round(median(parsedRows.map(r => r.heapMb)));
     const medFps = Math.round(median(parsedRows.map(r => r.fps)));
     const avgForm = Math.round(parsedRows.reduce((a, b) => a + b.form, 0) / parsedRows.length);
+    const hasNeural = parsedRows.some(r => r.neuralProb >= 0);
+    const cablePasses = parsedRows.filter(r => r.ropeVis >= 0.45).length;
     const moves = [...new Set(parsedRows.map(r => r.move))].join(', ');
+    const neuralChip = hasNeural
+      ? `<div class="meta-chip mono">VAR Cable Passes: <strong>${cablePasses}</strong></div>`
+      : '';
+    const engineChip = parsedMeta.engine
+      ? `<div class="meta-chip mono">Engine: <strong>${parsedMeta.engine}</strong></div>`
+      : '';
 
     csvMetaBar.innerHTML = `
       <div class="meta-chip mono">Device: <strong>${parsedMeta.device}</strong></div>
+      ${engineChip}
       <div class="meta-chip mono">Frames: <strong>${parsedRows.length}</strong> (${durSec.toFixed(1)}s @ ${medFps} FPS)</div>
-      <div class="meta-chip mono">Total Jumps: <strong>${last.jumps}</strong></div>
+      <div class="meta-chip mono">Total Jumps: <strong>${totalJumps}</strong></div>
+      ${neuralChip}
       <div class="meta-chip mono">CPU Median: <strong>${medCpu} µs</strong></div>
       <div class="meta-chip mono">Heap Median: <strong>${medHeap} MB</strong></div>
       <div class="meta-chip mono">Avg Form: <strong>${avgForm}%</strong></div>
@@ -150,13 +169,21 @@
       parsedRows[i].spm = dtSec >= 0.35 && dJumps > 0 ? Math.round((dJumps / dtSec) * 60) : 0;
     }
 
+    const hasNeural = slice.some(r => r.neuralProb >= 0);
+
     // Band Labels
     oscCtx.font = '700 11px ui-monospace, monospace';
     oscCtx.textAlign = 'left';
     oscCtx.fillStyle = '#2ee59d';
     oscCtx.fillText('TRACK 1: STEP / ROPE SPEED (SPM) & FORM SCORE (%)', 12, 18);
     oscCtx.fillStyle = '#f59e0b';
-    oscCtx.fillText('TRACK 2: FOOT-TRIANGLE (ANKLE SEP & FOOT PITCH)', 12, 163);
+    oscCtx.fillText(
+      hasNeural
+        ? 'TRACK 2: NEURAL VAR PROBABILITY (0–100%) & SUB-FOOT CABLE PASSES'
+        : 'TRACK 2: FOOT-TRIANGLE (ANKLE SEP & FOOT PITCH)',
+      12,
+      163
+    );
     oscCtx.fillStyle = '#fb7185';
     oscCtx.fillText('TRACK 3: ENGINE LATENCY (µs) & HEAP (MB)', 12, 308);
 
@@ -194,26 +221,45 @@
     });
     oscCtx.stroke();
 
-    // Track 2 (y: 174..280): Ankle Sep + Left Foot Pitch
-    oscCtx.strokeStyle = '#f59e0b';
-    oscCtx.lineWidth = 2;
-    oscCtx.beginPath();
-    slice.forEach((r, i) => {
-      const x = xAt(i);
-      const y = 274 - Math.min(1, Math.max(0, r.ankSep / 0.8)) * 90;
-      if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
-    });
-    oscCtx.stroke();
+    // Track 2 (y: 174..280): Neural VAR + Sub-Foot Cable Passes (v17+) OR Ankle Sep + Foot Pitch (v14-v16)
+    if (hasNeural) {
+      for (let i = 0; i < slice.length; i++) {
+        if (slice[i].ropeVis >= 0.45) {
+          const x = xAt(i);
+          oscCtx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+          oscCtx.fillRect(x - 1.5, 178, 3, 98);
+        }
+      }
+      oscCtx.strokeStyle = '#f59e0b';
+      oscCtx.lineWidth = 2.1;
+      oscCtx.beginPath();
+      slice.forEach((r, i) => {
+        const x = xAt(i);
+        const y = 274 - Math.min(1, Math.max(0, r.neuralProb)) * 92;
+        if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
+      });
+      oscCtx.stroke();
+    } else {
+      oscCtx.strokeStyle = '#f59e0b';
+      oscCtx.lineWidth = 2;
+      oscCtx.beginPath();
+      slice.forEach((r, i) => {
+        const x = xAt(i);
+        const y = 274 - Math.min(1, Math.max(0, r.ankSep / 0.8)) * 90;
+        if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
+      });
+      oscCtx.stroke();
 
-    oscCtx.strokeStyle = 'rgba(46, 229, 157, 0.75)';
-    oscCtx.lineWidth = 1.6;
-    oscCtx.beginPath();
-    slice.forEach((r, i) => {
-      const x = xAt(i);
-      const y = 228 - Math.max(-0.5, Math.min(0.5, r.lPitch)) * 80;
-      if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
-    });
-    oscCtx.stroke();
+      oscCtx.strokeStyle = 'rgba(46, 229, 157, 0.75)';
+      oscCtx.lineWidth = 1.6;
+      oscCtx.beginPath();
+      slice.forEach((r, i) => {
+        const x = xAt(i);
+        const y = 228 - Math.max(-0.5, Math.min(0.5, r.lPitch)) * 80;
+        if (i === 0) oscCtx.moveTo(x, y); else oscCtx.lineTo(x, y);
+      });
+      oscCtx.stroke();
+    }
 
     // Track 3 (y: 318..416): AI CPU us
     const maxUs = Math.max(200, ...slice.map(r => r.aiUs));
@@ -235,8 +281,9 @@
       oscCtx.setLineDash([4, 4]);
       oscCtx.beginPath(); oscCtx.moveTo(x, 0); oscCtx.lineTo(x, H); oscCtx.stroke();
       oscCtx.setLineDash([]);
+      const varTxt = r.neuralProb >= 0 ? ` | VAR:${Math.round(r.neuralProb * 100)}%` : '';
       hoverReadout.textContent =
-        `t=${(r.ts / 1000).toFixed(2)}s | Jumps:${r.jumps} | Speed:${r.spm || 0} SPM | ${r.move} | Form:${r.form}% | CPU:${r.aiUs}µs`;
+        `t=${(r.ts / 1000).toFixed(2)}s | Jumps:${r.jumps} | Speed:${r.spm || 0} SPM${varTxt} | ${r.move} | Form:${r.form}% | CPU:${r.aiUs}µs`;
     }
   }
 
