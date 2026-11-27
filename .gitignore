@@ -15,3 +15,4 @@
 *.jks
 training/checkpoints/
 training/__pycache__/
+training/rust_trainer/target/

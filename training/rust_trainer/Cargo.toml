@@ -1,0 +1,14 @@
+[package]
+name = "jumpvex_trainer"
+version = "7.1.1"
+edition = "2021"
+description = "Zero-dependency all-core SIMD Rust Neural VAR Trainer for Jumpvex (Termux ARM64 & Linux)"
+
+[dependencies]
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

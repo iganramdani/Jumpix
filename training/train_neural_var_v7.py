@@ -1146,13 +1146,49 @@ def parse_args():
     parser.add_argument("--cool", type=int, default=0, help="Thermal cooldown pause in seconds between rounds (default: 0)")
     parser.add_argument("--reset", action="store_true", help="Ignore previous checkpoints and start from scratch")
     parser.add_argument("--sync-repo", action="store_true", help="Also copy exported .jvxmodel files into app/src/main/assets/models/")
+    parser.add_argument("--dump-jvxbin", default=None, help="Export extracted 64-video features to binary JVXF file for Rust trainer and exit")
     return parser.parse_args()
+
+
+def dump_jvxbin_dataset(sequences, out_path):
+    """
+    Compact little-endian binary feature dataset for the Rust trainer (`JVXF` v1):
+      Magic: b'JVXF' (4 bytes)
+      Version: int32 = 1
+      Count: int32 = N
+      For each sequence:
+        T: int32
+        feats: T * 16 float32 (row-major)
+        targets: T * 2 float32 (row-major)
+    """
+    parent = os.path.dirname(os.path.abspath(out_path))
+    os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{out_path}.tmp.{os.getpid()}"
+    with open(tmp_path, "wb") as f:
+        f.write(b"JVXF")
+        f.write(struct.pack("<ii", 1, len(sequences)))
+        for s in sequences:
+            feats = np.ascontiguousarray(s["feats"], dtype="<f4")
+            targets = np.ascontiguousarray(s["targets"], dtype="<f4")
+            f.write(struct.pack("<i", int(feats.shape[0])))
+            f.write(feats.tobytes())
+            f.write(targets.tobytes())
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, out_path)
+    print(f"[JVXF] Exported {len(sequences)} sequences to {out_path} ({os.path.getsize(out_path)} bytes).")
 
 
 def main():
     global _SHARED_SEQUENCES
     args = parse_args()
     workers = max(1, int(args.workers))
+    if args.dump_jvxbin:
+        ckpt_dir = os.path.abspath(args.checkpoint_dir)
+        os.makedirs(ckpt_dir, exist_ok=True)
+        sequences = load_or_extract_sequences(args.bench_dir, ckpt_dir, workers=workers, reset_cache=args.reset)
+        dump_jvxbin_dataset(sequences, args.dump_jvxbin)
+        return
     if args.rounds is None:
         target_rounds = 0 if args.continuous else 1
     else:

@@ -1,24 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
 # Jumpvex v7.1 — Non-Root Termux Continuous & Full-Speed Multi-Core Trainer
+#                (Auto-Accelerated by Zero-Dependency Native SIMD Rust Engine!)
 # ==============================================================================
 # Runs 100% offline inside non-rooted Android Termux using the 64-video dataset
 # bundled inside `training/dataset/` (zero root, zero Google Drive, zero PyTorch).
 #
-# Features:
-#   - All-core parallel 5-fold training (100% CPU utilization on 8-core ARM64)
-#   - Continuous warm-start resume (saves full weights + AdamW state)
-#   - Best-only atomic export directly to Documents/Jumpvex/Models/
-#   - Automatic termux-wake-lock (safe when screen turns off)
-#   - Safe Ctrl+C handling (never corrupts .jvxmodel or checkpoint)
-#
 # Usage:
-#   bash training/termux_train.sh                  # Continuous full-speed (Ctrl+C to stop)
+#   bash training/termux_train.sh                  # Auto-uses Rust SIMD if installed, else Python
+#   bash training/termux_train.sh --rust           # Auto-installs Rust in Termux & runs Native SIMD
 #   bash training/termux_train.sh --cool           # Continuous + 20s thermal cooldown/round
-#   bash training/termux_train.sh --cool 30        # Continuous + 30s thermal cooldown/round
 #   bash training/termux_train.sh --rounds 5       # Run exactly 5 rounds then exit
-#   bash training/termux_train.sh --workers 4      # Limit CPU cores
 #   bash training/termux_train.sh --reset          # Reset checkpoint & start from Round 1
+#   bash training/termux_train.sh --python         # Force Python NumPy trainer
 # ==============================================================================
 set -euo pipefail
 
@@ -27,15 +21,25 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 DATASET_DIR="$SCRIPT_DIR/dataset"
+CKPT_DIR="$REPO_ROOT/training/checkpoints"
 CORES="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 WORKERS="$CORES"
 ROUNDS="0"
 COOL_SEC="0"
 RESET_FLAG=""
 CUSTOM_EXPORT_DIR=""
+ENGINE_PREF="auto" # auto | rust | python
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --rust)
+      ENGINE_PREF="rust"
+      shift
+      ;;
+    --python)
+      ENGINE_PREF="python"
+      shift
+      ;;
     --cool)
       if [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]]; then
         COOL_SEC="$2"
@@ -66,11 +70,10 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: bash training/termux_train.sh [--cool [SEC]] [--rounds N] [--workers N] [--reset] [--export-dir DIR]"
+      echo "Usage: bash training/termux_train.sh [--rust|--python] [--cool [SEC]] [--rounds N] [--workers N] [--reset] [--export-dir DIR]"
       exit 0
       ;;
     *)
-      # Backward compatibility: positional arg as dataset dir
       if [[ -d "$1" ]]; then
         DATASET_DIR="$1"
       else
@@ -86,12 +89,12 @@ echo "==========================================================================
 echo "  Jumpvex v7.1 — Non-Root Termux Continuous Full-Speed Neural VAR Trainer"
 echo "================================================================================"
 echo "  Repo Root   : $REPO_ROOT"
-echo "  CPU Cores   : $CORES detected -> using $WORKERS worker process(es)"
+echo "  CPU Cores   : $CORES detected -> using $WORKERS worker(s)"
 echo "  Mode        : $([ "$ROUNDS" = "0" ] && echo "Continuous (Ctrl+C to stop safely)" || echo "$ROUNDS round(s)")"
 echo "  Thermal Cool: ${COOL_SEC}s pause between rounds"
 echo "================================================================================"
 
-# 1. Ensure Python & NumPy are installed in Termux
+# 1. Ensure Python & NumPy are available (needed for feature extraction / JVXF cache)
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[1/3] Installing Python in Termux..."
   pkg update -y && pkg install -y python
@@ -105,6 +108,24 @@ python3 -c "import numpy" 2>/dev/null || {
 if [[ ! -f "$DATASET_DIR/manifest64.tsv" ]]; then
   echo "ERROR: Dataset not found at $DATASET_DIR/manifest64.tsv. Run 'git pull' inside $REPO_ROOT first!"
   exit 1
+fi
+
+# Optionally auto-install Rust when user explicitly passes --rust on Termux
+if [[ "$ENGINE_PREF" = "rust" ]] && ! command -v cargo >/dev/null 2>&1; then
+  if command -v pkg >/dev/null 2>&1; then
+    echo "[1/3] Installing Rust toolchain in Termux (one-time setup)..."
+    pkg update -y && pkg install -y rust
+  else
+    echo "ERROR: 'cargo' not found. Install Rust first or run with --python."
+    exit 1
+  fi
+fi
+
+USE_RUST="0"
+if [[ "$ENGINE_PREF" = "rust" ]]; then
+  USE_RUST="1"
+elif [[ "$ENGINE_PREF" = "auto" ]] && command -v cargo >/dev/null 2>&1; then
+  USE_RUST="1"
 fi
 
 # 2. Verify Non-Root Android Documents Storage (Termux storage symlink)
@@ -161,7 +182,6 @@ if command -v termux-wake-lock >/dev/null 2>&1; then
   fi
 fi
 
-# Prevent OpenBLAS/OMP thread oversubscription across multiprocessing workers
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -169,26 +189,62 @@ export NUMEXPR_NUM_THREADS=1
 export PYTHONUNBUFFERED=1
 export JUMPVEX_BENCH64_DIR="$DATASET_DIR"
 
-echo "[3/3] Starting Full-Speed Multi-Core Continuous Neural VAR Trainer..."
-echo "      Press Ctrl+C once anytime to finish the current step & exit safely."
-echo ""
+if [[ "$USE_RUST" = "1" ]]; then
+  RUST_DIR="$SCRIPT_DIR/rust_trainer"
+  RUST_BIN="$RUST_DIR/target/release/jumpvex_trainer"
+  JVXBIN="$CKPT_DIR/features64.jvxbin"
 
-CMD=(
-  python3 "$SCRIPT_DIR/train_neural_var_v7.py"
-  --continuous
-  --bench-dir "$DATASET_DIR"
-  --export-dir "$EXPORT_DIR"
-  --checkpoint-dir "$REPO_ROOT/training/checkpoints"
-  --workers "$WORKERS"
-  --rounds "$ROUNDS"
-  --cool "$COOL_SEC"
-)
-if [[ -n "$RESET_FLAG" ]]; then
-  CMD+=("$RESET_FLAG")
+  if [[ ! -x "$RUST_BIN" || "$RUST_DIR/src/main.rs" -nt "$RUST_BIN" || "$RUST_DIR/Cargo.toml" -nt "$RUST_BIN" ]]; then
+    echo "[3/3] 🦀 Compiling Zero-Dependency Rust SIMD Trainer (target-cpu=native)..."
+    RUSTFLAGS="-C target-cpu=native" cargo build --release --manifest-path "$RUST_DIR/Cargo.toml"
+  fi
+
+  if [[ ! -f "$JVXBIN" || "$DATASET_DIR/manifest64.tsv" -nt "$JVXBIN" ]]; then
+    echo "[3/3] Preparing binary feature cache ($JVXBIN)..."
+    python3 "$SCRIPT_DIR/train_neural_var_v7.py" \
+      --bench-dir "$DATASET_DIR" \
+      --checkpoint-dir "$CKPT_DIR" \
+      --workers "$WORKERS" \
+      --dump-jvxbin "$JVXBIN"
+  fi
+
+  echo "[3/3] 🦀 Launching Native Rust SIMD Continuous Trainer..."
+  echo "      Press Ctrl+C once anytime to finish the current round & exit safely."
+  echo ""
+
+  CMD=(
+    "$RUST_BIN"
+    --jvxbin "$JVXBIN"
+    --export-dir "$EXPORT_DIR"
+    --checkpoint-dir "$CKPT_DIR"
+    --rounds "$ROUNDS"
+    --cool "$COOL_SEC"
+  )
+  if [[ -n "$RESET_FLAG" ]]; then
+    CMD+=("$RESET_FLAG")
+  fi
+  "${CMD[@]}" || true
+else
+  echo "[3/3] 🐍 Starting Python Multi-Core Continuous Trainer..."
+  echo "      Tip: Run 'bash training/termux_train.sh --rust' to install Rust SIMD for max speed!"
+  echo "      Press Ctrl+C once anytime to finish the current step & exit safely."
+  echo ""
+
+  CMD=(
+    python3 "$SCRIPT_DIR/train_neural_var_v7.py"
+    --continuous
+    --bench-dir "$DATASET_DIR"
+    --export-dir "$EXPORT_DIR"
+    --checkpoint-dir "$CKPT_DIR"
+    --workers "$WORKERS"
+    --rounds "$ROUNDS"
+    --cool "$COOL_SEC"
+  )
+  if [[ -n "$RESET_FLAG" ]]; then
+    CMD+=("$RESET_FLAG")
+  fi
+  "${CMD[@]}" || true
 fi
-
-# Run trainer (do not fail script on graceful Ctrl+C exit)
-"${CMD[@]}" || true
 
 echo ""
 echo "================================================================================"
@@ -198,11 +254,5 @@ if ls "$EXPORT_DIR"/*.jvxmodel >/dev/null 2>&1; then
   ls -lh "$EXPORT_DIR"/*.jvxmodel "$EXPORT_DIR"/best_metrics.txt 2>/dev/null || ls -lh "$EXPORT_DIR"/*.jvxmodel
 else
   echo "  ⚠️  No .jvxmodel files found yet in $EXPORT_DIR (stopped before Round 1 completed)."
-fi
-
-REPO_MODELS_DIR="$REPO_ROOT/app/src/main/assets/models"
-if [[ "$REPO_MODELS_DIR" != "$EXPORT_DIR" ]] && ls "$REPO_MODELS_DIR"/*.jvxmodel >/dev/null 2>&1; then
-  echo "  [Repo Assets Sync]   : $REPO_MODELS_DIR"
-  ls -lh "$REPO_MODELS_DIR"/*.jvxmodel
 fi
 echo "================================================================================"
