@@ -190,10 +190,13 @@ class FusionEngine {
             currentStreakInEngine = 0
 
             if (!candidate.isSoft && amp <= 0.72f) {
-                // Post-streak outro guard: ignore weak post-gap ripples after >= 8 strong jumps
-                val isOutroRipple = acceptedAmplitudes.size >= 8 &&
-                    StftAudioEngine.median(acceptedAmplitudes.toList()) >= 0.22f &&
-                    prom < 0.16f
+                // Post-streak outro guard: ignore weak post-gap ripples / dimmed IG-Reel outro sway after a long set
+                val medAmp = if (acceptedAmplitudes.size >= 8) {
+                    StftAudioEngine.median(acceptedAmplitudes.toList())
+                } else 0f
+                val isOutroRipple = (acceptedAmplitudes.size >= 8 && medAmp >= 0.22f && prom < 0.16f) ||
+                    (acceptedAmplitudes.size >= 40 && prevT != null && (pt - prevT) > 1650L &&
+                        prom < maxOf(0.068f, medAmp * 0.48f) && candidate.ankleAlternation < 0.14f)
                 if (!isOutroRipple) {
                     pendingJump = PendingJump(pt, amp, candidate.ankleAlternation)
                 }

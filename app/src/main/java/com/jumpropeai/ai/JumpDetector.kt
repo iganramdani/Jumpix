@@ -78,6 +78,7 @@ class JumpDetector(
         val scale: Float,
         val signedAnkleDiff: Float,
         val absAnkleDiff: Float,
+        val ankleSpanNorm: Float,
         val forwardLeanRatio: Float,
         val meanConfidence: Float,
         val lmYs: FloatArray, // [NOSE, L_SH, R_SH, L_HIP, R_HIP], Float.NaN if missing
@@ -235,6 +236,11 @@ class JumpDetector(
         } else {
             0f
         }
+        val ankleSpanNorm = if (leftAnkle != null && rightAnkle != null) {
+            abs(leftAnkle.x - rightAnkle.x) / currentScale
+        } else {
+            0f
+        }
         val signedAnkleDiff = ankleDeltaNorm
         val absAnkleDiff = abs(signedAnkleDiff)
 
@@ -247,6 +253,7 @@ class JumpDetector(
             scale = currentScale,
             signedAnkleDiff = signedAnkleDiff,
             absAnkleDiff = absAnkleDiff,
+            ankleSpanNorm = ankleSpanNorm,
             forwardLeanRatio = forwardLeanRatio,
             meanConfidence = meanConf,
             lmYs = lmYs
@@ -340,6 +347,8 @@ class JumpDetector(
             val maxScDrift = if (adWin >= 0.15f) 0.27f else 0.20f
             if (scDrift > maxScDrift) continue
             val xDrift = abs(cur.torsoX - ring[kBack].torsoX) / max(cur.scale, 1f)
+            // Walk-up / stopping guard: close-up wide straddling stride right in front of phone lens while stopping
+            if ((cur.scale / imgHeightF > 0.24f && cur.ankleSpanNorm > 1.35f) || (xDrift > 0.36f && adWin < 0.12f)) continue
 
             // Reject slow monotonic standing-up from a bend (continuous upward rise >= 0.12*scale over > 700ms).
             // Only gates torsoOk so flat stationary torsos during bent-over speed sprints are never skipped!

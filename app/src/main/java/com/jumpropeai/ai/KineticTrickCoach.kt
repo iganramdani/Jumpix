@@ -518,9 +518,10 @@ class KineticTrickCoach {
             }
 
             val audioBursts = countHighAudioBursts(audioHistory, jumpPeakTimeMs)
-            val isTripleUnder = baselineJumpCount >= 3 && activeFlightMs >= 290L && (
-                (jumpAmplitude >= max(0.15f, rollingJumpAmp * 1.75f) && activeFlightMs >= 370L) ||
-                    (jumpAmplitude >= max(0.13f, rollingJumpAmp * 1.55f) && audioBursts >= 3)
+            val cycleDtMs = if (lastEventTimeMs > 0L) (nowMs - lastEventTimeMs) else 700L
+            val isTripleUnder = baselineJumpCount >= 3 && activeFlightMs >= 320L && cycleDtMs >= 620L && (
+                (jumpAmplitude >= max(0.16f, rollingJumpAmp * 1.85f) && activeFlightMs >= 390L) ||
+                    (jumpAmplitude >= max(0.14f, rollingJumpAmp * 1.65f) && audioBursts >= 3)
                 )
 
             val isDoubleUnder = !isTripleUnder && baselineJumpCount >= 3 && activeFlightMs >= 205L && (
@@ -626,7 +627,7 @@ class KineticTrickCoach {
                 isFrontFacing = isFrontFacing,
                 lWrist = lWrist,
                 rWrist = rWrist,
-                jumpAmplitude = 0.06f,
+                jumpAmplitude = 0f,
                 isCrissCross = false,
                 audioHistory = audioHistory,
                 nowMs = nowMs
@@ -647,9 +648,9 @@ class KineticTrickCoach {
         if (!hasBothFeet) return false
         val pitchContrast = abs(lFootPitch - rFootPitch)
         val minFootPitch = min(lFootPitch, rFootPitch)
-        return (lFootPitch < 0.04f && rFootPitch > 0.12f) ||
-            (rFootPitch < 0.04f && lFootPitch > 0.12f) ||
-            (minFootPitch < 0.08f && pitchContrast >= 0.14f)
+        // Require genuine dorsiflexed heel-tap (toes raised at or above heel level: pitch <= 0.025)
+        // with clear opposite plantar-flexed support foot (contrast >= 0.145)
+        return minFootPitch <= 0.025f && pitchContrast >= 0.145f
     }
 
     private fun hadCrissCrossNearPeak(peakMs: Long): Boolean {

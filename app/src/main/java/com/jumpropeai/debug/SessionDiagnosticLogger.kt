@@ -179,6 +179,31 @@ class SessionDiagnosticLogger {
 
     fun loggedRowCount(): Int = rowCount
 
+    /**
+     * Appends the final authoritative session summary (including offline IJRC Speed-Sprint override,
+     * Right-Foot Judge Score, active-window RPM, and IJRU Buzzer window) before flushing to disk.
+     */
+    fun recordFinalSummary(
+        activeEngine: String,
+        finalJumps: Int,
+        avgRpm: Int,
+        peakRpm: Int,
+        rightFootJudgeScore: Int = 0,
+        buzzerWindowLabel: String = "None",
+        trips: Int = 0
+    ) {
+        chunkBuffer.append("# Final Summary: Engine=").append(activeEngine)
+            .append(" | FinalJumps=").append(finalJumps)
+            .append(" | AvgRPM=").append(avgRpm)
+            .append(" | PeakRPM=").append(peakRpm)
+            .append(" | RightFootJudge=").append(rightFootJudgeScore)
+            .append(" | Buzzer=").append(buzzerWindowLabel)
+            .append(" | Trips=").append(trips)
+            .append('\n')
+        bufferedRows++
+        alreadyAutoSaved = false
+    }
+
     private fun flushChunkSync() {
         val file = activeCacheFile ?: return
         val pending = if (chunkBuffer.isNotEmpty()) {

@@ -548,6 +548,31 @@ class VideoJumpAnalyzer(private val context: Context) {
             val formSnap = kineticTrickCoach.currentFormSnapshot()
             val finalBeatSnap = beatSyncEngine.snapshot()
             val (hlStart, hlEnd, hlSummary) = computePeakHighlightWindow(jumpTimestamps, finalDur)
+            val activeEngineName = when {
+                useIjrcResult -> "IJRC-v16"
+                effectiveShuffle -> "Shuffle-v16"
+                else -> "Hybrid-v16"
+            }
+            val buzzerLabel = if (useIjrcResult && ijrcSummary.buzzerWindow.detected) {
+                String.format(
+                    Locale.US,
+                    "%.2fs-%.2fs",
+                    ijrcSummary.buzzerWindow.startBuzzerMs / 1000.0,
+                    ijrcSummary.buzzerWindow.endBuzzerMs / 1000.0
+                )
+            } else {
+                "None"
+            }
+            val finalTrips = if (useIjrcResult) ijrcSummary.detectedTrips else fusionEngine.totalTrips
+            videoLogger?.recordFinalSummary(
+                activeEngine = activeEngineName,
+                finalJumps = totalJumps,
+                avgRpm = avgRpm,
+                peakRpm = peakRpm,
+                rightFootJudgeScore = if (useIjrcResult) ijrcSummary.rightFootJudgeScore else 0,
+                buzzerWindowLabel = buzzerLabel,
+                trips = finalTrips
+            )
             val savedLogPath = videoLogger?.autoSaveToDebugFolder(context)
             val savedLogFile = videoLogger?.exportToFile(context)
 
