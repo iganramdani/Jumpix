@@ -13,3 +13,5 @@
 *.aab
 *.keystore
 *.jks
+training/checkpoints/
+training/__pycache__/
