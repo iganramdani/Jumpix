@@ -264,5 +264,25 @@ class NeuralVarEngineTest {
             assertTrue("Bottom telemetry anchored lower (> 92% height) on ${w}x${h}", l.bottomAnchorY >= h * 0.92f)
         }
     }
+
+    @Test
+    fun nv21DownsampleStepPreservesEvenDimensionsAcrossAllVideoResolutions() {
+        val cases = listOf(
+            Triple(480, 640, 1),    // 480p -> 1x (no downsample)
+            Triple(720, 1280, 2),   // 720p -> 2x (360x640)
+            Triple(1080, 1920, 2),  // 1080p -> 2x (540x960)
+            Triple(1920, 1080, 2),  // 1080p landscape -> 2x (960x540)
+            Triple(2160, 3840, 4)   // 4K UHD -> 4x (540x960)
+        )
+        for ((w, h, expectedStep) in cases) {
+            val (step, outW, outH) = com.jumpropeai.video.computeDownsampledEvenDims(w, h)
+            assertEquals("Expected step $expectedStep for ${w}x${h}", expectedStep, step)
+            assertEquals("outW must be even for NV21 on ${w}x${h}", 0, outW % 2)
+            assertEquals("outH must be even for NV21 on ${w}x${h}", 0, outH % 2)
+            assertTrue("outW >= 256 for ML Kit pose accuracy on ${w}x${h}", outW >= 256)
+            assertTrue("outH >= 256 for ML Kit pose accuracy on ${w}x${h}", outH >= 256)
+        }
+    }
 }
+
 
