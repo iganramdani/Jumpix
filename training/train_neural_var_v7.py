@@ -412,24 +412,93 @@ def make_hard_negative_sequences(sequences, rng):
     return negatives
 
 
-def augment_sequence(feats, targets, rng):
-    """15x biomechanical & acoustic SNR augmentation."""
-    L = len(feats)
+def _resample_time_linear(arr, new_len):
+    """Fast vectorized linear time-axis resampling for [T, C] float32 arrays."""
+    old_len = arr.shape[0]
+    if new_len == old_len or old_len < 2:
+        return arr.copy()
+    pos = np.linspace(0.0, old_len - 1.0, new_len, dtype=np.float32)
+    i0 = np.floor(pos).astype(np.int32)
+    i1 = np.minimum(i0 + 1, old_len - 1)
+    frac = (pos - i0)[:, None]
+    return ((1.0 - frac) * arr[i0] + frac * arr[i1]).astype(np.float32)
+
+
+def augment_sequence(feats, targets, rng, neg_seqs=None, teacher_probs=None):
+    """
+    Rich zero-internet biomechanical & temporal augmentation:
+      1. Time-Stretching / Speed Warping (0.78x - 1.30x) to multiply RPM coverage
+      2. Temporal CutMix (random walk-away / idle splicing at start/mid/end)
+      3. Random Landmark Occlusion / Dropout (simulating motion blur or clipped ankles)
+      4. Amplitude scale jitter, mirror flip, pose noise, and mute/EDM audio SNR jitter
+    """
     f = feats.copy()
     y = targets.copy()
+    tp = teacher_probs.copy() if teacher_probs is not None else None
 
-    # Scale amplitude jitter (camera distance / jump height variation)
+    # 1. Time-Stretching / Speed Warping (45% chance on active sequences)
+    if len(f) >= 48 and rng.random() < 0.45:
+        speed = float(rng.uniform(0.78, 1.30))
+        new_len = max(32, int(round(len(f) / speed)))
+        f = _resample_time_linear(f, new_len)
+        y = _resample_time_linear(y, new_len)
+        if tp is not None:
+            tp = _resample_time_linear(tp, new_len)
+        # Scale velocity channels proportionally to warped speed
+        f[:, 1] *= speed
+        f[:, 4] *= speed
+
+    # 2. Temporal CutMix: splice a random idle/walk-away segment (35% chance)
+    if neg_seqs and len(f) >= 40 and rng.random() < 0.35:
+        neg = neg_seqs[int(rng.integers(0, len(neg_seqs)))]
+        nf = neg["feats"]
+        seg_len = min(len(nf), int(rng.integers(24, 80)))
+        if seg_len >= 16:
+            st = int(rng.integers(0, max(1, len(nf) - seg_len + 1)))
+            seg_f = nf[st : st + seg_len]
+            seg_y = np.zeros((seg_len, OUT_CHANNELS), dtype=np.float32)
+            seg_tp = np.zeros((seg_len, OUT_CHANNELS), dtype=np.float32)
+            mode = int(rng.integers(0, 3))
+            if mode == 0:  # prepend idle lead-in
+                f = np.vstack([seg_f, f])
+                y = np.vstack([seg_y, y])
+                if tp is not None:
+                    tp = np.vstack([seg_tp, tp])
+            elif mode == 1:  # append walk-away outro
+                f = np.vstack([f, seg_f])
+                y = np.vstack([y, seg_y])
+                if tp is not None:
+                    tp = np.vstack([tp, seg_tp])
+            else:  # splice pause in the middle
+                mid = int(rng.integers(len(f) // 4, max(len(f) // 4 + 1, (3 * len(f)) // 4)))
+                f = np.vstack([f[:mid], seg_f, f[mid:]])
+                y = np.vstack([y[:mid], seg_y, y[mid:]])
+                if tp is not None:
+                    tp = np.vstack([tp[:mid], seg_tp, tp[mid:]])
+
+    L = len(f)
+
+    # 3. Scale amplitude jitter (camera distance / jump height variation)
     amp_scale = rng.uniform(0.80, 1.25)
     f[:, 0:5] *= amp_scale
 
-    # Mirror / ankle sign flip
+    # 4. Mirror / ankle sign flip
     if rng.random() < 0.5:
         f[:, 3] = -f[:, 3]
 
-    # Pose landmark jitter
+    # 5. Random Landmark Occlusion / Dropout (15% chance)
+    if L >= 30 and rng.random() < 0.15:
+        occ_len = int(rng.integers(6, min(22, L // 3)))
+        occ_st = int(rng.integers(0, L - occ_len))
+        if rng.random() < 0.5:
+            f[occ_st : occ_st + occ_len, 2:5] = 0.0  # temporary ankle occlusion
+        else:
+            f[occ_st : occ_st + occ_len, 6:9] = 0.0  # temporary wrist/arm blur
+
+    # 6. Pose landmark jitter
     f[:, 0:12] += rng.normal(0.0, 0.04, size=(L, 12)).astype(np.float32)
 
-    # Simulate muted video (20% chance) or loud EDM noise in raw_mid (30% chance)
+    # 7. Simulate muted video (20% chance) or loud EDM noise in raw_mid (30% chance)
     r = rng.random()
     if r < 0.20:
         f[:, 13:16] = 0.0
@@ -437,7 +506,7 @@ def augment_sequence(feats, targets, rng):
         f[:, 15] = np.clip(f[:, 15] + rng.uniform(0.2, 0.7, size=L).astype(np.float32), 0.0, 1.5)
         f[:, 13] = np.clip(f[:, 13] * rng.uniform(0.7, 1.2), 0.0, 1.5)
 
-    return f, y
+    return f, y, tp
 
 
 class DilatedTcnModel:
@@ -500,8 +569,13 @@ class DilatedTcnModel:
                 dx[: T - d] += g1_from_causal(g1_tap=None) if False else 0.0
         return dx
 
-    def forward_and_grad(self, x, y_true):
-        """Exact analytical forward + backward pass on sequence [T, 16]."""
+    def forward_and_grad(self, x, y_true, teacher_probs=None, distill_alpha: float = 0.30):
+        """
+        Exact analytical forward + backward pass on sequence [T, 16] with:
+          - Class-balanced BCE + Focal Hard-Example Mining
+          - Elevated OutroFP suppression on inactive walk-away / IG-outro frames
+          - Optional Teacher-Student Knowledge Distillation (Tier 2 Bi-TCN -> Tier 1 Causal)
+        """
         T = x.shape[0]
         p = self.params
 
@@ -531,15 +605,30 @@ class DilatedTcnModel:
         logits_clip = np.clip(logits, -15.0, 15.0)
         probs = 1.0 / (1.0 + np.exp(-logits_clip))
 
-        # Class-balanced BCE loss + 2.4x suppression penalty on inactive walk-away / IG-outro frames!
+        # Blend hard ground-truth with soft teacher probabilities when distilling Tier 2 -> Tier 1
+        if teacher_probs is not None and teacher_probs.shape == y_true.shape:
+            y_eff = ((1.0 - distill_alpha) * y_true + distill_alpha * teacher_probs).astype(np.float32)
+        else:
+            y_eff = y_true
+
+        # Class-balanced BCE + Focal Hard-Example Mining + Hard OutroFP Suppression!
         pos_weight = np.array([2.8, 1.4], dtype=np.float32)
-        inactive_pen = (1.0 - y_true[:, 1:2]) * 1.4
-        weights = (1.0 + y_true * (pos_weight - 1.0)) + np.hstack([inactive_pen, inactive_pen * 0.5])
+        inactive_mask = (1.0 - y_true[:, 1:2])
+        # Extra hard-negative boost whenever inactive walk-away frames still fire > 0.25
+        hard_outro_boost = ((inactive_mask > 0.5) & (probs[:, 0:1] > 0.25)).astype(np.float32) * 1.8
+        inactive_pen = inactive_mask * 1.4 + hard_outro_boost
+        base_weights = (1.0 + y_true * (pos_weight - 1.0)) + np.hstack([inactive_pen, inactive_pen * 0.5])
+
+        # Gentle focal modulation (focuses gradient on hard/ambiguous frames without destabilizing AdamW)
+        p_t = np.where(y_true > 0.5, probs, 1.0 - probs)
+        focal = (0.45 + 0.95 * np.clip(1.0 - p_t, 0.0, 1.0)).astype(np.float32)
+        weights = base_weights * focal
+
         eps = 1e-6
-        loss = -np.mean(weights * (y_true * np.log(probs + eps) + (1.0 - y_true) * np.log(1.0 - probs + eps)))
+        loss = -np.mean(weights * (y_eff * np.log(probs + eps) + (1.0 - y_eff) * np.log(1.0 - probs + eps)))
 
         # Backward pass
-        dlogits = (weights * (probs - y_true)) / (T * OUT_CHANNELS)
+        dlogits = (weights * (probs - y_eff)) / (T * OUT_CHANNELS)
         grads = {}
         grads["out_w"] = h.T @ dlogits
         grads["out_b"] = np.sum(dlogits, axis=0)
@@ -787,6 +876,7 @@ def train_model_on_split(
     init_state=None,
     lr_max: float = 3.5e-3,
     lr_min: float = 2.0e-4,
+    teacher_model=None,
 ):
     rng = np.random.default_rng(seed)
     model = DilatedTcnModel(causal=causal, seed=seed)
@@ -794,48 +884,81 @@ def train_model_on_split(
         model.load_state(init_state)
 
     combined = list(train_seqs) + list(neg_seqs)
+    n_pos = len(train_seqs)
+    # Precompute Teacher soft targets on TRAINING split only (strict zero validation leakage!)
+    teacher_cache = None
+    if teacher_model is not None and causal:
+        teacher_cache = [teacher_model.predict(item["feats"]) for item in combined]
+
     denom = max(1, epochs)
     for ep in range(epochs):
         lr = lr_max * (0.5 * (1.0 + math.cos(math.pi * ep / denom))) + lr_min
         order = rng.permutation(len(combined))
         for idx in order:
             item = combined[idx]
-            if rng.random() < 0.70:
-                fx, fy = augment_sequence(item["feats"], item["targets"], rng)
+            tp_item = teacher_cache[idx] if teacher_cache is not None else None
+            # Only apply Temporal CutMix to active sequences (idx < n_pos)
+            cutmix_pool = neg_seqs if idx < n_pos else None
+            if rng.random() < 0.78:
+                fx, fy, ftp = augment_sequence(
+                    item["feats"], item["targets"], rng,
+                    neg_seqs=cutmix_pool, teacher_probs=tp_item
+                )
             else:
-                fx, fy = item["feats"], item["targets"]
-            _, _, grads = model.forward_and_grad(fx, fy)
+                fx, fy, ftp = item["feats"], item["targets"], tp_item
+            _, _, grads = model.forward_and_grad(fx, fy, teacher_probs=ftp, distill_alpha=0.30)
             model.step_adamw(grads, lr=lr)
     return model
 
 
-def _worker_train_fold(args):
-    fold, n_folds, causal, epochs, seed, init_state, lr_max, lr_min = args
+def _worker_train_fold_pair(args):
+    """
+    Trains Tier 2 Bi-TCN first on the fold training split, then distills Tier 1 Causal from Tier 2
+    using ONLY training-split sequences (strict zero data leakage on val_idx!).
+    """
+    fold, n_folds, epochs, seed_bi, seed_ca, bi_init, ca_init, lr_max, lr_min = args
     sequences = _SHARED_SEQUENCES
     val_idx = [i for i in range(len(sequences)) if (i % n_folds) == fold]
     trn_seqs = [sequences[i] for i in range(len(sequences)) if (i % n_folds) != fold]
-    neg_rng = np.random.default_rng(seed + 7919)
+    neg_rng = np.random.default_rng(seed_bi + 7919)
     neg_seqs = make_hard_negative_sequences(trn_seqs, neg_rng)
 
-    model = train_model_on_split(
+    bi_model = train_model_on_split(
         trn_seqs,
         neg_seqs,
-        causal=causal,
+        causal=False,
         epochs=epochs,
-        seed=seed,
-        init_state=init_state,
+        seed=seed_bi,
+        init_state=bi_init,
         lr_max=lr_max,
         lr_min=lr_min,
+        teacher_model=None,
     )
-    preds = [(vi, model.predict(sequences[vi]["feats"])) for vi in val_idx]
-    return fold, causal, model.get_state(), preds, len(trn_seqs) + len(neg_seqs)
+    ca_model = train_model_on_split(
+        trn_seqs,
+        neg_seqs,
+        causal=True,
+        epochs=epochs,
+        seed=seed_ca,
+        init_state=ca_init,
+        lr_max=lr_max,
+        lr_min=lr_min,
+        teacher_model=bi_model,
+    )
+    bi_preds = [(vi, bi_model.predict(sequences[vi]["feats"])) for vi in val_idx]
+    ca_preds = [(vi, ca_model.predict(sequences[vi]["feats"])) for vi in val_idx]
+    return fold, bi_model.get_state(), ca_model.get_state(), bi_preds, ca_preds, 2 * (len(trn_seqs) + len(neg_seqs))
 
 
 def _worker_train_prod(args):
-    causal, epochs, seed, init_state, lr_max, lr_min = args
+    causal, epochs, seed, init_state, lr_max, lr_min, teacher_state = args
     sequences = _SHARED_SEQUENCES
     neg_rng = np.random.default_rng(seed + 9973)
     all_neg = make_hard_negative_sequences(sequences, neg_rng)
+    teacher_model = None
+    if causal and teacher_state is not None:
+        teacher_model = DilatedTcnModel(causal=False, seed=0)
+        teacher_model.load_state(teacher_state)
     model = train_model_on_split(
         sequences,
         all_neg,
@@ -845,6 +968,7 @@ def _worker_train_prod(args):
         init_state=init_state,
         lr_max=lr_max,
         lr_min=lr_min,
+        teacher_model=teacher_model,
     )
     return causal, model.get_state()
 
@@ -1102,22 +1226,18 @@ def main():
             lr_min = 1.5e-4
 
             print(
-                f"\n--- [Round {round_num}] Running 5-Fold Zero-Leakage CV "
-                f"(10 fold jobs across {workers} cores | lr_max={lr_max:.5f}) ---",
+                f"\n--- [Round {round_num}] 5-Fold Zero-Leakage CV + Distillation "
+                f"(TimeStretch + CutMix + Focal | {workers} cores | lr_max={lr_max:.5f}) ---",
                 flush=True,
             )
 
             fold_jobs = []
             for fold in range(n_folds):
                 fold_jobs.append((
-                    fold, n_folds, False, args.epochs_cv,
+                    fold, n_folds, args.epochs_cv,
                     100 + round_num * 1000 + fold,
-                    fold_states.get(f"f{fold}_bi"),
-                    lr_max, lr_min,
-                ))
-                fold_jobs.append((
-                    fold, n_folds, True, args.epochs_cv,
                     200 + round_num * 1000 + fold,
+                    fold_states.get(f"f{fold}_bi"),
                     fold_states.get(f"f{fold}_ca"),
                     lr_max, lr_min,
                 ))
@@ -1126,20 +1246,19 @@ def main():
             oof_causal = [None] * len(sequences)
             total_seq_epochs = 0
 
-            async_res = pool.map_async(_worker_train_fold, fold_jobs)
+            async_res = pool.map_async(_worker_train_fold_pair, fold_jobs)
             while not async_res.ready():
                 async_res.wait(timeout=0.5)
             results = async_res.get()
 
-            for fold, causal, f_state, preds, n_seq in results:
-                tag = f"f{fold}_{'ca' if causal else 'bi'}"
-                fold_states[tag] = f_state
+            for fold, bi_state, ca_state, bi_preds, ca_preds, n_seq in results:
+                fold_states[f"f{fold}_bi"] = bi_state
+                fold_states[f"f{fold}_ca"] = ca_state
                 total_seq_epochs += n_seq * args.epochs_cv
-                for vi, pred in preds:
-                    if causal:
-                        oof_causal[vi] = pred
-                    else:
-                        oof_bi[vi] = pred
+                for vi, pred in bi_preds:
+                    oof_bi[vi] = pred
+                for vi, pred in ca_preds:
+                    oof_causal[vi] = pred
 
             bi_p, bi_r, bi_f1, bi_outro_fp = evaluate_oof_metrics(sequences, oof_bi)
             ca_p, ca_r, ca_f1, ca_outro_fp = evaluate_oof_metrics(sequences, oof_causal)
@@ -1178,28 +1297,39 @@ def main():
             print("==========================================================================", flush=True)
 
             exported_paths = []
-            prod_jobs = []
             if need_export_bi:
-                prod_jobs.append((False, args.epochs_prod, 777 + round_num * 1000, prod_states.get("bi"), lr_max, lr_min))
-            if need_export_ca:
-                prod_jobs.append((True, args.epochs_prod, 888 + round_num * 1000, prod_states.get("ca"), lr_max, lr_min))
-
-            if prod_jobs:
-                print(f"[Best-Only Export] Updating {len(prod_jobs)} production model(s) on all 64 videos...", flush=True)
-                p_res = pool.map_async(_worker_train_prod, prod_jobs)
+                print("[Best-Only Export] Updating Tier 2 VAR Bi-TCN production model on all 64 videos...", flush=True)
+                p_res = pool.apply_async(
+                    _worker_train_prod,
+                    ((False, args.epochs_prod, 777 + round_num * 1000, prod_states.get("bi"), lr_max, lr_min, None),),
+                )
                 while not p_res.ready():
                     p_res.wait(timeout=0.5)
-                for causal, p_state in p_res.get():
-                    if causal:
-                        prod_states["ca"] = p_state
-                        written = export_model_to_dirs(p_state, True, "live_causal_tcn_v7.jvxmodel", export_dirs)
-                    else:
-                        prod_states["bi"] = p_state
-                        written = export_model_to_dirs(p_state, False, "var_bitemporal_v7.jvxmodel", export_dirs)
-                    exported_paths.extend(written)
-                    for w in written:
-                        print(f"  -> Saved {w} ({os.path.getsize(w)} bytes)", flush=True)
-            else:
+                _, p_state = p_res.get()
+                prod_states["bi"] = p_state
+                written = export_model_to_dirs(p_state, False, "var_bitemporal_v7.jvxmodel", export_dirs)
+                exported_paths.extend(written)
+                for w in written:
+                    print(f"  -> Saved {w} ({os.path.getsize(w)} bytes)", flush=True)
+
+            if need_export_ca:
+                teacher_st = prod_states.get("bi")
+                distill_tag = " (distilled from Tier 2 Teacher)" if teacher_st is not None else ""
+                print(f"[Best-Only Export] Updating Tier 1 Live Causal production model{distill_tag}...", flush=True)
+                p_res = pool.apply_async(
+                    _worker_train_prod,
+                    ((True, args.epochs_prod, 888 + round_num * 1000, prod_states.get("ca"), lr_max, lr_min, teacher_st),),
+                )
+                while not p_res.ready():
+                    p_res.wait(timeout=0.5)
+                _, p_state = p_res.get()
+                prod_states["ca"] = p_state
+                written = export_model_to_dirs(p_state, True, "live_causal_tcn_v7.jvxmodel", export_dirs)
+                exported_paths.extend(written)
+                for w in written:
+                    print(f"  -> Saved {w} ({os.path.getsize(w)} bytes)", flush=True)
+
+            if not need_export_bi and not need_export_ca:
                 print("[Best-Only Export] No new OOF F1 record this round — keeping existing best .jvxmodel weights.", flush=True)
 
             meta["round_num"] = round_num

@@ -244,4 +244,25 @@ class NeuralVarEngineTest {
             }
         }
     }
+
+    @Test
+    fun edgeAnchoredHudPinsLargerLogoTopLeftAndLowersNumbersOnAllResolutions() {
+        val resolutions = listOf(
+            720 to 1280,  // 720p Portrait
+            1080 to 1920, // 9:16 Reels
+            1080 to 2340, // 9:20 Redmi Note 9
+            1920 to 1080, // 16:9 Landscape
+            1080 to 1080, // 1:1 Square
+            2160 to 3840  // 4K UHD Portrait
+        )
+        for ((w, h) in resolutions) {
+            val l = com.jumpropeai.share.computeEdgeAnchoredHudLayout(w, h, overlayScale = 1.0f)
+            val shortSide = minOf(w, h).toFloat()
+            assertTrue("Logo pinned to top-left X (< 8% width) on ${w}x${h}", l.marginX <= w * 0.08f)
+            assertTrue("Logo pinned to top-left Y (< 8% height) on ${w}x${h}", l.marginTop <= h * 0.08f)
+            assertTrue("Logo size proportional & larger (>= 7% shortSide) on ${w}x${h}", l.logoSize >= shortSide * 0.07f)
+            assertTrue("Bottom telemetry anchored lower (> 92% height) on ${w}x${h}", l.bottomAnchorY >= h * 0.92f)
+        }
+    }
 }
+

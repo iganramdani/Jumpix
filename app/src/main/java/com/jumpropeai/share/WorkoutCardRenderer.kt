@@ -91,6 +91,47 @@ internal fun computeProportionalHudPlacement(
     return HudPlacement(fitScale, offsetLeft, offsetTop, drawW, drawH)
 }
 
+internal data class EdgeAnchoredHudLayout(
+    val unitScale: Float,
+    val marginX: Float,
+    val marginTop: Float,
+    val marginBottom: Float,
+    val logoSize: Float,
+    val bottomAnchorY: Float
+)
+
+/**
+ * Resolution-independent edge-anchored HUD layout for dynamic video exports across EVERY aspect ratio
+ * (9:16, 9:20, 4:5, 1:1, 16:9) and resolution (720p, 1080p, 4K):
+ * - Pins the larger Golden-Ratio `JV` logo + `JUMPVEX` header strictly to the TOP-LEFT corner.
+ * - Anchors jump counts & telemetry cleanly near the BOTTOM edge so the athlete stays unobstructed.
+ */
+internal fun computeEdgeAnchoredHudLayout(
+    canvasW: Int,
+    canvasH: Int,
+    overlayScale: Float = 1.0f
+): EdgeAnchoredHudLayout {
+    val w = canvasW.coerceAtLeast(1).toFloat()
+    val h = canvasH.coerceAtLeast(1).toFloat()
+    val shortSide = minOf(w, h)
+    val sliderClamped = overlayScale.coerceIn(0.60f, 1.30f)
+    val userMult = 0.78f + ((sliderClamped - 0.60f) / 0.70f) * 0.34f // 0.78x .. 1.12x (1.0 -> ~0.97x)
+    val unitScale = (shortSide / 1080f) * userMult
+    val marginX = (w * 0.044f).coerceAtLeast(24f * unitScale)
+    val marginTop = (h * 0.038f).coerceAtLeast(24f * unitScale)
+    val marginBottom = (h * 0.034f).coerceAtLeast(24f * unitScale)
+    val logoSize = 88f * unitScale
+    val bottomAnchorY = h - marginBottom
+    return EdgeAnchoredHudLayout(
+        unitScale = unitScale,
+        marginX = marginX,
+        marginTop = marginTop,
+        marginBottom = marginBottom,
+        logoSize = logoSize,
+        bottomAnchorY = bottomAnchorY
+    )
+}
+
 /**
  * Official Jumpvex Share Card & Dynamic Animated Video Telemetry Renderer (v4.0).
  *
@@ -202,15 +243,12 @@ object WorkoutCardRenderer {
             0f
         }
 
-        // Aspect-aware proportional HUD mapping across 9:16, 9:20, 16:9, 1:1 & 4K resolutions
-        val placement = computeProportionalHudPlacement(canvasW, canvasH, template)
-
-        canvas.save()
-        canvas.translate(placement.offsetLeft, placement.offsetTop)
-        canvas.scale(placement.fitScale, placement.fitScale)
-
-        drawScaledTemplateContent(
+        // True edge-anchored HUD across EVERY resolution & aspect ratio (9:16, 9:20, 4:5, 1:1, 16:9, 4K):
+        // Larger JV logo pinned strictly to TOP-LEFT; jump counters & stats anchored slightly lower at BOTTOM.
+        drawEdgeAnchoredDynamicHud(
             canvas = canvas,
+            canvasW = canvasW,
+            canvasH = canvasH,
             template = template,
             overlayScale = overlayScale,
             jumpCount = liveJumps,
@@ -224,7 +262,323 @@ object WorkoutCardRenderer {
             jumpPopBoost = popBoost,
             progressFraction = progressFrac
         )
-        canvas.restore()
+    }
+
+    private fun drawTopLeftBrandHeader(
+        canvas: Canvas,
+        canvasW: Float,
+        layout: EdgeAnchoredHudLayout,
+        rightTag: String?
+    ) {
+        val s = layout.unitScale
+        val logoSize = layout.logoSize
+        val left = layout.marginX
+        val top = layout.marginTop
+
+        drawJumpvexLogoBadge(canvas, left, top, logoSize)
+        val wordX = left + logoSize + 20f * s
+        val baselineY = top + logoSize * 0.66f
+        canvas.drawText(
+            "JUMPVEX",
+            wordX,
+            baselineY,
+            textPaint(40f * s, COLOR_ICE_MINT, Typeface.BOLD, letterSpace = 0.08f)
+        )
+
+        if (!rightTag.isNullOrBlank()) {
+            canvas.drawText(
+                rightTag,
+                canvasW - layout.marginX,
+                baselineY - 2f * s,
+                textPaint(24f * s, Color.argb(225, 248, 250, 252), Typeface.BOLD, Paint.Align.RIGHT)
+            )
+        }
+    }
+
+    private fun drawEdgeAnchoredDynamicHud(
+        canvas: Canvas,
+        canvasW: Int,
+        canvasH: Int,
+        template: WatermarkTemplate,
+        overlayScale: Float,
+        jumpCount: Int,
+        rpm: Int,
+        peakRpm: Int,
+        durationMs: Long,
+        calories: Double,
+        streak: Int,
+        timestampMillis: Long,
+        badgeSubtitle: String,
+        jumpPopBoost: Float,
+        progressFraction: Float
+    ) {
+        val w = canvasW.toFloat()
+        val h = canvasH.toFloat()
+        val layout = computeEdgeAnchoredHudLayout(canvasW, canvasH, overlayScale)
+        val s = layout.unitScale
+        val mX = layout.marginX
+        val mTop = layout.marginTop
+        val bottomY = layout.bottomAnchorY
+
+        val dateStr = SimpleDateFormat("dd MMM yyyy", Locale.US)
+            .format(Date(timestampMillis))
+            .uppercase(Locale.US)
+        val rightTag = if (badgeSubtitle.isNotBlank()) "$dateStr • $badgeSubtitle" else dateStr
+
+        when (template) {
+            WatermarkTemplate.MINIMAL_STRAVA -> {
+                // Larger JV logo strictly in TOP-LEFT corner on every video resolution
+                drawTopLeftBrandHeader(canvas, w, layout, rightTag)
+
+                // Lowered bottom-anchored telemetry block (numbers sit cleanly near bottom edge)
+                val labelRowY = bottomY
+                val valueRowY = bottomY - 38f * s
+                val divY = bottomY - 96f * s
+                val heroBaseY = bottomY - 128f * s
+                val totalLabelY = heroBaseY - 168f * s
+
+                canvas.drawText(
+                    "TOTAL JUMPS",
+                    mX,
+                    totalLabelY,
+                    textPaint(24f * s, Color.argb(210, 248, 250, 252), Typeface.BOLD, letterSpace = 0.14f)
+                )
+
+                val countText = jumpCount.toString()
+                val heroSize = (186f + jumpPopBoost * 12f) * s
+                val heroColor = if (jumpPopBoost > 0.25f) COLOR_ICE_MINT else COLOR_FROST_WHITE
+                val heroPaint = textPaint(heroSize, heroColor, Typeface.BOLD)
+                canvas.drawText(countText, mX - 4f * s, heroBaseY, heroPaint)
+
+                val countW = heroPaint.measureText(countText)
+                val pillW = 236f * s
+                val pillH = 62f * s
+                val pillLeft = (mX + countW + 28f * s).coerceAtMost(w - mX - pillW)
+                val pillRect = RectF(pillLeft, heroBaseY - pillH - 8f * s, pillLeft + pillW, heroBaseY - 8f * s)
+                canvas.drawRoundRect(pillRect, pillH / 2f, pillH / 2f, glassFillPaint(140, 13, 19, 33))
+                canvas.drawRoundRect(pillRect, pillH / 2f, pillH / 2f, strokePaint(3f * s, COLOR_ICE_MINT))
+                canvas.drawText(
+                    "$rpm RPM",
+                    pillRect.centerX(),
+                    pillRect.centerY() + 10f * s,
+                    textPaint(29f * s, COLOR_ICE_MINT, Typeface.BOLD, Paint.Align.CENTER, shadow = false)
+                )
+
+                val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.argb(90, 46, 229, 157)
+                    strokeWidth = (2.5f * s).coerceAtLeast(1.5f)
+                }
+                canvas.drawLine(mX, divY, w - mX, divY, divPaint)
+
+                val cols = listOf(
+                    formatDuration(durationMs) to "DURATION",
+                    String.format(Locale.US, "%.1f", calories) to "KCAL",
+                    "$peakRpm" to "PEAK RPM",
+                    "$streak" to "STREAK"
+                )
+                val colW = (w - 2f * mX) / 4f
+                cols.forEachIndexed { idx, (v, l) ->
+                    val x = mX + colW * idx
+                    canvas.drawText(v, x, valueRowY, textPaint(44f * s, COLOR_FROST_WHITE, Typeface.BOLD))
+                    canvas.drawText(l, x, labelRowY, textPaint(20f * s, COLOR_MUTED_SLATE, Typeface.BOLD, letterSpace = 0.08f))
+                }
+            }
+
+            WatermarkTemplate.NEON_PULSE -> {
+                // Viewfinder brackets hugging the ACTUAL video corners
+                val brPaint = strokePaint((5.5f * s).coerceAtLeast(2.5f), Color.argb(215, 46, 229, 157))
+                val len = 46f * s
+                val bM = (minOf(w, h) * 0.028f).coerceAtLeast(16f * s)
+                val corners = listOf(
+                    floatArrayOf(bM, bM, bM + len, bM, bM, bM + len),
+                    floatArrayOf(w - bM, bM, w - bM - len, bM, w - bM, bM + len),
+                    floatArrayOf(bM, h - bM, bM + len, h - bM, bM, h - bM - len),
+                    floatArrayOf(w - bM, h - bM, w - bM - len, h - bM, w - bM, h - bM - len)
+                )
+                for (c in corners) {
+                    canvas.drawLine(c[0], c[1], c[2], c[3], brPaint)
+                    canvas.drawLine(c[0], c[1], c[4], c[5], brPaint)
+                }
+
+                // Larger JV logo strictly in TOP-LEFT corner
+                drawTopLeftBrandHeader(canvas, w, layout, rightTag = null)
+
+                // Compact live status pill aligned cleanly at TOP-RIGHT
+                val pillText = "$badgeSubtitle • $rpm RPM"
+                val pillPaint = textPaint(22f * s, COLOR_FROST_WHITE, Typeface.BOLD, Paint.Align.CENTER, mono = true, shadow = false)
+                val pillW = (pillPaint.measureText(pillText) + 84f * s).coerceAtMost(w * 0.52f)
+                val pillH = 56f * s
+                val pillTop = mTop + (layout.logoSize - pillH) / 2f
+                val topPill = RectF(w - mX - pillW, pillTop, w - mX, pillTop + pillH)
+                canvas.drawRoundRect(topPill, pillH / 2f, pillH / 2f, glassFillPaint(155, 13, 19, 33))
+                canvas.drawRoundRect(topPill, pillH / 2f, pillH / 2f, strokePaint(2.5f * s, Color.argb(200, 46, 229, 157)))
+                canvas.drawCircle(
+                    topPill.left + 28f * s,
+                    topPill.centerY(),
+                    (8f + jumpPopBoost * 3.5f) * s,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_ICE_MINT }
+                )
+                canvas.drawText(pillText, topPill.centerX() + 12f * s, topPill.centerY() + 8f * s, pillPaint)
+
+                // Lowered waveform + hero jump count + stats near bottom edge
+                val footerY = bottomY - 6f * s
+                val statsY = footerY - 38f * s
+                val heroY = statsY - 56f * s
+                val waveBaseY = heroY - 148f * s
+
+                val wavePath = Path()
+                val spanW = w - 2f * mX
+                val phaseShift = progressFraction * 24.0
+                val ampBoost = 1f + jumpPopBoost * 0.65f
+                for (i in 0..120) {
+                    val t = i / 120f
+                    val env = sin(PI * t).toFloat()
+                    val yOff = (sin(t * 28.0 + phaseShift) * 28.0 + sin(t * 63.0 - phaseShift) * 12.0).toFloat() * env * ampBoost * s
+                    val px = mX + spanW * t
+                    val py = waveBaseY + yOff
+                    if (i == 0) wavePath.moveTo(px, py) else wavePath.lineTo(px, py)
+                }
+                canvas.drawPath(wavePath, strokePaint(12f * s, Color.argb(65, 46, 229, 157)))
+                canvas.drawPath(wavePath, strokePaint(4.5f * s, COLOR_ICE_MINT))
+
+                canvas.drawText(
+                    jumpCount.toString(),
+                    w / 2f,
+                    heroY,
+                    textPaint((154f + jumpPopBoost * 12f) * s, COLOR_ICE_MINT, Typeface.BOLD, Paint.Align.CENTER, mono = true)
+                )
+                canvas.drawText(
+                    "${formatDuration(durationMs)}   |   ${String.format(Locale.US, "%.1f", calories)} KCAL   |   STREAK $streak",
+                    w / 2f,
+                    statsY,
+                    textPaint(26f * s, COLOR_FROST_WHITE, Typeface.BOLD, Paint.Align.CENTER, mono = true)
+                )
+                canvas.drawText(
+                    "JUMPVEX AI ENGINE",
+                    w / 2f,
+                    footerY,
+                    textPaint(19f * s, COLOR_MUTED_SLATE, Typeface.BOLD, Paint.Align.CENTER, mono = true, letterSpace = 0.18f)
+                )
+            }
+
+            WatermarkTemplate.NIKE_EDITORIAL -> {
+                drawTopLeftBrandHeader(canvas, w, layout, rightTag)
+
+                val boxW = (440f * s).coerceAtMost(w * 0.48f)
+                val boxH = 204f * s
+                val box = RectF(w - mX - boxW, bottomY - boxH, w - mX, bottomY)
+                canvas.drawRoundRect(box, 28f * s, 28f * s, glassFillPaint(150, 13, 19, 33))
+                canvas.drawRoundRect(box, 28f * s, 28f * s, strokePaint(2.8f * s, Color.argb(200, 46, 229, 157)))
+
+                val rows = listOf(
+                    "DURATION" to formatDuration(durationMs),
+                    "CALORIES" to "${String.format(Locale.US, "%.1f", calories)} kcal",
+                    "STREAK" to "$streak"
+                )
+                rows.forEachIndexed { i, (k, v) ->
+                    val y = box.top + (56f + i * 56f) * s
+                    canvas.drawText(k, box.left + 28f * s, y, textPaint(22f * s, COLOR_MUTED_SLATE, Typeface.BOLD))
+                    canvas.drawText(v, box.right - 28f * s, y, textPaint(30f * s, COLOR_FROST_WHITE, Typeface.BOLD, Paint.Align.RIGHT))
+                }
+
+                // Bottom-left bold italic jump hero with Ice Mint accent bar
+                val barTop = bottomY - 224f * s
+                canvas.drawRoundRect(RectF(mX, barTop, mX + 14f * s, bottomY), 7f * s, 7f * s, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_ICE_MINT })
+                canvas.drawText(
+                    jumpCount.toString(),
+                    mX + 34f * s,
+                    bottomY - 62f * s,
+                    textPaint((168f + jumpPopBoost * 12f) * s, COLOR_FROST_WHITE, Typeface.BOLD_ITALIC)
+                )
+                canvas.drawText(
+                    "JUMPS  /  $rpm RPM",
+                    mX + 38f * s,
+                    bottomY - 12f * s,
+                    textPaint(32f * s, COLOR_ICE_MINT, Typeface.BOLD_ITALIC)
+                )
+            }
+
+            WatermarkTemplate.ACTIVITY_RING -> {
+                drawTopLeftBrandHeader(canvas, w, layout, rightTag)
+
+                val panelH = 336f * s
+                val panelW = (w - 2f * mX).coerceAtMost(960f * s)
+                val panelLeft = (w - panelW) / 2f
+                val panel = RectF(panelLeft, bottomY - panelH, panelLeft + panelW, bottomY)
+                canvas.drawRoundRect(panel, 46f * s, 46f * s, glassFillPaint(155, 13, 19, 33))
+                canvas.drawRoundRect(panel, 46f * s, 46f * s, strokePaint(2.5f * s, Color.argb(145, 46, 229, 157)))
+
+                val cx = panel.left + 172f * s
+                val cy = panel.centerY()
+                val rOuter = (110f + jumpPopBoost * 5f) * s
+                val rInner = 80f * s
+                val outerRect = RectF(cx - rOuter, cy - rOuter, cx + rOuter, cy + rOuter)
+                val innerRect = RectF(cx - rInner, cy - rInner, cx + rInner, cy + rInner)
+
+                canvas.drawArc(outerRect, 0f, 360f, false, strokePaint(20f * s, Color.argb(50, 46, 229, 157)))
+                val outerSweep = if (progressFraction < 0.999f) {
+                    (progressFraction * 340f).coerceAtLeast(if (jumpCount > 0) 24f else 0f)
+                } else {
+                    (jumpCount.coerceIn(10, 200) / 200f) * 330f
+                }
+                if (outerSweep > 0f) {
+                    canvas.drawArc(outerRect, -90f, outerSweep, false, strokePaint(20f * s, COLOR_ICE_MINT))
+                }
+                canvas.drawArc(innerRect, 0f, 360f, false, strokePaint(14f * s, Color.argb(45, 56, 189, 248)))
+                val innerSweep = (rpm.coerceIn(0, 190) / 190f) * 310f
+                if (innerSweep > 4f) {
+                    canvas.drawArc(innerRect, -90f, innerSweep, false, strokePaint(14f * s, COLOR_SKY_MINT))
+                }
+
+                canvas.drawText(jumpCount.toString(), cx, cy + 14f * s, textPaint(62f * s, COLOR_FROST_WHITE, Typeface.BOLD, Paint.Align.CENTER))
+                canvas.drawText("JUMPS", cx, cy + 44f * s, textPaint(17f * s, COLOR_ICE_MINT, Typeface.BOLD, Paint.Align.CENTER, letterSpace = 0.1f))
+
+                val rx = panel.left + 336f * s
+                val rows = listOf(
+                    Triple("DURATION", formatDuration(durationMs), COLOR_FROST_WHITE),
+                    Triple("PACE", "$rpm RPM", COLOR_SKY_MINT),
+                    Triple("CALORIES", "${String.format(Locale.US, "%.1f", calories)} kcal", COLOR_FROST_WHITE),
+                    Triple("STREAK", "$streak Best", COLOR_ICE_MINT)
+                )
+                rows.forEachIndexed { idx, (k, v, col) ->
+                    val y = panel.top + (78f + idx * 62f) * s
+                    canvas.drawText(k, rx, y, textPaint(22f * s, COLOR_MUTED_SLATE, Typeface.BOLD))
+                    canvas.drawText(v, panel.right - 38f * s, y, textPaint(30f * s, col, Typeface.BOLD, Paint.Align.RIGHT))
+                }
+            }
+
+            WatermarkTemplate.CORNER_STAMP -> {
+                drawTopLeftBrandHeader(canvas, w, layout, rightTag = null)
+
+                val pillW = (700f * s).coerceAtMost(w - 2f * mX)
+                val pillH = 186f * s
+                val pill = RectF(mX, bottomY - pillH, mX + pillW, bottomY)
+                canvas.drawRoundRect(pill, 40f * s, 40f * s, glassFillPaint(160, 13, 19, 33))
+                canvas.drawRoundRect(pill, 40f * s, 40f * s, strokePaint(2.5f * s, Color.argb(170, 46, 229, 157)))
+
+                val pad = 18f * s
+                val badgeW = 196f * s
+                val badge = RectF(pill.left + pad, pill.top + pad, pill.left + pad + badgeW, pill.bottom - pad)
+                canvas.drawRoundRect(badge, 28f * s, 28f * s, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_ICE_MINT })
+                canvas.drawText(
+                    jumpCount.toString(),
+                    badge.centerX(),
+                    badge.centerY() + 12f * s,
+                    textPaint((68f + jumpPopBoost * 6f) * s, COLOR_DEEP_MIDNIGHT, Typeface.BOLD, Paint.Align.CENTER, shadow = false)
+                )
+                canvas.drawText(
+                    "JUMPS",
+                    badge.centerX(),
+                    badge.bottom - 18f * s,
+                    textPaint(18f * s, COLOR_DEEP_MIDNIGHT, Typeface.BOLD, Paint.Align.CENTER, shadow = false)
+                )
+
+                val tx = badge.right + 26f * s
+                canvas.drawText(badgeSubtitle, tx, pill.top + 54f * s, textPaint(20f * s, COLOR_ICE_MINT, Typeface.BOLD, letterSpace = 0.08f))
+                canvas.drawText("${formatDuration(durationMs)}  •  $rpm RPM", tx, pill.top + 104f * s, textPaint(32f * s, COLOR_FROST_WHITE, Typeface.BOLD))
+                canvas.drawText("${String.format(Locale.US, "%.1f", calories)} kcal  •  Streak $streak", tx, pill.top + 148f * s, textPaint(24f * s, COLOR_MUTED_SLATE, Typeface.BOLD))
+            }
+        }
     }
 
     private fun findLastEventAtOrBefore(events: List<VideoTelemetryEvent>, timeMs: Long): Int {
@@ -368,19 +722,19 @@ object WorkoutCardRenderer {
             .uppercase(Locale.US)
         val rightTag = if (badgeSubtitle.isNotBlank()) "$dateStr • $badgeSubtitle" else dateStr
 
-        drawJumpvexLogoBadge(canvas, 64f, 54f, 56f)
-        canvas.drawText("JUMPVEX", 136f, 94f, textPaint(32f, COLOR_ICE_MINT, Typeface.BOLD, letterSpace = 0.08f))
+        drawJumpvexLogoBadge(canvas, 54f, 48f, 84f)
+        canvas.drawText("JUMPVEX", 156f, 104f, textPaint(40f, COLOR_ICE_MINT, Typeface.BOLD, letterSpace = 0.08f))
         canvas.drawText(
             rightTag,
-            WIDTH - 64f,
-            94f,
+            WIDTH - 54f,
+            102f,
             textPaint(24f, Color.argb(220, 248, 250, 252), Typeface.BOLD, Paint.Align.RIGHT)
         )
 
         canvas.drawText(
             "TOTAL JUMPS",
             64f,
-            HEIGHT - 418f,
+            HEIGHT - 392f,
             textPaint(25f, Color.argb(205, 248, 250, 252), Typeface.BOLD, letterSpace = 0.14f)
         )
 
@@ -388,11 +742,11 @@ object WorkoutCardRenderer {
         val heroSize = 196f + jumpPopBoost * 12f
         val heroColor = if (jumpPopBoost > 0.25f) COLOR_ICE_MINT else COLOR_FROST_WHITE
         val heroPaint = textPaint(heroSize, heroColor, Typeface.BOLD)
-        canvas.drawText(countText, 60f, HEIGHT - 236f, heroPaint)
+        canvas.drawText(countText, 60f, HEIGHT - 210f, heroPaint)
 
         val countW = heroPaint.measureText(countText)
         val pillLeft = (64f + countW + 34f).coerceAtMost(WIDTH - 296f)
-        val pillRect = RectF(pillLeft, HEIGHT - 304f, pillLeft + 242f, HEIGHT - 238f)
+        val pillRect = RectF(pillLeft, HEIGHT - 278f, pillLeft + 242f, HEIGHT - 212f)
         canvas.drawRoundRect(pillRect, 33f, 33f, glassFillPaint(135, 13, 19, 33))
         canvas.drawRoundRect(pillRect, 33f, 33f, strokePaint(3f, COLOR_ICE_MINT))
         canvas.drawText(
