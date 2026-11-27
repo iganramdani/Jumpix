@@ -672,10 +672,13 @@ class DilatedTcnModel:
 _SHARED_SEQUENCES = None
 
 
-def _worker_init():
-    """Ignore SIGINT and use default SIGTERM in pool workers so parent handles Ctrl+C cleanly."""
+def _worker_init(shared_seqs=None):
+    """Ignore SIGINT, use default SIGTERM, and populate shared sequences for forkserver/spawn (Python 3.14+)."""
+    global _SHARED_SEQUENCES
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    if shared_seqs is not None:
+        _SHARED_SEQUENCES = shared_seqs
 
 
 def _worker_extract_one(task):
@@ -1087,7 +1090,7 @@ def main():
     rounds_done_this_session = 0
     session_t0 = time.time()
 
-    with multiprocessing.Pool(processes=workers, initializer=_worker_init) as pool:
+    with multiprocessing.Pool(processes=workers, initializer=_worker_init, initargs=(sequences,)) as pool:
         while not stop_state["requested"]:
             if target_rounds > 0 and rounds_done_this_session >= target_rounds:
                 break
