@@ -1,82 +1,74 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# Jumpvex v7.1 — 1-Command Android Termux Dataset Trainer & .jvxmodel Exporter
+# Jumpvex v7.1 — 1-Command Android Termux Auto-Download & 5-Fold Neural Trainer
 # ==============================================================================
 # Runs 100% locally on your Android smartphone inside Termux (no PC / no PyTorch)!
 #
-# Usage on Termux:
-#   1. termux-setup-storage
-#   2. bash training/termux_train.sh [OPTIONAL_DATASET_DIR]
-#
-# If OPTIONAL_DATASET_DIR contains manifest64.tsv + poses/ + wavs/, runs full
-# 5-Fold Cross-Validation training. Otherwise, audits & summarizes your recorded
-# Jumpvex CSV logs in /sdcard/Documents/Jumpvex/DebugLogs/ for calibration.
+# Single-Command Usage on Termux:
+#   git pull && bash training/termux_train.sh
 # ==============================================================================
 set -e
 
+GDRIVE_FILE_ID="18xeSdwpncJ3WHOKnmlR2pU0JvQTWR3cC"
+GDRIVE_URL="https://drive.usercontent.google.com/download?id=${GDRIVE_FILE_ID}&export=download&confirm=t"
+
 echo "============================================================"
-echo "  Jumpvex v7.1 — Termux On-Device Neural VAR Trainer"
+echo "  Jumpvex v7.1 — 1-Command Termux Neural VAR Trainer"
 echo "============================================================"
 
-# 1. Ensure Python & NumPy are installed in Termux
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "[1/3] Installing Python in Termux..."
-  pkg update -y && pkg install -y python
-fi
+# 1. Ensure Python, NumPy, curl & unzip are installed in Termux
+for tool in python3 curl unzip; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "[1/4] Installing missing package ($tool)..."
+    pkg update -y
+    pkg install -y python curl unzip
+    break
+  fi
+done
 
 python3 -c "import numpy" 2>/dev/null || {
-  echo "[1/3] Installing NumPy for Termux ARM64..."
+  echo "[1/4] Installing NumPy for Termux ARM64..."
   pkg install -y python-numpy || pip install --no-cache-dir numpy
 }
 
-DATASET_DIR="${1:-${JUMPVEX_BENCH64_DIR:-/sdcard/Documents/Jumpvex/Dataset}}"
-LOG_DIR="/sdcard/Documents/Jumpvex/DebugLogs"
-
-if [ -f "$DATASET_DIR/manifest64.tsv" ]; then
-  echo "[2/3] Found full benchmark dataset at: $DATASET_DIR"
-  echo "[3/3] Running 5-Fold Zero-Leakage Neural VAR training (CPU ARM64)..."
-  export JUMPVEX_BENCH64_DIR="$DATASET_DIR"
-  python3 training/train_neural_var_v7.py
-  echo "✅ Done! Exported updated .jvxmodel weights to app/src/main/assets/models/"
+# 2. Pick writable dataset directory (prefer /sdcard/Documents/Jumpvex/Dataset, fallback to $HOME)
+if [ -n "$1" ]; then
+  DATASET_DIR="$1"
+elif mkdir -p /sdcard/Documents/Jumpvex/Dataset 2>/dev/null; then
+  DATASET_DIR="/sdcard/Documents/Jumpvex/Dataset"
 else
-  echo "[2/3] Full pose/wav dataset not found at $DATASET_DIR."
-  echo "      Auditing your local Jumpvex CSV logs in $LOG_DIR ..."
-  python3 - "$LOG_DIR" <<'PY'
-import glob, os, re, statistics, sys
-
-log_dir = sys.argv[1]
-csvs = sorted(glob.glob(os.path.join(log_dir, "*.csv")))
-if not csvs:
-    print(f"No CSV logs found in {log_dir}.")
-    print("Tip: Analyze videos in Jumpvex Video Studio, then re-run this script!")
-    sys.exit(0)
-
-print(f"\nFound {len(csvs)} Jumpvex CSV logs in {log_dir}:\n")
-print(f"{'File':42s} | {'Frames':>6s} | {'Jumps':>5s} | {'MedUs':>6s} | {'MaxMB':>5s} | Engine")
-print("-" * 92)
-for p in csvs[-25:]:
-    final_j = None; eng = "?"; rows = 0; us = []; mb = []
-    with open(p, encoding="utf-8", errors="ignore") as f:
-        hdr = None
-        for line in f:
-            s = line.strip()
-            if s.startswith("# Final Summary:"):
-                mj = re.search(r"FinalJumps=(\d+)", s)
-                me = re.search(r"Engine=([^|]+)", s)
-                if mj: final_j = int(mj.group(1))
-                if me: eng = me.group(1).strip()
-            elif s.startswith("#") or not s:
-                continue
-            elif hdr is None and "ts_ms" in s:
-                hdr = {k.strip(): i for i, k in enumerate(s.split(","))}
-            elif hdr:
-                parts = s.split(",")
-                if len(parts) < 6: continue
-                rows += 1
-                if "ai_us" in hdr: us.append(float(parts[hdr["ai_us"]]))
-                if "heap_mb" in hdr: mb.append(float(parts[hdr["heap_mb"]]))
-    print(f"{os.path.basename(p)[:42]:42s} | {rows:6d} | {str(final_j or 0):>5s} | {statistics.median(us) if us else 0:6.0f} | {max(mb) if mb else 0:5.0f} | {eng}")
-print("\nTo run full 5-fold .jvxmodel training on Termux, place manifest64.tsv + poses/ + wavs/ in:")
-print("  /sdcard/Documents/Jumpvex/Dataset/  and re-run: bash training/termux_train.sh")
-PY
+  DATASET_DIR="$HOME/Jumpvex_Dataset"
+  mkdir -p "$DATASET_DIR"
 fi
+
+# 3. Auto-download & extract 64-video dataset bundle (58 MB) if not yet present
+if [ ! -f "$DATASET_DIR/manifest64.tsv" ]; then
+  ZIP_PATH="$DATASET_DIR/Jumpvex_Dataset64_Termux.zip"
+  echo "[2/4] Downloading 64-video pose & WAV dataset (~58 MB) to $DATASET_DIR ..."
+  curl -fSL --progress-bar "$GDRIVE_URL" -o "$ZIP_PATH"
+  if ! unzip -tq "$ZIP_PATH" >/dev/null 2>&1; then
+    echo "ERROR: Downloaded file is not a valid ZIP (check internet or Drive link)."
+    rm -f "$ZIP_PATH"
+    exit 1
+  fi
+  echo "[3/4] Extracting dataset into $DATASET_DIR ..."
+  unzip -qo "$ZIP_PATH" -d "$DATASET_DIR"
+  rm -f "$ZIP_PATH"
+else
+  echo "[2/4] Found existing 64-video dataset at $DATASET_DIR (skipping download)."
+fi
+
+# 4. Run full 5-Fold Zero-Leakage Neural VAR Training & Export .jvxmodel weights
+echo "[4/4] Running 5-Fold Zero-Leakage Neural VAR training (ARM64 CPU)..."
+export JUMPVEX_BENCH64_DIR="$DATASET_DIR"
+python3 training/train_neural_var_v7.py
+
+if mkdir -p /sdcard/Documents/Jumpvex/Models 2>/dev/null; then
+  cp -f app/src/main/assets/models/*.jvxmodel /sdcard/Documents/Jumpvex/Models/ 2>/dev/null || true
+  echo "✅ Also copied trained .jvxmodel weights to /sdcard/Documents/Jumpvex/Models/"
+fi
+
+echo "============================================================"
+echo "✅ Training Complete! Exported weights:"
+ls -lh app/src/main/assets/models/*.jvxmodel
+echo "============================================================"
