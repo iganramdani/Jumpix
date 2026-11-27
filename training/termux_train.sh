@@ -1,18 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ==============================================================================
-# Jumpvex v7.1 — Non-Root Termux Continuous & Full-Speed Multi-Core Trainer
-#                (Auto-Accelerated by Zero-Dependency Native SIMD Rust Engine!)
+# Jumpvex v7.2 — 100% Pure Rust Non-Root Termux Asymmetric Push-to-Limit Trainer
 # ==============================================================================
-# Runs 100% offline inside non-rooted Android Termux using the 64-video dataset
-# bundled inside `training/dataset/` (zero root, zero Google Drive, zero PyTorch).
+# Zero Python, zero NumPy, zero Google Drive, zero root!
+# Loads pre-extracted 64-video features (`training/dataset/features64.jvxbin`)
+# in ~6 ms and trains:
+#   - Tier 2 VAR Bi-TCN  : HID_CH=48 x 5 blocks [1,2,4,8,16] (~186 KB, ±1.03s)
+#   - Tier 1 Live Causal : HID_CH=32 x 5 blocks [1,2,4,8,16] (~84 KB, distilled)
 #
 # Usage:
-#   bash training/termux_train.sh                  # Auto-uses Rust SIMD if installed, else Python
-#   bash training/termux_train.sh --rust           # Auto-installs Rust in Termux & runs Native SIMD
+#   bash training/termux_train.sh                  # Continuous full-speed (Ctrl+C to stop)
 #   bash training/termux_train.sh --cool           # Continuous + 20s thermal cooldown/round
 #   bash training/termux_train.sh --rounds 5       # Run exactly 5 rounds then exit
 #   bash training/termux_train.sh --reset          # Reset checkpoint & start from Round 1
-#   bash training/termux_train.sh --python         # Force Python NumPy trainer
 # ==============================================================================
 set -euo pipefail
 
@@ -21,23 +21,20 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 DATASET_DIR="$SCRIPT_DIR/dataset"
+JVXBIN="$DATASET_DIR/features64.jvxbin"
 CKPT_DIR="$REPO_ROOT/training/checkpoints"
+RUST_DIR="$SCRIPT_DIR/rust_trainer"
+RUST_BIN="$RUST_DIR/target/release/jumpvex_trainer"
 CORES="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
-WORKERS="$CORES"
 ROUNDS="0"
 COOL_SEC="0"
 RESET_FLAG=""
 CUSTOM_EXPORT_DIR=""
-ENGINE_PREF="auto" # auto | rust | python
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --rust)
-      ENGINE_PREF="rust"
-      shift
-      ;;
-    --python)
-      ENGINE_PREF="python"
+      # Accepted for backward compatibility (always 100% Pure Rust now)
       shift
       ;;
     --cool)
@@ -53,16 +50,13 @@ while [[ $# -gt 0 ]]; do
       ROUNDS="${2:-1}"
       shift 2
       ;;
-    --workers)
-      WORKERS="${2:-$CORES}"
-      shift 2
-      ;;
     --reset)
       RESET_FLAG="--reset"
       shift
       ;;
     --dataset)
       DATASET_DIR="${2:-$SCRIPT_DIR/dataset}"
+      JVXBIN="$DATASET_DIR/features64.jvxbin"
       shift 2
       ;;
     --export-dir)
@@ -70,12 +64,13 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      echo "Usage: bash training/termux_train.sh [--rust|--python] [--cool [SEC]] [--rounds N] [--workers N] [--reset] [--export-dir DIR]"
+      echo "Usage: bash training/termux_train.sh [--cool [SEC]] [--rounds N] [--reset] [--export-dir DIR]"
       exit 0
       ;;
     *)
       if [[ -d "$1" ]]; then
         DATASET_DIR="$1"
+        JVXBIN="$DATASET_DIR/features64.jvxbin"
       else
         echo "Unknown option: $1 (use --help for usage)"
         exit 1
@@ -86,46 +81,28 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "================================================================================"
-echo "  Jumpvex v7.1 — Non-Root Termux Continuous Full-Speed Neural VAR Trainer"
+echo "  Jumpvex v7.2 — 100% Pure Rust Non-Root Termux Neural VAR Trainer"
 echo "================================================================================"
 echo "  Repo Root   : $REPO_ROOT"
-echo "  CPU Cores   : $CORES detected -> using $WORKERS worker(s)"
+echo "  CPU Cores   : $CORES detected (5 parallel native Rust SIMD fold threads)"
 echo "  Mode        : $([ "$ROUNDS" = "0" ] && echo "Continuous (Ctrl+C to stop safely)" || echo "$ROUNDS round(s)")"
 echo "  Thermal Cool: ${COOL_SEC}s pause between rounds"
 echo "================================================================================"
 
-# 1. Ensure Python & NumPy are available (needed for feature extraction / JVXF cache)
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "[1/3] Installing Python in Termux..."
-  pkg update -y && pkg install -y python
-fi
-
-python3 -c "import numpy" 2>/dev/null || {
-  echo "[1/3] Installing NumPy for Termux ARM64..."
-  pkg install -y python-numpy || pip install --no-cache-dir numpy
-}
-
-if [[ ! -f "$DATASET_DIR/manifest64.tsv" ]]; then
-  echo "ERROR: Dataset not found at $DATASET_DIR/manifest64.tsv. Run 'git pull' inside $REPO_ROOT first!"
-  exit 1
-fi
-
-# Optionally auto-install Rust when user explicitly passes --rust on Termux
-if [[ "$ENGINE_PREF" = "rust" ]] && ! command -v cargo >/dev/null 2>&1; then
+# 1. Ensure Rust toolchain is installed (zero Python / zero NumPy required!)
+if ! command -v cargo >/dev/null 2>&1; then
   if command -v pkg >/dev/null 2>&1; then
     echo "[1/3] Installing Rust toolchain in Termux (one-time setup)..."
     pkg update -y && pkg install -y rust
   else
-    echo "ERROR: 'cargo' not found. Install Rust first or run with --python."
+    echo "ERROR: 'cargo' not found. Install Rust first (https://rustup.rs)."
     exit 1
   fi
 fi
 
-USE_RUST="0"
-if [[ "$ENGINE_PREF" = "rust" ]]; then
-  USE_RUST="1"
-elif [[ "$ENGINE_PREF" = "auto" ]] && command -v cargo >/dev/null 2>&1; then
-  USE_RUST="1"
+if [[ ! -f "$JVXBIN" ]]; then
+  echo "ERROR: Pre-extracted dataset not found at $JVXBIN. Run 'git pull' inside $REPO_ROOT first!"
+  exit 1
 fi
 
 # 2. Verify Non-Root Android Documents Storage (Termux storage symlink)
@@ -182,69 +159,28 @@ if command -v termux-wake-lock >/dev/null 2>&1; then
   fi
 fi
 
-export OPENBLAS_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export PYTHONUNBUFFERED=1
-export JUMPVEX_BENCH64_DIR="$DATASET_DIR"
-
-if [[ "$USE_RUST" = "1" ]]; then
-  RUST_DIR="$SCRIPT_DIR/rust_trainer"
-  RUST_BIN="$RUST_DIR/target/release/jumpvex_trainer"
-  JVXBIN="$CKPT_DIR/features64.jvxbin"
-
-  if [[ ! -x "$RUST_BIN" || "$RUST_DIR/src/main.rs" -nt "$RUST_BIN" || "$RUST_DIR/Cargo.toml" -nt "$RUST_BIN" ]]; then
-    echo "[3/3] 🦀 Compiling Zero-Dependency Rust SIMD Trainer (target-cpu=native)..."
-    RUSTFLAGS="-C target-cpu=native" cargo build --release --manifest-path "$RUST_DIR/Cargo.toml"
-  fi
-
-  if [[ ! -f "$JVXBIN" || "$DATASET_DIR/manifest64.tsv" -nt "$JVXBIN" ]]; then
-    echo "[3/3] Preparing binary feature cache ($JVXBIN)..."
-    python3 "$SCRIPT_DIR/train_neural_var_v7.py" \
-      --bench-dir "$DATASET_DIR" \
-      --checkpoint-dir "$CKPT_DIR" \
-      --workers "$WORKERS" \
-      --dump-jvxbin "$JVXBIN"
-  fi
-
-  echo "[3/3] 🦀 Launching Native Rust SIMD Continuous Trainer..."
-  echo "      Press Ctrl+C once anytime to finish the current round & exit safely."
-  echo ""
-
-  CMD=(
-    "$RUST_BIN"
-    --jvxbin "$JVXBIN"
-    --export-dir "$EXPORT_DIR"
-    --checkpoint-dir "$CKPT_DIR"
-    --rounds "$ROUNDS"
-    --cool "$COOL_SEC"
-  )
-  if [[ -n "$RESET_FLAG" ]]; then
-    CMD+=("$RESET_FLAG")
-  fi
-  "${CMD[@]}" || true
-else
-  echo "[3/3] 🐍 Starting Python Multi-Core Continuous Trainer..."
-  echo "      Tip: Run 'bash training/termux_train.sh --rust' to install Rust SIMD for max speed!"
-  echo "      Press Ctrl+C once anytime to finish the current step & exit safely."
-  echo ""
-
-  CMD=(
-    python3 "$SCRIPT_DIR/train_neural_var_v7.py"
-    --continuous
-    --bench-dir "$DATASET_DIR"
-    --export-dir "$EXPORT_DIR"
-    --checkpoint-dir "$CKPT_DIR"
-    --workers "$WORKERS"
-    --rounds "$ROUNDS"
-    --cool "$COOL_SEC"
-  )
-  if [[ -n "$RESET_FLAG" ]]; then
-    CMD+=("$RESET_FLAG")
-  fi
-  "${CMD[@]}" || true
+# Build Native SIMD Rust binary only if missing or source changed
+if [[ ! -x "$RUST_BIN" || "$RUST_DIR/src/main.rs" -nt "$RUST_BIN" || "$RUST_DIR/Cargo.toml" -nt "$RUST_BIN" ]]; then
+  echo "[3/3] 🦀 Compiling 100% Pure Rust SIMD Trainer (target-cpu=native)..."
+  RUSTFLAGS="-C target-cpu=native" cargo build --release --manifest-path "$RUST_DIR/Cargo.toml"
 fi
+
+echo "[3/3] 🦀 Launching Pure Rust Asymmetric Push-to-Limit Trainer (HID48x5 -> HID32x5)..."
+echo "      Press Ctrl+C once anytime to finish the current round & exit safely."
+echo ""
+
+CMD=(
+  "$RUST_BIN"
+  --jvxbin "$JVXBIN"
+  --export-dir "$EXPORT_DIR"
+  --checkpoint-dir "$CKPT_DIR"
+  --rounds "$ROUNDS"
+  --cool "$COOL_SEC"
+)
+if [[ -n "$RESET_FLAG" ]]; then
+  CMD+=("$RESET_FLAG")
+fi
+"${CMD[@]}" || true
 
 echo ""
 echo "================================================================================"

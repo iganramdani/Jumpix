@@ -269,8 +269,14 @@ object NeuralVarEngine {
         private val extractor = StreamingFeatureExtractor()
         private val featVec = FloatArray(IN_CHANNELS)
 
-        // Ring buffers for causal dilations [1, 2, 4, 8]: max lookback = 2 * 8 = 16 frames -> ring size 32
-        private val ringLen = 32
+        // Dynamic power-of-2 ring buffer: supports [1,2,4,8] (ringLen=32) and [1,2,4,8,16] (ringLen=64)
+        private val ringLen: Int = run {
+            val maxDil = weights?.dilations?.maxOrNull() ?: 8
+            val required = maxDil * 2 + 1
+            var p = 32
+            while (p < required) p = p shl 1
+            p
+        }
         private val hidCh = weights?.hidCh ?: 24
         private val numBlocks = weights?.dilations?.size ?: 4
         private val stageRings = Array(numBlocks + 1) { FloatArray(ringLen * hidCh) }
