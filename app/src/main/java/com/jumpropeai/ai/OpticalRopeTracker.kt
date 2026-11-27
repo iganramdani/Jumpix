@@ -123,11 +123,13 @@ class OpticalRopeTracker {
             else -> rToe!!.y
         }
 
-        // Sub-foot clearance zone: from slightly above toes down to floor contact band
-        val subX0 = (footCenterX - torsoScale * 0.75f).roundToInt().coerceIn(0, effW - 4)
-        val subX1 = (footCenterX + torsoScale * 0.75f).roundToInt().coerceIn(subX0 + 4, effW - 1)
-        val subY0 = (maxFootY - torsoScale * 0.06f).roundToInt().coerceIn(0, effH - 4)
-        val subY1 = (maxFootY + torsoScale * 0.26f).roundToInt().coerceIn(subY0 + 4, effH - 1)
+        // Sub-foot clearance zone: from slightly above toes down to floor contact band (safe edge-clamped!)
+        val maxX0 = (effW - 5).coerceAtLeast(0)
+        val maxY0 = (effH - 5).coerceAtLeast(0)
+        val subX0 = (footCenterX - torsoScale * 0.75f).roundToInt().coerceIn(0, maxX0)
+        val subX1 = (footCenterX + torsoScale * 0.75f).roundToInt().coerceIn((subX0 + 4).coerceAtMost(effW - 1), effW - 1)
+        val subY0 = (maxFootY - torsoScale * 0.06f).roundToInt().coerceIn(0, maxY0)
+        val subY1 = (maxFootY + torsoScale * 0.26f).roundToInt().coerceIn((subY0 + 4).coerceAtMost(effH - 1), effH - 1)
 
         sampleRotatedLumaPatch(
             nv21 = nv21,
@@ -145,14 +147,14 @@ class OpticalRopeTracker {
             outBuf = subFootBuf
         )
 
-        // Overhead crown arc zone above nose/head
+        // Overhead crown arc zone above nose/head (safe edge-clamped!)
         val nose = poseFrame.landmarks[BodyLandmark.NOSE]
         val headX = nose?.x ?: footCenterX
         val headY = nose?.y ?: (shY - torsoScale * 0.35f)
-        val arcX0 = (headX - torsoScale * 0.70f).roundToInt().coerceIn(0, effW - 4)
-        val arcX1 = (headX + torsoScale * 0.70f).roundToInt().coerceIn(arcX0 + 4, effW - 1)
-        val arcY0 = (headY - torsoScale * 0.65f).roundToInt().coerceIn(0, effH - 4)
-        val arcY1 = (headY - torsoScale * 0.18f).roundToInt().coerceIn(arcY0 + 4, effH - 1)
+        val arcX0 = (headX - torsoScale * 0.70f).roundToInt().coerceIn(0, maxX0)
+        val arcX1 = (headX + torsoScale * 0.70f).roundToInt().coerceIn((arcX0 + 4).coerceAtMost(effW - 1), effW - 1)
+        val arcY0 = (headY - torsoScale * 0.65f).roundToInt().coerceIn(0, maxY0)
+        val arcY1 = (headY - torsoScale * 0.18f).roundToInt().coerceIn((arcY0 + 4).coerceAtMost(effH - 1), effH - 1)
 
         sampleRotatedLumaPatch(
             nv21 = nv21,

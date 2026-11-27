@@ -84,9 +84,9 @@ import java.util.Locale
 
 private enum class StudioResultSubTab(val label: String) {
     OVERVIEW("Overview"),
-    SPEED("Speed & Splits"),
+    SPEED("Speed"),
     VAR_ROPE("VAR Rope"),
-    TRICKS_LOGS("Tricks & ZIP")
+    TRICKS_LOGS("Logs")
 }
 
 /**
@@ -237,48 +237,98 @@ fun VideoAnalyzerScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        // 2. 4-Mode AI Engine Selector Strip (>= 40dp touch height, >= 12sp text)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(
-                VideoStudioMode.AUTO_HYBRID to "Auto",
-                VideoStudioMode.IJRC_COMPETITION to "IJRC Speed",
-                VideoStudioMode.FREESTYLE_TRICKS to "Freestyle",
-                VideoStudioMode.SHUFFLE_FOOTWORK to "Shuffle"
-            ).forEach { (modeItem, shortTitle) ->
-                val selected = studioMode == modeItem
-                Surface(
-                    onClick = {
-                        if (!isAnalyzing) {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onSelectStudioMode(modeItem)
+        // 2. 4-Mode AI Engine Selector Strip (collapses to 1 compact chip when result is loaded!)
+        if (result == null || isAnalyzing) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    VideoStudioMode.AUTO_HYBRID to "Auto",
+                    VideoStudioMode.IJRC_COMPETITION to "IJRC Speed",
+                    VideoStudioMode.FREESTYLE_TRICKS to "Freestyle",
+                    VideoStudioMode.SHUFFLE_FOOTWORK to "Shuffle"
+                ).forEach { (modeItem, shortTitle) ->
+                    val selected = studioMode == modeItem
+                    Surface(
+                        onClick = {
+                            if (!isAnalyzing) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectStudioMode(modeItem)
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (selected) IceMint else MidnightSurface,
+                        border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
+                            Text(
+                                text = shortTitle,
+                                color = if (selected) DeepMidnight else TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (selected) IceMint else MidnightSurface,
-                    border = BorderStroke(1.dp, if (selected) IceMint else MidnightBorder),
-                    modifier = Modifier
-                        .weight(1f)
-                        .defaultMinSize(minHeight = 40.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
-                        Text(
-                            text = shortTitle,
-                            color = if (selected) DeepMidnight else TextSecondary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
                 }
             }
+            Spacer(Modifier.height(8.dp))
+        } else {
+            val allModes = listOf(
+                VideoStudioMode.AUTO_HYBRID,
+                VideoStudioMode.IJRC_COMPETITION,
+                VideoStudioMode.FREESTYLE_TRICKS,
+                VideoStudioMode.SHUFFLE_FOOTWORK
+            )
+            val modeLabel = when (studioMode) {
+                VideoStudioMode.AUTO_HYBRID -> "Auto Hybrid"
+                VideoStudioMode.IJRC_COMPETITION -> "IJRC Speed"
+                VideoStudioMode.FREESTYLE_TRICKS -> "Freestyle"
+                VideoStudioMode.SHUFFLE_FOOTWORK -> "Shuffle"
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        val nextIdx = (allModes.indexOf(studioMode) + 1) % allModes.size
+                        onSelectStudioMode(allModes[nextIdx])
+                    },
+                    shape = CircleShape,
+                    color = MidnightSurface,
+                    border = BorderStroke(1.dp, MidnightBorder)
+                ) {
+                    Text(
+                        text = "Mode: $modeLabel ▾",
+                        color = TextPrimary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+                Text(
+                    text = "${result.jumpCount} jumps • ${result.averageRpm} RPM",
+                    color = IceMint,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            Spacer(Modifier.height(6.dp))
         }
-
-        Spacer(Modifier.height(10.dp))
 
         // 3. PINNED VIEWPORT: Always stays fixed above the scrollable telemetry sub-tabs!
         if (!isAnalyzing && result != null && result.sourceUri != null) {

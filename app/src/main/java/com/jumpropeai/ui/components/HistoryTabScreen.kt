@@ -99,7 +99,7 @@ fun HistoryTabScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "History",
                         color = TextPrimary,
@@ -111,9 +111,13 @@ fun HistoryTabScreen(
                     Text(
                         text = "Performance, Personal Records & Logs",
                         color = TextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Spacer(Modifier.width(10.dp))
 
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -140,7 +144,9 @@ fun HistoryTabScreen(
                                     text = "${stats.activeDayStreak}d",
                                     color = IceMint,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.ExtraBold
+                                    fontWeight = FontWeight.ExtraBold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -167,8 +173,10 @@ fun HistoryTabScreen(
                                 Text(
                                     text = "CSV",
                                     color = TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }

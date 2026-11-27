@@ -24,9 +24,9 @@
   <!-- Row 1: All 64 Real Videos -->
   <g transform="translate(34, 102)">
     <text x="0" y="16" fill="#E2E8F0" font-size="13.5" class="sub">All 64 Real Videos (JumpRope Test + IJRC Stage)</text>
-    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.44%</text>
+    <text x="488" y="16" fill="#2EE59D" font-size="14" class="mono" text-anchor="end">99.92%</text>
     <rect x="0" y="25" width="488" height="14" rx="7" fill="#1E293B"/>
-    <rect x="0" y="25" width="485" height="14" rx="7" fill="url(#barMint)"/>
+    <rect x="0" y="25" width="487" height="14" rx="7" fill="url(#barMint)"/>
   </g>
 
   <!-- Row 2: Freestyle, Boxing & Double-Under Subset -->
@@ -54,7 +54,7 @@
   </g>
 
   <text x="34" y="358" fill="#94A3B8" font-size="12" class="mono">
-    Detected: 3,788 / 3,767 Truth • Strict Acc: 90.31% (IJRC Strict: 93.43%)
+    Detected: 3,770 / 3,767 Truth • Strict Acc: 90.20% (IJRC Strict: 93.43%)
   </text>
 
   <!-- Divider -->
@@ -62,7 +62,7 @@
 
   <!-- Right Panel: Dual-Tier Neural VAR & IJRC 200 Hz Telemetry -->
   <text x="594" y="42" fill="#38BDF8" font-size="12" class="mono" letter-spacing="0.8">DUAL-TIER NEURAL VAR &amp; HPSS 200 Hz TELEMETRY</text>
-  <text x="594" y="70" fill="#F8FAFC" font-size="22" class="h1">74.8 µs Dual-TCN CPU &amp; Velocity Curve</text>
+  <text x="594" y="70" fill="#F8FAFC" font-size="22" class="h1">63.5 µs Dual-TCN CPU &amp; Velocity Curve</text>
 
   <!-- Mini Step Speed vs Rope Speed Chart -->
   <g transform="translate(594, 92)">
@@ -86,8 +86,8 @@
   <g transform="translate(594, 240)">
     <rect x="0" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#2EE59D" stroke-opacity="0.4"/>
     <text x="14" y="26" fill="#94A3B8" font-size="10.5" class="mono">DUAL-NEURAL CPU</text>
-    <text x="14" y="56" fill="#2EE59D" font-size="24" class="h1">74.8 µs</text>
-    <text x="14" y="73" fill="#64748B" font-size="10" class="mono">0.22% of 30 FPS</text>
+    <text x="14" y="56" fill="#2EE59D" font-size="24" class="h1">63.5 µs</text>
+    <text x="14" y="73" fill="#64748B" font-size="10" class="mono">0.19% of 30 FPS</text>
 
     <rect x="169" y="0" width="154" height="84" rx="12" fill="#0B1322" stroke="#38BDF8" stroke-opacity="0.4"/>
     <text x="183" y="26" fill="#94A3B8" font-size="10.5" class="mono">REDMI NOTE 9</text>

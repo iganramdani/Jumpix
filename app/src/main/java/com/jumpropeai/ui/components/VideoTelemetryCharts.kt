@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -142,18 +143,26 @@ fun SyncedSlowMoVideoPlayer(
         }
     }
 
+    var isCompactPlayer by remember { mutableStateOf(true) }
+
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MidnightSurface,
         border = BorderStroke(1.dp, MidnightBorder),
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(if (isPortrait) 224.dp else 188.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .height(
+                        if (isCompactPlayer) {
+                            if (isPortrait) 164.dp else 148.dp
+                        } else {
+                            if (isPortrait) 244.dp else 204.dp
+                        }
+                    )
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Color.Black)
             ) {
                 AndroidView(
@@ -213,37 +222,65 @@ fun SyncedSlowMoVideoPlayer(
                     border = BorderStroke(1.dp, IceMint.copy(alpha = 0.5f)),
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(8.dp)
+                        .padding(6.dp)
                 ) {
                     val jumpTag = nearEvent?.let { " • #${it.jumpNumber}" } ?: ""
                     Text(
                         text = String.format(Locale.US, "%.2fs / %.1fs%s", scrubTimeMs / 1000.0, durationMs / 1000.0, jumpTag),
                         color = IceMint,
-                        fontSize = 12.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                     )
                 }
 
-                // Top-right skeleton toggle pill (>= 36dp visual, padded touch)
-                Surface(
-                    onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        showSkeleton = !showSkeleton
-                    },
-                    shape = CircleShape,
-                    color = if (showSkeleton) IceMint else DeepMidnight.copy(alpha = 0.84f),
+                // Top-right skeleton & Expand/Compact toggles
+                Row(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(8.dp)
+                        .padding(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (showSkeleton) "Skeleton ON" else "Skeleton OFF",
-                        color = if (showSkeleton) DeepMidnight else TextSecondary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
+                    Surface(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showSkeleton = !showSkeleton
+                        },
+                        shape = CircleShape,
+                        color = if (showSkeleton) IceMint else DeepMidnight.copy(alpha = 0.84f)
+                    ) {
+                        Text(
+                            text = if (showSkeleton) "Pose ON" else "Pose OFF",
+                            color = if (showSkeleton) DeepMidnight else TextSecondary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                        )
+                    }
+                    Surface(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            isCompactPlayer = !isCompactPlayer
+                        },
+                        shape = CircleShape,
+                        color = DeepMidnight.copy(alpha = 0.84f),
+                        border = BorderStroke(1.dp, MidnightBorder)
+                    ) {
+                        Text(
+                            text = if (isCompactPlayer) "Expand" else "Mini",
+                            color = TextPrimary,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                        )
+                    }
                 }
 
                 // Bottom-left Live Visual Rope Clearance & VAR Neural Badge!
@@ -264,14 +301,16 @@ fun SyncedSlowMoVideoPlayer(
                         border = BorderStroke(1.dp, if (nearRopePass) SkyCyan else IceMint),
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .padding(8.dp)
+                            .padding(6.dp)
                     ) {
                         Text(
                             text = passBadgeText,
                             color = if (nearRopePass) SkyCyan else IceMint,
-                            fontSize = 11.5.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(horizontal = 11.dp, vertical = 5.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -279,91 +318,103 @@ fun SyncedSlowMoVideoPlayer(
 
             Spacer(Modifier.height(6.dp))
 
-            // Ergonomic Transport & Slow-Motion Speed Bar (44-48dp targets)
+            // Row 1: Frame-accurate Transport (-1F / Play / +1F)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            isPlaying = false
-                            mediaPlayer?.takeIf { isPrepared }?.pause()
-                            val next = (scrubTimeMs - 33L).coerceAtLeast(0L)
-                            onScrubTimeChanged(next)
-                            mediaPlayer?.takeIf { isPrepared }?.seekToSafe(next)
-                        },
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Icon(Icons.Rounded.SkipPrevious, contentDescription = "Prev Frame", tint = TextPrimary)
-                    }
+                IconButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        isPlaying = false
+                        mediaPlayer?.takeIf { isPrepared }?.pause()
+                        val next = (scrubTimeMs - 33L).coerceAtLeast(0L)
+                        onScrubTimeChanged(next)
+                        mediaPlayer?.takeIf { isPrepared }?.seekToSafe(next)
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(Icons.Rounded.SkipPrevious, contentDescription = "Prev Frame", tint = TextPrimary)
+                }
 
-                    Surface(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            val mp = mediaPlayer?.takeIf { isPrepared } ?: return@Surface
-                            if (isPlaying) {
-                                mp.pause()
-                                isPlaying = false
-                            } else {
-                                applySpeedSafe(mp, playbackSpeed)
-                                mp.start()
-                                isPlaying = true
-                            }
-                        },
-                        shape = CircleShape,
-                        color = IceMint,
-                        modifier = Modifier.size(46.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                                contentDescription = "Play/Pause",
-                                tint = DeepMidnight
-                            )
+                Spacer(Modifier.width(10.dp))
+
+                Surface(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        val mp = mediaPlayer?.takeIf { isPrepared } ?: return@Surface
+                        if (isPlaying) {
+                            mp.pause()
+                            isPlaying = false
+                        } else {
+                            applySpeedSafe(mp, playbackSpeed)
+                            mp.start()
+                            isPlaying = true
                         }
-                    }
-
-                    IconButton(
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            isPlaying = false
-                            mediaPlayer?.takeIf { isPrepared }?.pause()
-                            val next = (scrubTimeMs + 33L).coerceAtMost(durationMs)
-                            onScrubTimeChanged(next)
-                            mediaPlayer?.takeIf { isPrepared }?.seekToSafe(next)
-                        },
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Icon(Icons.Rounded.SkipNext, contentDescription = "Next Frame", tint = TextPrimary)
+                    },
+                    shape = CircleShape,
+                    color = IceMint,
+                    modifier = Modifier.size(42.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = DeepMidnight
+                        )
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    listOf(0.20f to "0.2x", 0.25f to "0.25x", 0.50f to "0.5x", 1.00f to "1.0x").forEach { (sp, label) ->
-                        val active = abs(playbackSpeed - sp) < 0.01f
-                        Surface(
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                playbackSpeed = sp
-                                mediaPlayer?.takeIf { isPrepared }?.let { mp ->
-                                    if (isPlaying) applySpeedSafe(mp, sp)
-                                }
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (active) IceMint else MidnightElevated,
-                            modifier = Modifier.defaultMinSize(minHeight = 38.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 9.dp)) {
-                                Text(
-                                    text = label,
-                                    color = if (active) DeepMidnight else TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                Spacer(Modifier.width(10.dp))
+
+                IconButton(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        isPlaying = false
+                        mediaPlayer?.takeIf { isPrepared }?.pause()
+                        val next = (scrubTimeMs + 33L).coerceAtMost(durationMs)
+                        onScrubTimeChanged(next)
+                        mediaPlayer?.takeIf { isPrepared }?.seekToSafe(next)
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(Icons.Rounded.SkipNext, contentDescription = "Next Frame", tint = TextPrimary)
+                }
+            }
+
+            Spacer(Modifier.height(5.dp))
+
+            // Row 2: Equal-width Slow-Motion Speed Selector (never crushes 1.0x vertically on 360dp phones!)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(0.20f to "0.2x", 0.25f to "0.25x", 0.50f to "0.5x", 1.00f to "1.0x").forEach { (sp, label) ->
+                    val active = abs(playbackSpeed - sp) < 0.01f
+                    Surface(
+                        onClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            playbackSpeed = sp
+                            mediaPlayer?.takeIf { isPrepared }?.let { mp ->
+                                if (isPlaying) applySpeedSafe(mp, sp)
                             }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (active) IceMint else MidnightElevated,
+                        modifier = Modifier
+                            .weight(1f)
+                            .defaultMinSize(minHeight = 36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 4.dp)) {
+                            Text(
+                                text = label,
+                                color = if (active) DeepMidnight else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
@@ -387,22 +438,28 @@ fun IjrcCompetitionScoreboardCard(ijrc: IjrcSprintSummary, modifier: Modifier = 
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "🏆 IJRC / IJRU Official Judge Scoreboard",
+                    text = "🏆 IJRC Official Judge Scoreboard",
                     color = IceMint,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
                 if (ijrc.buzzerWindow.detected) {
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = String.format(
                             Locale.US,
-                            "Buzzer %.1f–%.1fs",
+                            "%.1f–%.1fs",
                             ijrc.buzzerWindow.startBuzzerMs / 1000.0,
                             ijrc.buzzerWindow.endBuzzerMs / 1000.0
                         ),
                         color = SkyCyan,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }

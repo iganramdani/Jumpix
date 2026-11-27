@@ -23,7 +23,22 @@ import struct
 import time
 import wave
 import numpy as np
-from scipy.ndimage import median_filter, maximum_filter1d
+try:
+    from scipy.ndimage import median_filter, maximum_filter1d
+except ImportError:
+    def maximum_filter1d(arr, size=3):
+        arr = np.asarray(arr)
+        pad = size // 2
+        padded = np.pad(arr, (pad, pad), mode="edge")
+        return np.max(np.lib.stride_tricks.sliding_window_view(padded, size), axis=1)
+
+    def median_filter(arr, size=(17, 1)):
+        arr = np.asarray(arr)
+        r, c = size
+        pr, pc = r // 2, c // 2
+        padded = np.pad(arr, ((pr, pr), (pc, pc)), mode="edge")
+        win = np.lib.stride_tricks.sliding_window_view(padded, (r, c))
+        return np.median(win.reshape(arr.shape[0], arr.shape[1], r * c), axis=2).astype(arr.dtype)
 
 BENCH_DIR = os.environ.get(
     "JUMPVEX_BENCH64_DIR",

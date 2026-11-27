@@ -219,15 +219,15 @@ class FusionEngine {
 
         var prevTime: Long = prevT
 
-        // 4. Soft candidate gating: accept on-rhythm during an established streak OR when Neural VAR strongly confirms (>= 0.68)!
+        // 4. Soft candidate gating: accept on-rhythm during an established streak OR when Neural VAR strongly confirms (>= 0.72, >= 215ms)!
         if (candidate.isSoft) {
-            val neuralStrongConfirm = hasNeural && neuralVarProb >= 0.68f && neuralActiveProb >= 0.55f
+            val dtSoft = pt - prevTime
+            val neuralStrongConfirm = hasNeural && dtSoft >= 215L && neuralVarProb >= 0.72f && neuralActiveProb >= 0.62f
             if (!neuralStrongConfirm) {
                 if (currentStreakInEngine < 3 || intervals.size < 3) {
                     return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
                 }
                 val medTempo = StftAudioEngine.medianLong(intervals.toList())
-                val dtSoft = pt - prevTime
                 if (dtSoft !in (medTempo * 0.70).toLong()..(medTempo * 1.32).toLong()) {
                     return buildDecision(acceptedCount, pllBridged, tripDetected, hasAudio)
                 }

@@ -42,6 +42,55 @@ enum class WatermarkTemplate(val label: String) {
     CORNER_STAMP("Stamp")
 }
 
+internal data class HudPlacement(
+    val fitScale: Float,
+    val offsetLeft: Float,
+    val offsetTop: Float,
+    val drawW: Float,
+    val drawH: Float
+)
+
+internal fun computeProportionalHudPlacement(
+    canvasW: Int,
+    canvasH: Int,
+    template: WatermarkTemplate,
+    virtualWidth: Float = 1080f,
+    virtualHeight: Float = 1350f
+): HudPlacement {
+    val w = canvasW.coerceAtLeast(1).toFloat()
+    val h = canvasH.coerceAtLeast(1).toFloat()
+    val videoAspect = w / h
+    val isLandscape = videoAspect > 1.15f
+    val isTallPortrait = videoAspect < 0.72f
+
+    val marginFrac = if (isLandscape) 0.04f else 0.035f
+    val safeW = w * (1f - 2f * marginFrac)
+    val safeH = h * (1f - 2f * marginFrac)
+    val baseFit = minOf(safeW / virtualWidth, safeH / virtualHeight)
+    val fitScale = when {
+        isLandscape && template == WatermarkTemplate.CORNER_STAMP -> baseFit * 0.94f
+        isLandscape -> baseFit * 0.90f
+        else -> baseFit
+    }
+    val drawW = virtualWidth * fitScale
+    val drawH = virtualHeight * fitScale
+
+    val offsetLeft = when {
+        template == WatermarkTemplate.CORNER_STAMP -> w * marginFrac
+        else -> (w - drawW) / 2f
+    }
+    val isBottomAnchored = template == WatermarkTemplate.MINIMAL_STRAVA ||
+        template == WatermarkTemplate.ACTIVITY_RING ||
+        template == WatermarkTemplate.CORNER_STAMP
+    val offsetTop = when {
+        isBottomAnchored && isTallPortrait -> (h - drawH - h * 0.045f).coerceAtLeast(h * marginFrac)
+        isBottomAnchored -> (h - drawH - h * marginFrac).coerceAtLeast(h * marginFrac)
+        isTallPortrait -> (h - drawH) * 0.62f
+        else -> (h - drawH) / 2f
+    }
+    return HudPlacement(fitScale, offsetLeft, offsetTop, drawW, drawH)
+}
+
 /**
  * Official Jumpvex Share Card & Dynamic Animated Video Telemetry Renderer (v4.0).
  *
@@ -153,24 +202,12 @@ object WorkoutCardRenderer {
             0f
         }
 
-        // Map 1080x1350 virtual design coordinates cleanly into target video canvas with 3% safe margin
-        val videoAspect = canvasW.toFloat() / canvasH.toFloat()
-        val wmAspect = WIDTH.toFloat() / HEIGHT.toFloat()
-        val safeW = canvasW * 0.94f
-        val safeH = canvasH * 0.94f
-        val fitScale = minOf(safeW / WIDTH.toFloat(), safeH / HEIGHT.toFloat())
-        val drawW = WIDTH * fitScale
-        val drawH = HEIGHT * fitScale
-        val offsetLeft = (canvasW - drawW) / 2f
-        val offsetTop = if (videoAspect < wmAspect) {
-            (canvasH - drawH) * 0.56f
-        } else {
-            (canvasH - drawH) / 2f
-        }
+        // Aspect-aware proportional HUD mapping across 9:16, 9:20, 16:9, 1:1 & 4K resolutions
+        val placement = computeProportionalHudPlacement(canvasW, canvasH, template)
 
         canvas.save()
-        canvas.translate(offsetLeft, offsetTop)
-        canvas.scale(fitScale, fitScale)
+        canvas.translate(placement.offsetLeft, placement.offsetTop)
+        canvas.scale(placement.fitScale, placement.fitScale)
 
         drawScaledTemplateContent(
             canvas = canvas,

@@ -133,7 +133,7 @@ a:hover { text-decoration: underline; }
   position: relative; background: #070b13; border: 1px solid var(--border);
   border-radius: 14px; overflow: hidden; margin-bottom: 14px;
 }
-.canvas-wrap canvas { width: 100%; display: block; }
+.canvas-wrap canvas { width: 100%; min-height: 240px; display: block; touch-action: pan-y; }
 .osc-controls {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
 }
@@ -186,4 +186,6 @@ footer {
 @media (max-width: 860px) {
   .hero, .two-col { grid-template-columns: 1fr; }
   .nav-links { display: none; }
+  .btn-sm { white-space: nowrap; padding: 8px 12px; font-size: 0.8rem; }
+  .section { padding: 18px 14px; }
 }

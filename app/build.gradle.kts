@@ -12,8 +12,8 @@ android {
         applicationId = "com.jumpropeai"
         minSdk = 24
         targetSdk = 35
-        versionCode = 39
-        versionName = "7.0.0"
+        versionCode = 40
+        versionName = "7.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

@@ -20,7 +20,7 @@
 
   function parseJumpvexCsv(text) {
     const lines = text.split(/\r?\n/);
-    const meta = { app: 'Unknown', device: 'Unknown', mode: 'Unknown', finalJumps: null, engine: null };
+    const meta = { app: 'Unknown', device: 'Unknown', mode: 'Unknown', finalJumps: null, engine: null, visRopePasses: null };
     let headerIdx = -1;
     let cols = [];
 
@@ -36,6 +36,8 @@
           if (mJumps) meta.finalJumps = parseInt(mJumps[1], 10);
           const mEng = line.match(/Engine=([^|]+)/);
           if (mEng) meta.engine = mEng[1].trim();
+          const mVis = line.match(/VisRopePasses=(\d+)/);
+          if (mVis) meta.visRopePasses = parseInt(mVis[1], 10);
         }
         continue;
       }
@@ -104,7 +106,10 @@
     const medFps = Math.round(median(parsedRows.map(r => r.fps)));
     const avgForm = Math.round(parsedRows.reduce((a, b) => a + b.form, 0) / parsedRows.length);
     const hasNeural = parsedRows.some(r => r.neuralProb >= 0);
-    const cablePasses = parsedRows.filter(r => r.ropeVis >= 0.45).length;
+    const isBinaryRopeVis = parsedRows.every(r => r.ropeVis <= 1.05);
+    const cablePasses = parsedMeta.visRopePasses !== null
+      ? parsedMeta.visRopePasses
+      : (isBinaryRopeVis ? parsedRows.filter(r => r.ropeVis >= 0.95).length : 0);
     const moves = [...new Set(parsedRows.map(r => r.move))].join(', ');
     const neuralChip = hasNeural
       ? `<div class="meta-chip mono">VAR Cable Passes: <strong>${cablePasses}</strong></div>`
@@ -223,15 +228,17 @@
 
     // Track 2 (y: 174..280): Neural VAR + Sub-Foot Cable Passes (v17+) OR Ankle Sep + Foot Pitch (v14-v16)
     if (hasNeural) {
+      const isBinaryRopeVis = slice.every(r => r.ropeVis <= 1.05);
       for (let i = 0; i < slice.length; i++) {
-        if (slice[i].ropeVis >= 0.45) {
+        const isPass = isBinaryRopeVis ? slice[i].ropeVis >= 0.95 : slice[i].ropeVis >= 14.0;
+        if (isPass) {
           const x = xAt(i);
-          oscCtx.fillStyle = 'rgba(56, 189, 248, 0.55)';
+          oscCtx.fillStyle = 'rgba(56, 189, 248, 0.72)';
           oscCtx.fillRect(x - 1.5, 178, 3, 98);
         }
       }
       oscCtx.strokeStyle = '#f59e0b';
-      oscCtx.lineWidth = 2.1;
+      oscCtx.lineWidth = 2.4;
       oscCtx.beginPath();
       slice.forEach((r, i) => {
         const x = xAt(i);
@@ -241,7 +248,7 @@
       oscCtx.stroke();
     } else {
       oscCtx.strokeStyle = '#f59e0b';
-      oscCtx.lineWidth = 2;
+      oscCtx.lineWidth = 2.2;
       oscCtx.beginPath();
       slice.forEach((r, i) => {
         const x = xAt(i);
@@ -251,7 +258,7 @@
       oscCtx.stroke();
 
       oscCtx.strokeStyle = 'rgba(46, 229, 157, 0.75)';
-      oscCtx.lineWidth = 1.6;
+      oscCtx.lineWidth = 1.8;
       oscCtx.beginPath();
       slice.forEach((r, i) => {
         const x = xAt(i);
@@ -264,7 +271,7 @@
     // Track 3 (y: 318..416): AI CPU us
     const maxUs = Math.max(200, ...slice.map(r => r.aiUs));
     oscCtx.strokeStyle = '#fb7185';
-    oscCtx.lineWidth = 2;
+    oscCtx.lineWidth = 2.2;
     oscCtx.beginPath();
     slice.forEach((r, i) => {
       const x = xAt(i);
@@ -322,16 +329,20 @@
   loadSampleBtn.addEventListener('click', loadSampleCsv);
   zoomSlider.addEventListener('input', drawOscilloscope);
 
-  oscCanvas.addEventListener('mousemove', e => {
+  function handleInspectClientX(clientX) {
     if (!parsedRows.length) return;
     const rect = oscCanvas.getBoundingClientRect();
-    const relX = ((e.clientX - rect.left) / rect.width) * oscCanvas.width;
+    const relX = ((clientX - rect.left) / rect.width) * oscCanvas.width;
     const zoom = parseFloat(zoomSlider.value) || 1;
     const visibleCount = Math.max(20, Math.floor(parsedRows.length / zoom));
     const idx = Math.round(((relX - 54) / (oscCanvas.width - 72)) * (visibleCount - 1));
     hoverIdx = Math.max(0, Math.min(visibleCount - 1, idx));
     drawOscilloscope();
-  });
+  }
+  oscCanvas.addEventListener('mousemove', e => handleInspectClientX(e.clientX));
+  oscCanvas.addEventListener('touchmove', e => {
+    if (e.touches && e.touches[0]) handleInspectClientX(e.touches[0].clientX);
+  }, { passive: true });
 
   copyIssueBtn.addEventListener('click', () => {
     if (!parsedRows.length) return;

@@ -641,7 +641,7 @@ object NeuralVarEngine {
                 var k = pfCursor
                 while (k < poseFrames.size - 1 && poseFrames[k].timestampMs <= searchHi) {
                     val p = biPredictions[k]
-                    if (p.combinedVarProb >= 0.62f && p.activeSkippingProb >= 0.60f &&
+                    if (p.combinedVarProb >= 0.70f && p.activeSkippingProb >= 0.66f &&
                         p.combinedVarProb >= biPredictions[k - 1].combinedVarProb &&
                         p.combinedVarProb >= biPredictions[k + 1].combinedVarProb &&
                         p.combinedVarProb > bestProb

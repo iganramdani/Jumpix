@@ -40,11 +40,11 @@
   <g transform="translate(440, 444)">
     <rect x="0" y="0" width="180" height="84" rx="14" fill="#111B2E" stroke="#2EE59D" stroke-opacity="0.35"/>
     <text x="18" y="30" fill="#94A3B8" font-size="13" class="m">64-VIDEO BENCH</text>
-    <text x="18" y="64" fill="#2EE59D" font-size="30" class="h">99.44%</text>
+    <text x="18" y="64" fill="#2EE59D" font-size="30" class="h">99.92%</text>
 
     <rect x="198" y="0" width="175" height="84" rx="14" fill="#111B2E" stroke="#38BDF8" stroke-opacity="0.35"/>
     <text x="216" y="30" fill="#94A3B8" font-size="13" class="m">NEURAL VAR CPU</text>
-    <text x="216" y="64" fill="#38BDF8" font-size="30" class="h">74.8 µs</text>
+    <text x="216" y="64" fill="#38BDF8" font-size="30" class="h">63.5 µs</text>
 
     <rect x="391" y="0" width="175" height="84" rx="14" fill="#111B2E" stroke="#1E293B"/>
     <text x="409" y="30" fill="#94A3B8" font-size="13" class="m">5-FOLD OOF F1</text>

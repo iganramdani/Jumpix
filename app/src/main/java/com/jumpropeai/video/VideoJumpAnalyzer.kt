@@ -482,7 +482,7 @@ class VideoJumpAnalyzer(private val context: Context) {
                                     vYawL = kineticTrickCoach.lastVYawL,
                                     vYawR = kineticTrickCoach.lastVYawR,
                                     neuralProb = liveNeural.combinedVarProb,
-                                    ropeVisEnergy = ropeSignal.horizontalMotionEnergy,
+                                    ropeVisEnergy = if (ropeSignal.ropePassConfirmed) 1f else 0f,
                                     cleanWhipEnergy = liveNeural.cleanWhipEnergy
                                 )
                             }
