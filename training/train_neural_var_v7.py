@@ -40,12 +40,12 @@ except ImportError:
         win = np.lib.stride_tricks.sliding_window_view(padded, (r, c))
         return np.median(win.reshape(arr.shape[0], arr.shape[1], r * c), axis=2).astype(arr.dtype)
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 BENCH_DIR = os.environ.get(
     "JUMPVEX_BENCH64_DIR",
-    "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/a9acf617-00c7-452f-811e-aaad9722aa19/scratch/bench64",
+    os.path.join(REPO_ROOT, "training", "dataset"),
 )
 SMARTPHONE_LOG_DIR = "/home/antigravity/.gemini/jetski/brain/v1/default/jetski_remote_agents_3p_devbox/a9acf617-00c7-452f-811e-aaad9722aa19/scratch/testlogterbaru"
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 GT_CSV = os.path.join(REPO_ROOT, "ground_truth_all_videos.csv")
 OUT_MODEL_DIR = os.path.join(REPO_ROOT, "app", "src", "main", "assets", "models")
 
