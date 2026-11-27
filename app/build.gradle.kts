@@ -12,8 +12,8 @@ android {
         applicationId = "com.jumpropeai"
         minSdk = 24
         targetSdk = 35
-        versionCode = 41
-        versionName = "7.1.1"
+        versionCode = 42
+        versionName = "7.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -32,6 +32,7 @@ android {
         !keyAliasName.isNullOrBlank() &&
         !keyAliasPassword.isNullOrBlank() &&
         file(keystorePath).exists()
+    val ossKeystoreFile = file("jumpvex-oss.jks")
 
     signingConfigs {
         if (hasReleaseKeystore) {
@@ -42,16 +43,29 @@ android {
                 keyPassword = keyAliasPassword
             }
         }
+        if (ossKeystoreFile.exists()) {
+            create("ossRelease") {
+                storeFile = ossKeystoreFile
+                storePassword = "jumpvex-oss-signing-key"
+                keyAlias = "jumpvex-oss"
+                keyPassword = "jumpvex-oss-signing-key"
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            // Distinct package ID so Debug & Release APKs can coexist without package conflict
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = if (hasReleaseKeystore) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
+            signingConfig = when {
+                hasReleaseKeystore -> signingConfigs.getByName("release")
+                ossKeystoreFile.exists() -> signingConfigs.getByName("ossRelease")
+                else -> signingConfigs.getByName("debug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

@@ -13,6 +13,7 @@
 *.aab
 *.keystore
 *.jks
+!app/jumpvex-oss.jks
 training/checkpoints/
 training/__pycache__/
 training/rust_trainer/target/
