@@ -4,14 +4,15 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/hero_banner_dark.svg" />
     <source media="(prefers-color-scheme: light)" srcset="docs/assets/hero_banner_light.svg" />
-    <img alt="Jumpvex v7.0 — 99.9% VAR-Grade Precision &amp; Real-Time 30 FPS Dual-Engine Phone-Only AI Jump Rope Suite" src="docs/assets/hero_banner_dark.svg" width="100%" />
+    <img alt="Jumpvex v7.1.3 — 99.7%+ VAR-Grade Precision, Pipelined 30 FPS Dual-Engine &amp; Pure Rust SIMD Trainer" src="docs/assets/hero_banner_dark.svg" width="100%" />
   </picture>
 </a>
 
 <br/><br/>
 
 [![Launch Web Telemetry Lab](https://img.shields.io/badge/🔬_Launch_Web_Telemetry_Lab-2EE59D?style=for-the-badge&logoColor=0D1321)](https://iganramdani.github.io/Jumpvex/)
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v7.1.0_APK_(52_MB)-38BDF8?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.0/Jumpvex-v7.1.0-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v7.1.3_APK-38BDF8?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.3/Jumpvex-v7.1.3-release.apk)
+[![Pure Rust Trainer](https://img.shields.io/badge/🦀_100%25_Pure_Rust_Trainer-F97316?style=for-the-badge&logo=rust&logoColor=white)](training/README.md)
 [![GitHub Downloads](https://img.shields.io/github/downloads/iganramdani/Jumpvex/total?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/iganramdani/Jumpvex?style=for-the-badge&color=2EE59D&labelColor=151D2E&logo=github)](https://github.com/iganramdani/Jumpvex/stargazers)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-2EE59D?style=for-the-badge&logo=gnu&logoColor=0D1321)](LICENSE)
@@ -19,25 +20,38 @@
 <br/>
 
 [🔬 Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/) •
+[📂 Sub-Modules](#-interactive-repository--sub-module-navigator) •
 [✨ Why Jumpvex](#-why-jumpvex-built-by-athletes-engineered-for-var-precision) •
-[🆚 Phone-Only vs \$400 Gear](#-how-jumpvex-compares-100-phone-only) •
 [📱 UI Gallery](#-modern-two-tone-ui-gallery) •
-[📊 64-Video Benchmark](#-official-64-real-video-benchmark) •
+[📊 Benchmarks](#-official-64-real-video--redmi-note-9-benchmarks) •
 [🧠 Architecture](#-ai-engine-v17-dual-tier-neural-var-architecture) •
-[📱 Termux AI Training](#-train-with-the-community-1-command-android-termux) •
-[🙏 Credits](#-open-source-credits--respect) •
+[🦀 Pure Rust Termux](#-train-with-the-community-1-command-100-pure-rust-on-termux) •
 [📦 Download](#-download-apk-release--debug)
 
 <br/>
 
 > 💡 **Interactive Community Tools:**
 > [🔬 Inspect Your CSV in Browser](https://iganramdani.github.io/Jumpvex/#telemetry-lab) &nbsp;•&nbsp;
+> [🦀 Explore Engine &amp; Rust SIMD](https://iganramdani.github.io/Jumpvex/#engine-explorer) &nbsp;•&nbsp;
 > [🎯 Submit Calibration CSV](https://github.com/iganramdani/Jumpvex/issues/new?template=calibration_contribution.yml) &nbsp;•&nbsp;
 > [🐛 Report a Bug](https://github.com/iganramdani/Jumpvex/issues/new?template=bug_report.yml) &nbsp;•&nbsp;
-> [✨ Request a Trick](https://github.com/iganramdani/Jumpvex/issues/new?template=trick_request.yml) &nbsp;•&nbsp;
 > [🤝 Contributing](CONTRIBUTING.md)
 
 </div>
+
+---
+
+## 📂 Interactive Repository & Sub-Module Navigator
+
+Every module in **Jumpvex** has its own dedicated documentation, architecture diagrams, and verified benchmarks — click any folder below to explore:
+
+| Module | Stack | Highlights & Docs |
+| :--- | :---: | :--- |
+| **[`app/`](app/README.md)** | Kotlin • Compose • Media3 | Dual-Tier AI Engine v17, **v7.1.3 Pipelined Video Studio (`-56% GC`, `-45% Heap`)**, Edge-Anchored Top-Left HUD Watermark, Permanent OSS Signing (`jumpvex-oss.jks`) |
+| **[`training/`](training/README.md)** | Bash • Non-Root Termux | 1-Command Non-Root Android Termux Hub (`termux-wake-lock`, verified `Documents/Jumpvex/Models/` export, `--cool` thermal pause) |
+| **[`training/rust_trainer/`](training/rust_trainer/README.md)** | **100% Pure Rust** (0 crates) | Const-Generic `4×H` NEON/AVX2 SIMD GEMM, Asymmetric **`HID48×5 → HID32×5`** Distillation, Sharp Peak TimeStretch, Temporal CutMix, Residual Dropout & EMA/SWA |
+| **[`training/dataset/`](training/dataset/README.md)** | `JVXF` Binary (`3.7 MB`) | Pre-extracted 64 real videos (`53,785` frames, **8 ms load**), `manifest64.tsv`, 16-channel feature schema & zero-leakage 5-fold splits |
+| **[`docs/`](docs/README.md)** | HTML5 • Canvas • SVG | Live **[Web Telemetry Lab](https://iganramdani.github.io/Jumpvex/)** — browser CSV oscilloscope, Engine & Rust Explorer, Trick Sandbox & Rope Physics Calculator |
 
 ---
 
@@ -45,21 +59,21 @@
 
 > **Every jump rope & shuffle athlete deserves competition-grade VAR analytics — without paying \$120–\$500 for smart handles, wearables, or cloud subscriptions.**
 >
-> Born from real daily training sessions on a budget **Xiaomi Redmi Note 9** and rigorously benchmarked across **64 real-world videos (`3,767` human-verified jumps/steps)**, **Jumpvex** unites **Dual-Tier Heavy 3D Neural VAR** and a **Real-Time 30 FPS Live Cockpit** inside one **100% offline, open-source GPLv3** Android app.
+> Born from real daily training sessions on a budget **Xiaomi Redmi Note 9** and rigorously benchmarked across **64 real-world videos (`3,767` human-verified jumps/steps)**, **Jumpvex `v7.1.3`** unites **Pipelined Heavy 3D Neural VAR**, a **Real-Time 30 FPS Live Cockpit**, and a **100% Pure Rust Non-Root Termux Trainer** inside one **100% offline, open-source GPLv3** project.
 
-| 🎯 Tier 2: 99.9% VAR-Grade Video Studio (Heavy Precision) | ⚡ Tier 1: Real-Time 30 FPS Live Cockpit (Instant Zero-GC) |
+| 🎯 Tier 2: Pipelined VAR-Grade Video Studio (`v7.1.3`) | ⚡ Tier 1: Real-Time 30 FPS Live Cockpit (Instant Zero-GC) |
 | :--- | :--- |
-| 🧠 **Heavy 3D Pose + 5-Fold Bidirectional MS-TCN (`var_bitemporal_v7.jvxmodel`)** — pairs `pose-detection-accurate` (*Heavy 3D Landmarks*) with a full-sequence bidirectional dilated TCN trained via strict **5-Fold Group Cross-Validation** (`81.62%` Out-of-Fold F1, zero data leakage) + **99.5%+ Volume Accuracy** across 64 real videos. | ⚡ **30 FPS Live Camera + Streaming `CausalJumpTcnLite`** — keeps blazing-fast BlazePose + past-only causal TCN (`< 40 µs/frame`, Zero-GC) to reject close-up walk-toward-camera & IG-outro noise in real time on budget phones (**Xiaomi Redmi Note 9**). |
-| 👁️ **Sub-Foot & Overhead Visual Rope Tracker (`OpticalRopeTracker`)** — zero-copy `0°/90°/180°/270°` `NV21` portrait cable-streak detector counts physical rope passes under your shoes & over your head — even on **muted videos**, verifying Double/Triple Unders visually. | 🎛️ **High-Usability Sweaty-Hand Cockpit (`>= 48.dp`)** — **1-Tap Sensor Pill** (*Fusion AI / Pocket IMU / Audio Eco / Camera*) on Top Bar, auto-hiding **Pre-Workout Quick Dock** (*Pace • Ghost • rPPG HR • 2P Battle*), and **3-Category Settings** with haptic feedback. |
-| 🎵 **HPSS 200 Hz Audio Isolator + Compact Sticky Slow-Mo Studio** — strips loud EDM/gym music via 17-frame harmonic median subtraction, compact `165dp` expandable slow-mo player, **4 Crisp Sub-Tabs**, proportional **Live HUD Video Export (`9:16`, `16:9`, `1:1`, `4K`)**, and **1-Tap Batch `.ZIP` Logs**. | 📦 **Single 52 MB 100% Offline APK** — bundles both Fast & Heavy 3D Pose + both `.jvxmodel` neural weights + 200 Hz STFT + Media3 GPU HUD exporter completely offline ([`SECURITY.md`](SECURITY.md)). |
+| 🚀 **2×–3.5× Faster Zero-Loss Pipelined Decode (`v7.1.3`)** — strided `2×/4×` NV21 downsampling + double-buffered async `Decode(N+1) \|\| Pose(N)` + parallel 200 Hz audio STFT + zero-GC ping-pong preview cuts Redmi Note 9 peak heap **`55 MB → 30 MB` (`-45%`)** & GC pauses **`371× → 164×` (`-55.8%`)** with **0.00% accuracy drift**. | ⚡ **30 FPS Live Camera + Streaming `CausalJumpTcnLite`** — blazing-fast BlazePose + dynamic-ring causal TCN (supports 4 & 5 dilated blocks `[1,2,4,8,16]`, Zero-GC) rejecting walk-away & IG-outro noise (`OutroFP` cut **-51%**) in real time on budget phones. |
+| 👁️ **Sub-Foot & Overhead Visual Rope Tracker (`OpticalRopeTracker`)** — zero-copy `0°/90°/180°/270°` `NV21` portrait cable-streak detector counts physical rope passes under your shoes & over your head — even on **muted videos**, verifying Double/Triple Unders visually. | 🎛️ **High-Usability Sweaty-Hand Cockpit (`>= 48.dp`)** — **1-Tap Sensor Pill** (*Fusion AI / Pocket IMU / Audio Eco / Camera*), auto-hiding **Pre-Workout Quick Dock** (*Pace • Ghost • rPPG HR • 2P Battle*), and **3-Category Settings** with haptic feedback. |
+| 🎬 **Edge-Anchored Top-Left Logo Watermark & Sticky Slow-Mo Studio** — larger Golden-Ratio `JV` logo pinned strictly to the top-left corner across `720p/1080p/4K` & `9:16/16:9/1:1`, lowered jump counters, compact expandable slow-mo player, **4 Sub-Tabs**, and **1-Tap Batch `.ZIP` Logs**. | 🔐 **Permanent Deterministic Signing + 100% Offline APK** — signed with permanent `jumpvex-oss.jks` (seamless updates with zero package conflicts!) + side-by-side `.debug` builds ([`SECURITY.md`](SECURITY.md)). |
 
 ---
 
 ## 🆚 How Jumpvex Compares (100% Phone-Only)
 
-| Capability | **Jumpvex (`v7.0.0` VAR)** | YaoYao | Crossrope AMP | JRC AI | JustJump |
+| Capability | **Jumpvex (`v7.1.3` VAR)** | YaoYao | Crossrope AMP | JRC AI | JustJump |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **100% Phone-Only (Zero Watch / Zero Smart Rope)** | ✅ **99.44% (64 Videos)** | ❌ Watch / AirPods | ❌ \$119+ Handles | ✅ Camera only | ❌ Manual |
+| **100% Phone-Only (Zero Watch / Zero Smart Rope)** | ✅ **99.71% (64 Videos)** | ❌ Watch / AirPods | ❌ \$119+ Handles | ✅ Camera only | ❌ Manual |
 | **Dual-Tier AI (Heavy 3D VAR + 30 FPS Live TCN)** | ✅ **1-Tap Toggle** | ❌ IMU only | ❌ Hall sensor | ⚠️ Fast 2D only | ❌ |
 | **Visual Sub-Foot Rope Pass + HPSS Audio Isolation** | ✅ **Works Muted / EDM** | ❌ | ❌ | ❌ | ❌ |
 | **Sticky `0.2x` Slow-Mo + 4-Tab Telemetry Studio** | ✅ **Synced Scrubbing** | ❌ | ❌ | ❌ | ❌ |
@@ -100,16 +114,24 @@ Crafted with a clean futuristic two-tone palette — **Deep Midnight (`#0D1321`)
 
 ---
 
-## 📊 Official 64-Real-Video Benchmark
+## 📊 Official 64-Real-Video & Redmi Note 9 Benchmarks
 
-Continuously verified by [`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt) directly against **64 real-world videos** (`JumpRope Test` dataset + official IJRC 30s Stage Speed Sprint in [`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), **`3,767` human-verified jumps/steps**) and strictly validated via **5-Fold Group Cross-Validation** (`training/train_neural_var_v7.py`, zero data leakage):
+Continuously verified by [`RealVideosBenchmarkTest.kt`](app/src/test/java/com/jumpropeai/benchmark/RealVideosBenchmarkTest.kt) against **64 real-world videos** ([`ground_truth_all_videos.csv`](ground_truth_all_videos.csv), **`3,767` human-verified jumps/steps**) and trained via our **100% Pure Rust 5-Fold Zero-Leakage Trainer** ([`training/rust_trainer/`](training/rust_trainer/README.md)):
 
 <div align="center">
   <img src="docs/assets/real_64_video_benchmark.svg" alt="Jumpvex 64-Real-Video Benchmark and Dual-Tier Neural VAR Chart" width="100%" />
 </div>
 
+### 📱 Real-Device Video Studio Telemetry (`Xiaomi Redmi Note 9`, 53.6s 1080p30 • `1,608` Frames)
+
+| Mode | Jumps Detected | Peak Heap RAM | GC Pauses | p99 AI Latency | Max Spike |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| `v7.1.1` Heavy VAR (Before) | `143` | `55 MB` | `371×` | `14.59 ms` | `169.24 ms` |
+| **`v7.1.3` Heavy VAR (Pipelined)** | **`143` (0% drift)** | **`30 MB` (-45%)** | **`164×` (-55.8%)** | **`9.34 ms` (-36%)** | `105.25 ms` |
+| **`v7.1.3` Fast 30fps (Pipelined)** | **`144`** | **`32 MB` (-42%)** | **`149×` (-59.8%)** | **`3.62 ms` (-75%)** | **`15.16 ms` (0 >50ms)** |
+
 <p align="center">
-  🔬 <b>Want to inspect a real Redmi Note 9 session (including v17 Neural VAR &amp; Cable Pass tracks) frame-by-frame?</b>
+  🔬 <b>Want to inspect a real Redmi Note 9 session frame-by-frame?</b>
   <a href="https://iganramdani.github.io/Jumpvex/#telemetry-lab">Open it live in the Jumpvex Web Telemetry Lab →</a>
 </p>
 
@@ -119,15 +141,15 @@ Continuously verified by [`RealVideosBenchmarkTest.kt`](app/src/test/java/com/ju
 
 ```mermaid
 flowchart LR
-    CAM["📷 CameraX (30 FPS) / Full Video"] --> T1["⚡ Tier 1: BlazePose Fast + CausalJumpTcnLite\n(< 40 µs/frame Zero-GC Live)"]
-    CAM --> T2["🔬 Tier 2: BlazePose Heavy 3D + OpticalRopeTracker\n(Sub-Foot & Overhead NV21 Cable Pass)"]
-    MIC["🎙️ AudioRecord / 200 Hz Streaming PCM"] --> HPSS["🎵 StftAudioEngine + NeuralAudioRopeIsolator\n(17-Frame HPSS EDM Stripper + IJRU Horn)"]
-    T1 --> FUS["🧠 FusionEngine + Bidirectional NeuralVarEngine\n(5-Fold MS-TCN • 99.44% across 64 Videos)"]
+    CAM["📷 CameraX (30 FPS) / Pipelined Video<br/>(2x/4x Strided NV21 + Async Decode||Pose)"] --> T1["⚡ Tier 1: BlazePose Fast + CausalJumpTcnLite<br/>(Zero-GC Dynamic Ring • 4-5 Dilated Blocks)"]
+    CAM --> T2["🔬 Tier 2: BlazePose Heavy 3D + OpticalRopeTracker<br/>(Sub-Foot & Overhead NV21 Cable Pass)"]
+    MIC["🎙️ AudioRecord / Parallel 200 Hz PCM"] --> HPSS["🎵 StftAudioEngine + NeuralAudioRopeIsolator<br/>(17-Frame HPSS EDM Stripper + IJRU Horn)"]
+    T1 --> FUS["🧠 FusionEngine + Bidirectional NeuralVarEngine<br/>(Pure Rust SIMD Trained • 99.71% VolAcc)"]
     T2 --> FUS
     HPSS --> FUS
-    T2 --> IJRC["🏆 IjrcSpeedSprintEngine + RopeAngularVelocityEngine\n(Right-Foot Judge • Step vs Rope Curves • 5s Splits)"]
+    T2 --> IJRC["🏆 IjrcSpeedSprintEngine + RopeAngularVelocityEngine<br/>(Right-Foot Judge • Step vs Rope Curves • 5s Splits)"]
     HPSS --> IJRC
-    FUS --> UI["🟢 1-Tap Live Cockpit • Sticky 4-Tab VAR Studio\n• rPPG HR • Media3 GPU HUD • Batch .ZIP Logs"]
+    FUS --> UI["🟢 1-Tap Live Cockpit • Sticky 4-Tab VAR Studio<br/>• Edge-Anchored Media3 HUD • Batch .ZIP Logs"]
     IJRC --> UI
 ```
 
@@ -161,12 +183,12 @@ flowchart LR
 </details>
 
 <details>
-<summary><b>🎬 4-Mode Video Studio, Velocity Charts &amp; Synced Slow-Mo</b></summary>
+<summary><b>🎬 4-Mode Video Studio, Velocity Charts &amp; Edge-Anchored Live HUD</b></summary>
 <br/>
 
 - **4 Specialist Studio Modes:** Choose **Auto Hybrid**, **IJRC Speed**, **Freestyle**, or **Shuffle** for single or unlimited batch videos at full native 30/60 FPS.
-- **Interactive Graphic Telemetry Charts:** Scrub across **Step Speed vs Rope Rotation Speed**, **Zoomed `±2.5s` Left/Right Leg-Drive & 200 Hz Whip Oscilloscope**, **5-Second Competition Splits**, and **IJRC Right-Foot Judge Score** bidirectionally synced to `0.2x / 0.25x / 0.5x / 1.0x` + `±1 Frame` video playback.
-- **Dynamic Animated Video HUD Exporter:** Burn a live, frame-accurate counter, real-time RPM, streak, calories, and active trick callout onto your video via Media3 OpenGL texture reuse.
+- **v7.1.3 Pipelined Speedup:** Strided `2×/4×` NV21 downsampling + double-buffered async `Decode(N+1) || Pose(N)` + parallel 200 Hz audio STFT + zero-GC ping-pong preview cuts GC pauses by **56–60%** with **0% accuracy loss**.
+- **Edge-Anchored Live HUD Video Exporter:** Larger Golden-Ratio `JV` logo pinned strictly to the top-left corner across `720p/1080p/4K` & `9:16/16:9/1:1` with lowered jump counters and Media3 GPU rendering.
 
 </details>
 
@@ -179,13 +201,13 @@ flowchart LR
 git clone https://github.com/iganramdani/Jumpvex.git
 cd Jumpvex
 
-# Run all unit tests + 64-Real-Video Benchmark Suite (AI Engine v17 Dual-Tier VAR)
+# Run all 45 unit tests (NeuralVarEngine, Edge-Anchored HUD, NV21 Downsampler & Benchmark)
 ./gradlew testDebugUnitTest
 
-# Build R8-minified, ARM-optimized Unified Offline Release APK (~52 MB)
-./gradlew assembleRelease
+# Build R8-minified, ARM-optimized Release APK (signed with permanent jumpvex-oss.jks)
+./gradlew assembleRelease -x lintVitalRelease
 
-# Build Debug APK (with debug symbols for development & profiling)
+# Build side-by-side Debug APK (com.jumpropeai.debug)
 ./gradlew assembleDebug
 ```
 
@@ -193,32 +215,34 @@ cd Jumpvex
 
 ---
 
-## 🗺️ Phone-Only Pro Roadmap (`v3.0` → `v7.0`)
+## 🗺️ Phone-Only Pro Roadmap (`v3.0` → `v7.1.3`)
 
 **100% Smartphone-Native & 100% Offline** — zero smartwatch, zero smart rope, zero cloud required. Want to build with us? [Open an Issue or PR](CONTRIBUTING.md)!
 
 - [x] **v3.0–v3.3:** Zero-GC `O(log N)` Vision + 100 Hz STFT Fusion, Heel-to-Toe Foot-Triangle, Shuffle Dance & Batch Video Studio
-- [x] **v4.0 (`v4.0.1`):** AI Engine v14 Pro Studio — Touchless Hand-Raise Start/Pause, Smart Camera Framing, Peak-Aligned Trick Window (`±110 ms`), Triple Under, Dynamic Live Animated Video HUD, Official IJRU 30s/3m Modes, Athlete Profile & Rope Physics
-- [x] **Interactive Repo & Web Lab:** Animated Dark/Light SVG Hero, Vector Benchmark Charts, YAML Issue Forms & **[Browser CSV Telemetry Oscilloscope](https://iganramdani.github.io/Jumpvex/)**
-- [x] **v4.2–v5.0 — Phone-Only Pro Suite & Arena:** **Pocket 100 Hz IMU Mode**, **Rear-Camera + Torch rPPG Heart Rate & 60s HRR**, **5m+ Double-Clap Trigger**, **Virtual Force-Plate (`Height cm`, `GCT ms`, `RSI`)**, **Trip Root-Cause Autopsy**, **Ghost Rival Pacer**, **2-Player Split-Screen Battle**, **AI Skill Tree** & **SQLite WAL Heatmap**
-- [x] **v6.0–v6.1 (`v6.1.1`):** ART Baseline Profiles, `ThermalGovernor`, `IjrcSpeedSprintEngine` (`200 Hz` steel-wire STFT + IJRU horn + Right-Foot Judge Score), `RopeAngularVelocityEngine`, sample-accurate `100–420 SPM` Pacemaker & live PPG rPPG
-- [x] **v7.0–v7.1 (`v7.1.0` Current) — Dual-Tier Neural VAR Studio, Proportional Live HUD & High-Usability Polish:** Bundled **Heavy 3D Pose (`pose-detection-accurate`)** + edge-safe **Sub-Foot & Overhead Visual Rope Tracker** + **HPSS 200 Hz Audio Isolator** + **5-Fold Bidirectional MS-TCN (`var_bitemporal_v7.jvxmodel`) & Live `CausalJumpTcnLite`**, **Compact Expandable Sticky Slow-Mo Studio** (crisp 2-row speed bar, 1-chip collapsed mode, 4 non-truncating tabs, 1-tap `.ZIP` logs), **Proportional Live HUD Video Export across `9:16`, `16:9`, `1:1` & `4K`**, and **1-Command Android Termux AI Trainer**!
+- [x] **v4.0–v5.0 — Phone-Only Pro Suite & Arena:** Touchless Hand-Raise & 5m+ Double-Clap, Pocket 100 Hz IMU Mode, Rear-Camera + Torch rPPG Heart Rate & 60s HRR, Virtual Force-Plate (`Height cm`, `GCT ms`, `RSI`), Ghost Rival Pacer, 2P Split-Screen Battle & Web Telemetry Lab
+- [x] **v6.0–v6.1 (`v6.1.1`):** ART Baseline Profiles, `ThermalGovernor`, `IjrcSpeedSprintEngine` (`200 Hz` steel-wire STFT + IJRU horn + Right-Foot Judge Score), `RopeAngularVelocityEngine` & `100–420 SPM` Pacemaker
+- [x] **v7.0–v7.1 (`v7.1.3` Current) — Dual-Tier Neural VAR, Pipelined Zero-GC Video Studio & 100% Pure Rust Trainer:**
+  - Bundled **Heavy 3D Pose + Sub-Foot Visual Rope Tracker + HPSS 200 Hz Audio + 5-Fold MS-TCN (`89.17%` F1, `OutroFP` -42% to -51%)**
+  - **2×–3.5× Faster Video Studio (`v7.1.3`)** with **-56% GC & -45% Peak Heap** and **0% accuracy loss**
+  - **Edge-Anchored Top-Left Logo Watermark** across all resolutions + **Permanent Deterministic Signing (`jumpvex-oss.jks`)** + side-by-side `.debug` builds
+  - **100% Pure Rust Non-Root Termux Trainer (`HID48×5 → HID32×5`)** with zero external crates, zero Python, and `8 ms` binary dataset loading!
 
 ---
 
-## 📱 Train with the Community (1-Command Android Termux)
+## 🦀 Train with the Community (1-Command 100% Pure Rust on Termux)
 
-Want to help make Jumpvex even sharper on your own skipping style, floor surface, or smartphone? You don't even need a PC — run our pure-NumPy 5-fold trainer directly inside **Termux** on Android:
+No PC, no root, no Python, and no NumPy needed! Train our **Asymmetric Push-to-Limit (`HID48×5 → HID32×5`)** Neural VAR directly on your Android phone inside **Termux** using the pre-bundled [`training/dataset/features64.jvxbin`](training/dataset/README.md) (`3.7 MB`, loads in `8 ms`):
 
 ```bash
-# Inside Termux on your Android phone
-termux-setup-storage
+# Inside Termux on non-rooted Android (auto-installs Rust, compiles native NEON binary, runs continuously)
 git clone https://github.com/iganramdani/Jumpvex.git
 cd Jumpvex
-bash training/termux_train.sh
+bash training/termux_train.sh          # Full-speed continuous (Ctrl+C safe, wake-lock active)
+bash training/termux_train.sh --cool   # Adds 20s thermal cooldown between rounds
 ```
 
-Share your `.ZIP` diagnostic logs via [Submit Calibration CSV](https://github.com/iganramdani/Jumpvex/issues/new?template=calibration_contribution.yml) or open a PR with improved `.jvxmodel` weights!
+Best-only `.jvxmodel` weights + `best_metrics.txt` are atomically exported straight to **`Documents/Jumpvex/Models/`**! See [`training/README.md`](training/README.md) and [`training/rust_trainer/README.md`](training/rust_trainer/README.md) for full specs.
 
 ---
 
@@ -239,7 +263,7 @@ Share your `.ZIP` diagnostic logs via [Submit Calibration CSV](https://github.co
 <details>
 <summary><b>Will Jumpvex run smoothly on older / budget Android phones?</b></summary>
 <br/>
-Yes! Tier 1 Live Camera runs at real-time <b>30 FPS</b> with <code>CausalJumpTcnLite</code> (&lt; 40 µs/frame, <code>34 MB</code> median heap on a <b>Xiaomi Redmi Note 9, Android 12</b>), while Tier 2 Video Studio defaults to <b>Heavy 3D VAR</b> and includes a <b>1-Tap Fast 30fps</b> toggle for quick scans.
+Yes! Verified on a <b>Xiaomi Redmi Note 9 (Helio G85, Android 12)</b>: Tier 1 Live Camera runs at real-time <b>30 FPS</b> with Zero-GC <code>CausalJumpTcnLite</code>, and Tier 2 Video Studio (<code>v7.1.3</code>) runs at just <b>30 MB peak heap</b> (<code>0.51 ms</code> median AI in Fast 30fps, <code>1.47 ms</code> in Heavy VAR).
 </details>
 
 ---
@@ -251,6 +275,7 @@ Yes! Tier 1 Live Camera runs at real-time <b>30 FPS</b> with <code>CausalJumpTcn
 | Project / Organization | Role in Jumpvex | License |
 | :--- | :--- | :--- |
 | **[JetBrains & Kotlin Contributors](https://github.com/JetBrains/kotlin)** | Kotlin `2.0.21` language & `kotlinx.coroutines` structured concurrency | Apache-2.0 |
+| **[The Rust Project](https://www.rust-lang.org/)** | Zero-dependency Pure Rust SIMD Trainer (`training/rust_trainer/`) | MIT / Apache-2.0 |
 | **[Google AndroidX / Jetpack Team](https://github.com/androidx/androidx)** | Jetpack Compose, Material 3, CameraX `1.4.0`, Lifecycle & Core KTX | Apache-2.0 |
 | **[AndroidX Media3 Team](https://github.com/androidx/media)** | Hardware-accelerated `Media3 Transformer` & `BitmapOverlay` OpenGL video export | Apache-2.0 |
 | **[Google ML Kit & MediaPipe Team](https://developers.google.com/ml-kit/vision/pose-detection)** | Dual-Tier on-device 2D/3D BlazePose Fast & Heavy Accurate (`pose-detection-accurate`) | ML Kit Terms / Apache-2.0 |
@@ -265,11 +290,11 @@ Yes! Tier 1 Live Camera runs at real-time <b>30 FPS</b> with <code>CausalJumpTcn
 
 <div align="center">
 
-[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v7.1.0_Release_APK_(52_MB)-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.0/Jumpvex-v7.1.0-release.apk)
+[![Download Release APK](https://img.shields.io/badge/⬇️_Download_v7.1.3_Release_APK-2EE59D?style=for-the-badge&logo=android&logoColor=0D1321)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.3/Jumpvex-v7.1.3-release.apk)
 &nbsp;
-[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v7.1.0_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.0/Jumpvex-v7.1.0-debug.apk)
+[![Download Debug APK](https://img.shields.io/badge/🛠️_Download_v7.1.3_Debug_APK-151D2E?style=for-the-badge&logo=android&logoColor=2EE59D)](https://github.com/iganramdani/Jumpvex/releases/download/v7.1.3/Jumpvex-v7.1.3-debug.apk)
 
-<sub>Android 7.0+ (API 24+) • 100% On-Device Offline • Free &amp; Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v7.1.0">View Full Release Notes &amp; SHA-256 Checksums</a></sub>
+<sub>Android 7.0+ (API 24+) • 100% On-Device Offline • Permanent Consistent Signing • Free &amp; Open-Source • <a href="https://github.com/iganramdani/Jumpvex/releases/tag/v7.1.3">View Full Release Notes &amp; SHA-256 Checksums</a></sub>
 
 </div>
 

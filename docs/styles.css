@@ -189,3 +189,96 @@ footer {
   .btn-sm { white-space: nowrap; padding: 8px 12px; font-size: 0.8rem; }
   .section { padding: 18px 14px; }
 }
+
+/* Interactive Engine & Pure Rust SIMD Explorer */
+.engine-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.engine-tab {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.engine-tab:hover {
+  border-color: var(--mint);
+  color: var(--text);
+}
+.engine-tab.active {
+  background: var(--mint);
+  color: #0d1321;
+  border-color: var(--mint);
+}
+.engine-panel {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+@media (max-width: 780px) {
+  .engine-panel { grid-template-columns: 1fr; }
+}
+.engine-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+}
+.engine-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.engine-bar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+.engine-bar-track {
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
+  overflow: hidden;
+}
+.engine-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--mint), var(--cyan));
+  transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.engine-cmd-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.engine-cmd-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #090e18;
+  border: 1px solid rgba(46, 229, 157, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.engine-cmd-row code {
+  color: var(--mint);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

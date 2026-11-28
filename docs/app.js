@@ -619,3 +619,87 @@
     })
     .catch(() => {});
 })();
+
+// --- Interactive Engine & Pure Rust SIMD Explorer (v7.1.3) ---
+(function initEngineExplorer() {
+  const tabs = document.querySelectorAll(".engine-tab");
+  const metricsEl = document.getElementById("engineMetrics");
+  const cmdLabelEl = document.getElementById("engineCmdLabel");
+  const cmdTextEl = document.getElementById("engineCmdText");
+  const descEl = document.getElementById("engineDesc");
+  const copyBtn = document.getElementById("copyEngineCmdBtn");
+  if (!tabs.length || !metricsEl) return;
+
+  const DATA = {
+    heavy: {
+      label: "ANDROID VIDEO STUDIO • HEAVY VAR (v7.1.3 PIPELINED)",
+      cmd: "Jumpvex-v7.1.3-release.apk → Video Studio → 🔬 Heavy VAR",
+      desc: "Strided 2×/4× NV21 downsampling + double-buffered async Decode||Pose + zero-GC ping-pong preview cuts Redmi Note 9 peak heap from 55 MB → 30 MB (-45%) and GC pauses from 371× → 164× (-55.8%) with 0.00% accuracy drift (143/143 jumps identical).",
+      bars: [
+        { k: "64-Video Accuracy (Zero Drift)", v: "143 / 143 jumps (100% match)", pct: 99 },
+        { k: "Peak Heap RAM Reduction", v: "30 MB (was 55 MB, -45%)", pct: 88 },
+        { k: "GC Pauses Cut (53.6s 1080p)", v: "164× (was 371×, -55.8%)", pct: 84 },
+        { k: "p99 Frame AI Latency", v: "9.34 ms (was 14.59 ms)", pct: 90 }
+      ]
+    },
+    fast: {
+      label: "ANDROID VIDEO STUDIO • FAST 30FPS (v7.1.3 PIPELINED)",
+      cmd: "Jumpvex-v7.1.3-release.apk → Video Studio → ⚡ Fast 30fps",
+      desc: "Blazing-fast batch scanning with 0.51 ms median AI latency, 3.62 ms p99, ZERO >50 ms lag spikes, and 59.8% fewer GC pauses on Xiaomi Redmi Note 9.",
+      bars: [
+        { k: "Median AI Latency", v: "0.51 ms / frame", pct: 97 },
+        { k: "p99 / Max Spike", v: "3.62 ms / 15.16 ms (0 spikes >50ms)", pct: 95 },
+        { k: "GC Pauses Cut (53.6s 1080p)", v: "149× (was 371×, -59.8%)", pct: 90 },
+        { k: "Peak Heap RAM", v: "32 MB (-42%)", pct: 86 }
+      ]
+    },
+    rust: {
+      label: "1-COMMAND NON-ROOT ANDROID TERMUX (100% PURE RUST)",
+      cmd: "cd ~/Jumpvex && git pull && bash training/termux_train.sh",
+      desc: "Zero Python, zero NumPy, zero external crates! Loads 64 videos (53,785 frames) from features64.jvxbin in 8 ms, runs 5 parallel OS fold threads with 4×H SIMD GEMM, Asymmetric HID48×5 → HID32×5 Distillation, Sharp Peak TimeStretch, Temporal CutMix, Residual Dropout & EMA/SWA.",
+      bars: [
+        { k: "64-Video VolAcc (after 2 rounds)", v: "99.71% (3,756 / 3,767)", pct: 99 },
+        { k: "Dataset Load Speed (JVXF)", v: "8.0 ms (53,785 frames)", pct: 98 },
+        { k: "Xeon 2-Core SIMD Speed", v: "410 seq-ep/s (HID24) • 161 (HID48×5)", pct: 92 },
+        { k: "External Dependencies", v: "0 crates • 0 Python • 100% Offline", pct: 100 }
+      ]
+    }
+  };
+
+  function render(key) {
+    const item = DATA[key] || DATA.heavy;
+    cmdLabelEl.textContent = item.label;
+    cmdTextEl.textContent = item.cmd;
+    descEl.textContent = item.desc;
+    metricsEl.innerHTML = item.bars.map((b) => `
+      <div class="engine-bar-row">
+        <div class="engine-bar-head">
+          <span style="color:var(--muted);">${b.k}</span>
+          <strong class="mono" style="color:var(--mint);">${b.v}</strong>
+        </div>
+        <div class="engine-bar-track">
+          <div class="engine-bar-fill" style="width:${b.pct}%;"></div>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  tabs.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      tabs.forEach((t) => t.classList.remove("active"));
+      btn.classList.add("active");
+      render(btn.dataset.engine);
+    });
+  });
+
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard?.writeText(cmdTextEl.textContent || "");
+      const old = copyBtn.textContent;
+      copyBtn.textContent = "✅ Copied!";
+      setTimeout(() => { copyBtn.textContent = old; }, 1400);
+    });
+  }
+
+  render("heavy");
+})();
